@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cipherion</title>
+    <link rel="stylesheet" href="/style.css?v=20260829-modern1">
+</head>
+<body>
+    <!-- Экран входа -->
+    <div id="auth-screen" class="screen">
+        <div class="auth-box">
+            <h1>Cipherion</h1>
+            <div class="tabs">
+                <button class="tab active" data-tab="login">Вход</button>
+                <button class="tab" data-tab="register">Регистрация</button>
+            </div>
+            
+            <form id="login-form">
+                <input type="text" id="login-username" placeholder="Имя пользователя" required autocomplete="username">
+                <input type="password" id="login-password" placeholder="Пароль" required autocomplete="current-password">
+                <input type="password" id="login-cloud-password" placeholder="Облачный пароль (если включён)" autocomplete="current-password">
+                <button type="submit">Войти</button>
+            </form>
+            
+            <form id="register-form" class="hidden">
+                <input type="text" id="reg-username" placeholder="Логин" required autocomplete="username">
+                <input type="tel" id="reg-phone" placeholder="Номер телефона" required autocomplete="tel">
+                <div class="phone-code-row">
+                    <button type="button" id="reg-send-code" class="btn-secondary">Получить код</button>
+                    <input type="text" id="reg-phone-code" placeholder="Код из SMS" required maxlength="6">
+                </div>
+                <p id="reg-code-hint" class="photo-hint"></p>
+                <input type="email" id="reg-email" placeholder="Электронная почта" required autocomplete="email">
+                <input type="password" id="reg-password" placeholder="Пароль (минимум 4 символа)" required autocomplete="new-password">
+                <button type="submit">Зарегистрироваться</button>
+            </form>
+            
+            <p id="auth-error" class="error"></p>
+        </div>
+    </div>
+
+    <!-- Основной экран -->
+    <div id="app-screen" class="screen hidden">
+        <!-- Боковое меню (drawer) как в Telegram -->
+        <div id="drawer-overlay" class="drawer-overlay hidden"></div>
+        <nav id="drawer" class="drawer">
+            <div class="drawer-profile">
+                <div class="drawer-avatar" id="drawer-avatar">
+                    <span id="drawer-avatar-letter">?</span>
+                    <img id="drawer-avatar-img" class="hidden" alt="">
+                </div>
+                <div class="drawer-user-info">
+                    <div class="drawer-username" id="drawer-username"></div>
+                    <div class="drawer-status">в сети</div>
+                </div>
+            </div>
+            
+            <div class="drawer-menu">
+                <button class="drawer-item" id="menu-new-group">
+                    <span class="drawer-icon">👥</span>
+                    <span>Создать группу</span>
+                </button>
+                <button class="drawer-item" id="menu-new-channel">
+                    <span class="drawer-icon">📢</span>
+                    <span>Создать канал</span>
+                </button>
+                <button class="drawer-item" id="menu-saved">
+                    <span class="drawer-icon">💾</span>
+                    <span>Избранное</span>
+                </button>
+                <button class="drawer-item" id="menu-settings">
+                    <span class="drawer-icon">👤</span>
+                    <span>Мой профиль</span>
+                </button>
+                <button class="drawer-item drawer-item-vip" id="menu-vip">
+                    <span class="drawer-icon">👑</span>
+                    <span>Cipherion VIP</span>
+                    <span class="vip-badge-menu hidden" id="vip-menu-badge">VIP</span>
+                </button>
+                <button class="drawer-item" id="menu-app-settings">
+                    <span class="drawer-icon">⚙️</span>
+                    <span>Настройки</span>
+                </button>
+                
+                <div class="drawer-divider"></div>
+                
+                <button class="drawer-item" id="menu-theme">
+                    <span class="drawer-icon" id="theme-icon">☀️</span>
+                    <span id="theme-label">Светлый режим</span>
+                </button>
+                
+                <div class="drawer-divider"></div>
+                
+                <button class="drawer-item drawer-item-danger" id="logout-btn">
+                    <span class="drawer-icon">🚪</span>
+                    <span>Выйти</span>
+                </button>
+            </div>
+            
+            <div class="drawer-footer">
+                <span>Cipherion 4.5</span>
+            </div>
+        </nav>
+
+        <aside class="sidebar">
+            <div id="stories-row" class="stories-row hidden"></div>
+            
+            <div class="sidebar-header">
+                <button id="menu-btn" class="menu-btn" title="Меню">
+                    <span></span><span></span><span></span>
+                </button>
+                <div class="search-box-header">
+                    <input type="text" id="user-search" placeholder="Поиск по имени или телефону">
+                </div>
+            </div>
+            
+            <div class="section-title">Чаты</div>
+            <div id="chats-list" class="list"></div>
+            
+            <div class="section-title">Пользователи</div>
+            <div id="users-list" class="list"></div>
+        </aside>
+        
+        <main class="chat-area">
+            <div id="no-chat" class="no-chat">
+                <div class="no-chat-content">
+                    <div class="no-chat-icon">💬</div>
+                    <p>Выберите чат или пользователя</p>
+                </div>
+            </div>
+            
+            <div id="chat-view" class="hidden">
+                <header class="chat-header">
+                    <button id="back-btn" class="back-btn hidden" title="Назад">←</button>
+                    <h3 id="chat-title" class="chat-title-clickable"></h3>
+                    <button id="chat-info-btn" class="chat-info-btn hidden" title="Профиль группы">⋮</button>
+                </header>
+                
+                <div id="messages" class="messages"></div>
+                
+                <div id="sticker-panel" class="sticker-panel hidden"></div>
+                
+                <form id="message-form" class="message-form">
+                    <button type="button" id="sticker-btn" class="attach-btn" title="Стикеры">😊</button>
+                    <button type="button" id="attach-btn" class="attach-btn" title="Прикрепить фото">📎</button>
+                    <input type="file" id="image-input" accept="image/*" hidden>
+                    <button type="button" id="video-note-btn" class="attach-btn" title="Видеокружок">📷</button>
+                    <button type="button" id="voice-btn" class="voice-btn" title="Нажмите чтобы записать, ещё раз — отправить">🎤</button>
+                    <div id="recording-indicator" class="recording-indicator hidden">
+                        <span class="rec-dot"></span>
+                        <span id="rec-timer">0:00</span>
+                        <button type="button" id="cancel-rec-btn" title="Отменить">✕</button>
+                        <button type="button" id="send-rec-btn" class="send-rec-btn" title="Отправить">➤</button>
+                    </div>
+                    <input type="text" id="message-input" placeholder="Сообщение" autocomplete="off">
+                    <button type="submit" title="Отправить">➤</button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модалка новой группы -->
+    <div id="group-modal" class="modal hidden">
+        <div class="modal-box">
+            <h3>Создать группу</h3>
+            <input type="text" id="group-name" placeholder="Название группы">
+            <div id="group-users-list" class="group-users-list"></div>
+            <div class="modal-actions">
+                <button id="group-cancel" class="btn-secondary">Отмена</button>
+                <button id="group-create" class="btn-primary">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка создания канала -->
+    <div id="channel-modal" class="modal hidden">
+        <div class="modal-box">
+            <h3>Создать канал</h3>
+            <input type="text" id="channel-name" placeholder="Название канала">
+            <textarea id="channel-desc" rows="3" placeholder="Описание канала (необязательно)" maxlength="500"></textarea>
+            <p class="photo-hint" style="margin-bottom:12px">В канале писать может только создатель. Подписчиков можно добавить после создания.</p>
+            <div class="modal-actions">
+                <button id="channel-cancel" class="btn-secondary">Отмена</button>
+                <button id="channel-create" class="btn-primary">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Мой профиль -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-box settings-box">
+            <h3>Мой профиль</h3>
+            
+            <div class="profile-photo-section">
+                <div class="profile-photo-preview" id="profile-photo-preview">
+                    <span id="profile-letter">?</span>
+                    <img id="profile-img" class="hidden" alt="">
+                </div>
+                <div class="profile-photo-actions">
+                    <label class="btn-primary photo-upload-btn">
+                        Выбрать фото
+                        <input type="file" id="avatar-input" accept="image/*" hidden>
+                    </label>
+                    <button type="button" id="remove-avatar-btn" class="btn-secondary hidden">Удалить</button>
+                </div>
+                <p class="photo-hint">JPG, PNG или WebP. Макс. 3 МБ</p>
+            </div>
+            
+            <div class="settings-field">
+                <label>Логин (для входа)</label>
+                <input type="text" id="settings-username" readonly>
+            </div>
+            
+            <div class="settings-field">
+                <label>Имя пользователя (@)</label>
+                <div class="handle-input">
+                    <span class="handle-prefix">@</span>
+                    <input type="text" id="settings-handle" placeholder="nickname" maxlength="50">
+                </div>
+                <p class="photo-hint">Латиница, цифры и _. Видят другие пользователи</p>
+            </div>
+            
+            <div class="settings-field">
+                <label>Номер телефона</label>
+                <input type="tel" id="settings-phone" placeholder="+7 900 000-00-00">
+            </div>
+            
+            <div class="settings-field">
+                <label>Электронная почта</label>
+                <input type="email" id="settings-email" placeholder="name@example.com">
+            </div>
+            
+            <div class="settings-field">
+                <label>О себе</label>
+                <textarea id="settings-bio" rows="3" placeholder="Расскажите о себе..." maxlength="300"></textarea>
+            </div>
+            
+            <div class="settings-field">
+                <label>День рождения</label>
+                <input type="date" id="settings-birthday">
+            </div>
+            
+            <div class="modal-actions">
+                <button id="settings-close" class="btn-secondary">Отмена</button>
+                <button id="settings-save" class="btn-primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка настроек группы -->
+    <div id="group-settings-modal" class="modal hidden">
+        <div class="modal-box settings-box">
+            <h3>Настройки группы</h3>
+            
+            <div class="profile-photo-section">
+                <div class="profile-photo-preview" id="group-photo-preview">
+                    <span id="group-letter">?</span>
+                    <img id="group-img" class="hidden" alt="">
+                </div>
+                <div class="profile-photo-actions">
+                    <label class="btn-primary photo-upload-btn">
+                        Фото группы
+                        <input type="file" id="group-avatar-input" accept="image/*" hidden>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="settings-field">
+                <label>Название</label>
+                <input type="text" id="group-settings-name">
+            </div>
+            <div class="settings-field">
+                <label>Описание группы</label>
+                <textarea id="group-settings-desc" rows="2" maxlength="500" placeholder="О чём группа"></textarea>
+            </div>
+            <div class="settings-field">
+                <label>Тип группы</label>
+                <select id="group-settings-type">
+                    <option value="private">Частная</option>
+                    <option value="public">Публичная</option>
+                </select>
+            </div>
+            <div class="settings-field">
+                <label>Реакции на сообщения</label>
+                <input type="text" id="group-settings-reactions" placeholder="👍,❤️,😂,😮,😢,🔥">
+            </div>
+            
+            <div class="section-title" style="padding-left:0">Участники</div>
+            <div id="group-members-list" class="group-users-list"></div>
+            
+            <div class="section-title" style="padding-left:0">Добавить участников</div>
+            <div id="group-add-users-list" class="group-users-list"></div>
+            
+            <div class="section-title" style="padding-left:0">Назначить админов</div>
+            <div id="group-admins-list" class="group-users-list"></div>
+            
+            <button type="button" id="group-start-call" class="btn-primary" style="width:100%;margin:12px 0">📹 Начать видеочат</button>
+            <button type="button" id="group-delete-btn" class="btn-secondary" style="width:100%;margin-bottom:12px;color:#f87171">🗑 Удалить группу</button>
+            
+            <div class="modal-actions">
+                <button id="group-settings-cancel" class="btn-secondary">Закрыть</button>
+                <button id="group-settings-save" class="btn-primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cipherion VIP -->
+    <div id="vip-modal" class="modal hidden">
+        <div class="modal-box vip-box">
+            <div class="vip-header">
+                <button type="button" id="vip-close-x" class="modal-close-x" title="Закрыть">×</button>
+                <div class="vip-crown">👑</div>
+                <h3>Cipherion VIP</h3>
+                <p class="vip-subtitle">Премиум-статус в мессенджере</p>
+            </div>
+            
+            <ul class="vip-features">
+                <li><span>🔐</span> Сообщения с AES-шифрованием</li>
+                <li><span>🎙</span> Расшифровка голосовых сообщений</li>
+                <li><span>📖</span> Истории (24 часа) над поиском</li>
+                <li><span>😎</span> Эмодзи-статус вместо значка VIP</li>
+                <li><span>🎨</span> Эксклюзивные VIP-стикеры</li>
+            </ul>
+            
+            <div id="vip-status-active" class="vip-status active hidden">
+                <p>У вас активен <strong>Cipherion VIP</strong></p>
+                <div class="settings-field" style="text-align:left;margin-top:12px">
+                    <label>Эмодзи-статус</label>
+                    <div class="emoji-status-picker" id="emoji-status-picker"></div>
+                    <input type="text" id="vip-emoji-status" maxlength="4" placeholder="Например 🔥">
+                </div>
+                <button id="vip-save-status" class="btn-primary" style="width:100%;margin-bottom:10px">Сохранить статус</button>
+                <button id="vip-add-story" class="btn-primary" style="width:100%;margin-bottom:10px">➕ Добавить историю</button>
+                <button id="vip-deactivate-btn" class="btn-secondary">Отключить VIP</button>
+            </div>
+            
+            <div id="vip-status-inactive" class="vip-status">
+                <p class="vip-price">Демо-режим — бесплатно</p>
+                <button id="vip-activate-btn" class="btn-vip">Активировать VIP</button>
+            </div>
+            
+            <div class="modal-actions" style="margin-top:16px">
+                <button id="vip-close" class="btn-secondary">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Настройки приложения -->
+    <div id="app-settings-modal" class="modal hidden">
+        <div class="modal-box app-settings-box">
+            <div class="app-settings-layout">
+                <aside class="app-settings-nav">
+                    <h3>Настройки</h3>
+                    <button class="app-set-nav active" data-section="security">🔒 Безопасность</button>
+                    <button class="app-set-nav" data-section="chat-style">🎨 Оформление чатов</button>
+                    <button class="app-set-nav" data-section="language">🌐 Язык</button>
+                    <button class="app-set-nav" data-section="av">🔊 Звук и видео</button>
+                    <button class="app-set-nav" data-section="anim">✨ Анимации и стикеры</button>
+                    <button class="app-set-nav" data-section="notif">🔔 Уведомления</button>
+                </aside>
+                <div class="app-settings-content">
+                    <!-- Безопасность -->
+                    <div class="app-set-section" id="set-security">
+                        <h4>Безопасность</h4>
+                        <label class="set-row"><span>Облачный пароль</span><input type="password" id="set-cloud-password" placeholder="Новый пароль"></label>
+                        <label class="set-row"><span>Код-пароль</span><input type="password" id="set-passcode" placeholder="4–6 цифр" maxlength="6"></label>
+                        <label class="set-row"><span>Исчезающие сообщения (сек.)</span>
+                            <select id="set-disappear"><option value="0">Выкл</option><option value="30">30</option><option value="60">60</option><option value="300">5 мин</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто видит мой номер</span>
+                            <select id="set-privacy-phone"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто видит мою почту</span>
+                            <select id="set-privacy-email"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто видит, когда я в сети</span>
+                            <select id="set-privacy-online"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто видит фото профиля</span>
+                            <select id="set-privacy-avatar"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто видит описание профиля</span>
+                            <select id="set-privacy-bio"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <label class="set-row"><span>Кто может приглашать в группы</span>
+                            <select id="set-privacy-invite"><option value="all">Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option><option value="none">—</option></select>
+                        </label>
+                        <div class="section-title" style="padding-left:0;margin-top:12px">Чёрный список</div>
+                        <div id="blacklist-box" class="group-users-list"></div>
+                        <div class="section-title" style="padding-left:0;margin-top:12px">Активные сеансы</div>
+                        <div id="sessions-box" class="group-users-list"></div>
+                        <p class="set-hint">Сообщения шифруются AES. SMS-код при регистрации — демо (код показывается в интерфейсе).</p>
+                    </div>
+                    
+                    <!-- Оформление чатов -->
+                    <div class="app-set-section hidden" id="set-chat-style">
+                        <h4>Оформление чатов</h4>
+                        <label class="set-row">
+                            <span>Размер шрифта</span>
+                            <select id="set-font-size">
+                                <option value="14">Маленький</option>
+                                <option value="15" selected>Обычный</option>
+                                <option value="17">Крупный</option>
+                                <option value="19">Очень крупный</option>
+                            </select>
+                        </label>
+                        <label class="set-row">
+                            <span>Плотность сообщений</span>
+                            <select id="set-msg-density">
+                                <option value="compact">Компактно</option>
+                                <option value="normal" selected>Обычная</option>
+                                <option value="relaxed">Свободная</option>
+                            </select>
+                        </label>
+                        <label class="set-row">
+                            <span>Цвет своих сообщений</span>
+                            <select id="set-bubble-color">
+                                <option value="default" selected>Фиолетовый</option>
+                                <option value="blue">Синий</option>
+                                <option value="green">Зелёный</option>
+                                <option value="rose">Розовый</option>
+                            </select>
+                        </label>
+                        <label class="set-row">
+                            <span>Показывать время у сообщений</span>
+                            <input type="checkbox" id="set-show-time" checked>
+                        </label>
+                    </div>
+                    
+                    <!-- Язык -->
+                    <div class="app-set-section hidden" id="set-lang-section">
+                        <h4>Язык</h4>
+                        <label class="set-row">
+                            <span>Язык интерфейса</span>
+                            <select id="set-language">
+                                <option value="ru" selected>Русский</option>
+                                <option value="en">English</option>
+                                <option value="uk">Українська</option>
+                            </select>
+                        </label>
+                        <p class="set-hint">Смена языка применится к основным подписям интерфейса.</p>
+                    </div>
+                    
+                    <!-- Звук и видео -->
+                    <div class="app-set-section hidden" id="set-av">
+                        <h4>Звук и видео</h4>
+                        <label class="set-row">
+                            <span>Звук отправки сообщения</span>
+                            <input type="checkbox" id="set-sound-send" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Звук входящего сообщения</span>
+                            <input type="checkbox" id="set-sound-recv" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Автовоспроизведение голосовых</span>
+                            <input type="checkbox" id="set-autoplay-voice">
+                        </label>
+                        <label class="set-row">
+                            <span>Качество фото при отправке</span>
+                            <select id="set-photo-quality">
+                                <option value="high" selected>Высокое</option>
+                                <option value="medium">Среднее</option>
+                                <option value="low">Сжатое</option>
+                            </select>
+                        </label>
+                    </div>
+                    
+                    <!-- Анимации и стикеры -->
+                    <div class="app-set-section hidden" id="set-anim">
+                        <h4>Анимации и стикеры</h4>
+                        <label class="set-row">
+                            <span>Анимации интерфейса</span>
+                            <input type="checkbox" id="set-animations" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Крупные стикеры в чате</span>
+                            <input type="checkbox" id="set-big-stickers" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Анимация панели стикеров</span>
+                            <input type="checkbox" id="set-sticker-anim" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Уменьшить движение (доступность)</span>
+                            <input type="checkbox" id="set-reduce-motion">
+                        </label>
+                    </div>
+                    
+                    <!-- Уведомления -->
+                    <div class="app-set-section hidden" id="set-notif">
+                        <h4>Уведомления</h4>
+                        <label class="set-row">
+                            <span>Уведомления в браузере</span>
+                            <input type="checkbox" id="set-browser-notif" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Показывать текст сообщения</span>
+                            <input type="checkbox" id="set-notif-preview" checked>
+                        </label>
+                        <label class="set-row">
+                            <span>Уведомлять только при упоминании</span>
+                            <input type="checkbox" id="set-notif-mention">
+                        </label>
+                        <label class="set-row">
+                            <span>Не беспокоить</span>
+                            <input type="checkbox" id="set-dnd">
+                        </label>
+                        <button type="button" id="set-test-notif" class="btn-secondary" style="margin-top:12px">Проверить уведомление</button>
+                    </div>
+                    
+                    <div class="modal-actions" style="margin-top:20px">
+                        <button id="app-settings-close" class="btn-secondary">Закрыть</button>
+                        <button id="app-settings-save" class="btn-primary">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Просмотр историй внутри приложения -->
+    <div id="story-viewer" class="story-viewer hidden">
+        <div class="story-viewer-inner">
+            <div class="story-progress" id="story-progress"></div>
+            <button type="button" id="story-viewer-close" class="story-viewer-close">×</button>
+            <div class="story-viewer-meta">
+                <span id="story-viewer-name"></span>
+                <span id="story-viewer-time"></span>
+            </div>
+            <div class="story-viewer-body" id="story-viewer-body"></div>
+            <div class="story-reactions-bar">
+                <button type="button" data-re="❤️">❤️</button>
+                <button type="button" data-re="🔥">🔥</button>
+                <button type="button" data-re="😂">😂</button>
+                <button type="button" data-re="😮">😮</button>
+                <button type="button" data-re="😢">😢</button>
+                <button type="button" data-re="👏">👏</button>
+            </div>
+            <div class="story-reply-bar">
+                <input type="text" id="story-reply-input" placeholder="Комментарий к этой истории…" autocomplete="off">
+                <button type="button" id="story-reply-send">➤</button>
+            </div>
+            <div id="story-reply-tip" class="story-reply-tip hidden">Ответ отправлен</div>
+            <div class="story-viewer-nav">
+                <button type="button" id="story-prev">‹</button>
+                <button type="button" id="story-next">›</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Создание истории (только VIP) -->
+    <div id="story-compose-modal" class="modal hidden">
+        <div class="modal-box">
+            <h3>Новая история</h3>
+            <p class="photo-hint">Только Cipherion VIP · 24 часа</p>
+            <div class="story-font-toolbar">
+                <button type="button" class="font-btn active" data-font="default">Обычный</button>
+                <button type="button" class="font-btn" data-font="serif">Serif</button>
+                <button type="button" class="font-btn" data-font="mono">Mono</button>
+                <button type="button" class="font-btn" data-font="hand">Рукопись</button>
+                <button type="button" class="font-btn" data-font="bold">Жирный</button>
+            </div>
+            <textarea id="story-compose-text" class="story-font-default" rows="4" maxlength="500" placeholder="Текст истории"></textarea>
+            <div class="story-pos-controls">
+                <label>Позиция текста по горизонтали <input type="range" id="story-text-x" min="5" max="95" value="50"></label>
+                <label>Позиция текста по вертикали <input type="range" id="story-text-y" min="5" max="95" value="70"></label>
+            </div>
+            <div class="story-compose-preview" id="story-compose-preview">
+                <div class="story-compose-preview-text story-font-default" id="story-compose-preview-text">Текст на фото</div>
+            </div>
+            <div class="story-compose-stickers" id="story-compose-stickers"></div>
+            <input type="hidden" id="story-compose-sticker" value="">
+            <input type="file" id="story-compose-file" accept="image/*">
+            <div class="modal-actions">
+                <button type="button" id="story-compose-cancel" class="btn-secondary">Отмена</button>
+                <button type="button" id="story-compose-send" class="btn-primary">Опубликовать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Запись видеокружка -->
+    <div id="video-note-overlay" class="video-note-overlay hidden">
+        <div class="video-note-box">
+            <video id="video-note-preview" autoplay muted playsinline></video>
+            <div class="video-note-timer" id="video-note-timer">0:00</div>
+            <div class="video-note-actions">
+                <button type="button" id="video-note-cancel" class="btn-secondary">Отмена</button>
+                <button type="button" id="video-note-stop" class="btn-primary">Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js?v=20260829-initfix3"></script>
+</body>
+</html>
