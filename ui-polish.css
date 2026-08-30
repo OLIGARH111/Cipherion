@@ -72,7 +72,6 @@ body.light {
   display: none !important;
 }
 
-/* Search takes full header without hamburger */
 .sidebar-header {
   padding-left: 14px !important;
 }
@@ -147,16 +146,28 @@ body.light .mobile-nav-item.active {
   transform: scale(0.94);
 }
 
-/* Space for floating sausage nav */
+/* Hide bottom nav on auth / registration */
+body:not(.app-ready) .mobile-bottom-nav,
+#auth-screen:not(.hidden) ~ .mobile-bottom-nav,
+#auth-screen:not(.hidden) ~ * .mobile-bottom-nav {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* app-screen visible => allow nav (unless in chat) */
+body.app-ready .mobile-bottom-nav {
+  display: grid !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+body.app-ready.mobile-in-chat .mobile-bottom-nav {
+  display: none !important;
+}
+
 @media (max-width: 760px) {
   .sidebar {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  .mobile-bottom-nav {
-    display: grid !important;
-  }
-  body.mobile-in-chat .mobile-bottom-nav {
-    display: none !important;
   }
 }
 
@@ -196,7 +207,6 @@ body.light .mobile-nav-item.active {
   box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.12);
 }
 
-/* Pinned bar at top of chat */
 .pinned-bar {
   display: flex;
   align-items: center;
@@ -315,7 +325,6 @@ body.light .quick-menu-handle {
   margin: 6px 12px;
 }
 
-/* Inputs liquid glass */
 .search-box-header input,
 #message-input,
 .auth-box input {
@@ -324,7 +333,6 @@ body.light .quick-menu-handle {
   backdrop-filter: blur(8px);
 }
 
-/* Attach / voice glass circles */
 .attach-btn,
 .voice-btn {
   background: rgba(255,255,255,0.08) !important;
