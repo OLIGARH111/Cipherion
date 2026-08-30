@@ -1,4 +1,4 @@
-/* Cipherion mobile: settings screen, pin fix, auth gate */
+/* Cipherion mobile: flat settings, pin, auth gate */
 (function () {
   function isMobile() {
     return window.matchMedia('(max-width: 760px)').matches;
@@ -35,12 +35,35 @@
     syncAppReady();
   }
 
-  /* ===== Settings panel (like chats list) ===== */
+  function openAppSection(section) {
+    // Map to data-section buttons in app-settings-modal
+    const map = {
+      security: 'security',
+      chat: 'chat-style',
+      language: 'language',
+      sound: 'av',
+      anim: 'anim',
+      notif: 'notif'
+    };
+    const key = map[section] || section;
+    document.getElementById('menu-app-settings')?.click();
+    setTimeout(() => {
+      const btn = document.querySelector('.app-set-nav[data-section="' + key + '"]');
+      btn?.click();
+    }, 80);
+  }
+
   function ensureSettingsPanel() {
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return null;
     let panel = document.getElementById('settings-panel');
-    if (panel) return panel;
+    if (panel) {
+      // upgrade content if old nested version
+      if (!panel.querySelector('[data-sp="security"]')) {
+        panel.remove();
+        panel = null;
+      } else return panel;
+    }
     panel = document.createElement('div');
     panel.id = 'settings-panel';
     panel.innerHTML = `
@@ -54,8 +77,14 @@
       </div>
       <div class="sp-section">Аккаунт</div>
       <button type="button" class="sp-item" data-sp="profile"><span class="sp-ico">👤</span>Мой профиль</button>
-      <button type="button" class="sp-item" data-sp="app"><span class="sp-ico">⚙️</span>Настройки приложения</button>
       <button type="button" class="sp-item" data-sp="vip"><span class="sp-ico">👑</span>Cipherion VIP</button>
+      <div class="sp-section">Приватность и приложение</div>
+      <button type="button" class="sp-item" data-sp="security"><span class="sp-ico">🔒</span>Безопасность</button>
+      <button type="button" class="sp-item" data-sp="chat"><span class="sp-ico">🎨</span>Оформление чатов</button>
+      <button type="button" class="sp-item" data-sp="language"><span class="sp-ico">🌐</span>Язык</button>
+      <button type="button" class="sp-item" data-sp="sound"><span class="sp-ico">🔊</span>Звук и медиа</button>
+      <button type="button" class="sp-item" data-sp="anim"><span class="sp-ico">✨</span>Анимации</button>
+      <button type="button" class="sp-item" data-sp="notif"><span class="sp-ico">🔔</span>Уведомления</button>
       <div class="sp-section">Создать</div>
       <button type="button" class="sp-item" data-sp="group"><span class="sp-ico">👥</span>Создать группу</button>
       <button type="button" class="sp-item" data-sp="channel"><span class="sp-ico">📢</span>Создать канал</button>
@@ -72,15 +101,15 @@
       if (!btn) return;
       const a = btn.getAttribute('data-sp');
       if (a === 'profile') document.getElementById('menu-settings')?.click();
-      else if (a === 'app') document.getElementById('menu-app-settings')?.click();
       else if (a === 'vip') document.getElementById('menu-vip')?.click();
+      else if (a === 'security' || a === 'chat' || a === 'language' || a === 'sound' || a === 'anim' || a === 'notif') openAppSection(a);
       else if (a === 'group') document.getElementById('menu-new-group')?.click();
       else if (a === 'channel') document.getElementById('menu-new-channel')?.click();
       else if (a === 'saved') document.getElementById('menu-saved')?.click();
-      else if (a === 'theme') document.getElementById('menu-theme')?.click();
-      else if (a === 'logout') document.getElementById('logout-btn')?.click();
-      // refresh theme label after toggle
-      setTimeout(fillSettingsProfile, 50);
+      else if (a === 'theme') {
+        document.getElementById('menu-theme')?.click();
+        setTimeout(fillSettingsProfile, 50);
+      } else if (a === 'logout') document.getElementById('logout-btn')?.click();
     });
     return panel;
   }
@@ -92,11 +121,8 @@
     const a = document.getElementById('sp-avatar');
     if (n) n.textContent = name || 'Пользователь';
     if (a) {
-      if (avUrl) {
-        a.innerHTML = '<img src="' + avUrl + '" alt="">';
-      } else {
-        a.textContent = (name || '?')[0].toUpperCase();
-      }
+      if (avUrl) a.innerHTML = '<img src="' + avUrl + '" alt="">';
+      else a.textContent = (name || '?')[0].toUpperCase();
     }
     const light = document.body.classList.contains('light');
     const ico = document.getElementById('sp-theme-ico');
@@ -116,13 +142,11 @@
   }
 
   function closeSettingsView() {
-    const sidebar = document.querySelector('.sidebar');
-    sidebar?.classList.remove('mobile-settings-view');
+    document.querySelector('.sidebar')?.classList.remove('mobile-settings-view');
     const panel = document.getElementById('settings-panel');
     if (panel) panel.style.display = 'none';
   }
 
-  /* ===== Pin ===== */
   function ensurePinnedBar() {
     const chatView = document.getElementById('chat-view');
     if (!chatView) return null;
@@ -151,9 +175,7 @@
       bar.querySelector('.pin-text').textContent = String(text || '').trim().slice(0, 80);
       bar.classList.remove('hidden');
       bar.onclick = () => pinned.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      bar.classList.add('hidden');
-    }
+    } else bar.classList.add('hidden');
   }
 
   async function pinMessage(id, msgEl) {
@@ -170,15 +192,12 @@
         alert(data.detail || 'Не удалось закрепить');
         return;
       }
-      const pinned = !!data.is_pinned;
-      if (pinned) {
+      if (data.is_pinned) {
         document.querySelectorAll('#messages .message.pinned-msg').forEach((m) => {
           if (m !== msgEl) m.classList.remove('pinned-msg');
         });
         msgEl?.classList.add('pinned-msg');
-      } else {
-        msgEl?.classList.remove('pinned-msg');
-      }
+      } else msgEl?.classList.remove('pinned-msg');
       refreshPinnedBar();
     } catch (e) {
       alert('Ошибка закрепления');
@@ -189,7 +208,6 @@
     document.querySelectorAll('.msg-pin').forEach((btn) => {
       if (btn.__pinBound2) return;
       btn.__pinBound2 = true;
-      // Remove duplicate listeners by cloning
       const fresh = btn.cloneNode(true);
       fresh.__pinBound2 = true;
       btn.parentNode.replaceChild(fresh, btn);
@@ -197,9 +215,7 @@
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        const id = fresh.dataset.id;
-        const msg = fresh.closest('.message');
-        pinMessage(id, msg);
+        pinMessage(fresh.dataset.id, fresh.closest('.message'));
       });
     });
   }
@@ -261,7 +277,7 @@
           document.getElementById('users-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else if (view === 'settings') {
           openSettingsView();
-        } else if (view === 'calls') {
+        } else {
           closeSettingsView();
           sidebar?.classList.remove('mobile-contacts-view');
         }
