@@ -7,9 +7,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f0f13">
     <title>Cipherion</title>
-    <link rel="stylesheet" href="/style.css?v=20260830-fix2">
-    <link rel="stylesheet" href="/mobile-phone.css?v=20260830-fix2">
-    <link rel="stylesheet" href="/ui-polish.css?v=20260830-fix2">
+    <link rel="stylesheet" href="/style.css?v=20260830-v3">
+    <link rel="stylesheet" href="/mobile-phone.css?v=20260830-v3">
+    <link rel="stylesheet" href="/ui-polish.css?v=20260830-v3">
+    <link rel="stylesheet" href="/ui-v3.css?v=20260830-v3">
 </head>
 <body>
     <div id="auth-screen" class="screen">
@@ -70,16 +71,17 @@
         </nav>
 
         <aside class="sidebar">
-            <div id="stories-row" class="stories-row hidden"></div>
+            <div id="stories-row" class="stories-row"></div>
             <div class="sidebar-header">
                 <button id="menu-btn" class="menu-btn" title="Меню" style="display:none"><span></span><span></span><span></span></button>
                 <div class="search-box-header">
-                    <input type="text" id="user-search" placeholder="Поиск по имени или телефону">
+                    <input type="text" id="user-search" placeholder="Поиск">
                 </div>
             </div>
-            <div class="section-title">Чаты</div>
+            <div class="chats-page-title">Чаты</div>
+            <div class="section-title section-title-chats" style="display:none">Чаты</div>
             <div id="chats-list" class="list"></div>
-            <div class="section-title">Пользователи</div>
+            <div class="section-title section-title-users">Контакты</div>
             <div id="users-list" class="list"></div>
         </aside>
 
@@ -87,23 +89,19 @@
             <div id="no-chat" class="no-chat">
                 <div class="no-chat-content">
                     <div class="no-chat-icon">💬</div>
-                    <p>Выберите чат или пользователя</p>
+                    <p>Выберите чат</p>
                 </div>
             </div>
             <div id="chat-view" class="hidden">
                 <header class="chat-header">
                     <button id="back-btn" class="back-btn" title="Назад">←</button>
                     <h3 id="chat-title" class="chat-title-clickable"></h3>
-                    <button id="chat-info-btn" class="chat-info-btn hidden" title="Профиль группы">⋮</button>
+                    <button id="chat-info-btn" class="chat-info-btn hidden" title="Инфо">⋮</button>
                 </header>
                 <div id="messages" class="messages"></div>
                 <div id="sticker-panel" class="sticker-panel hidden"></div>
                 <form id="message-form" class="message-form">
-                    <button type="button" id="sticker-btn" class="attach-btn" title="Стикеры">😊</button>
-                    <button type="button" id="attach-btn" class="attach-btn" title="Прикрепить фото">📎</button>
-                    <input type="file" id="image-input" accept="image/*" hidden>
-                    <button type="button" id="video-note-btn" class="attach-btn" title="Видеокружок">📷</button>
-                    <button type="button" id="voice-btn" class="voice-btn" title="Голосовое">🎤</button>
+                    <button type="button" id="voice-btn" class="voice-btn" title="Голосовое / кружок">🎤</button>
                     <div id="recording-indicator" class="recording-indicator hidden">
                         <span class="rec-dot"></span>
                         <span id="rec-timer">0:00</span>
@@ -111,6 +109,10 @@
                         <button type="button" id="send-rec-btn" class="send-rec-btn" title="Отправить">➤</button>
                     </div>
                     <input type="text" id="message-input" placeholder="Сообщение" autocomplete="off">
+                    <button type="button" id="attach-btn" class="attach-btn" title="Прикрепить">📎</button>
+                    <button type="button" id="sticker-btn" class="attach-btn" title="Стикеры" style="display:none">😊</button>
+                    <button type="button" id="video-note-btn" class="attach-btn" title="Кружок" style="display:none">📷</button>
+                    <input type="file" id="image-input" accept="image/*" hidden>
                     <button type="submit" title="Отправить" aria-label="Отправить"></button>
                 </form>
             </div>
@@ -134,7 +136,8 @@
     <div id="story-compose-modal" class="modal hidden"><div class="modal-box"><h3>История</h3><div class="story-font-toolbar"><button type="button" class="font-btn active" data-font="default">Обычный</button><button type="button" class="font-btn" data-font="serif">Serif</button><button type="button" class="font-btn" data-font="mono">Mono</button><button type="button" class="font-btn" data-font="hand">Рукопись</button><button type="button" class="font-btn" data-font="bold">Жирный</button></div><textarea id="story-compose-text" rows="4" maxlength="500"></textarea><div class="story-pos-controls"><label>X <input type="range" id="story-text-x" min="5" max="95" value="50"></label><label>Y <input type="range" id="story-text-y" min="5" max="95" value="70"></label></div><div class="story-compose-preview" id="story-compose-preview"><div class="story-compose-preview-text" id="story-compose-preview-text">Текст</div></div><div class="story-compose-stickers" id="story-compose-stickers"></div><input type="hidden" id="story-compose-sticker" value=""><input type="file" id="story-compose-file" accept="image/*"><div class="modal-actions"><button type="button" id="story-compose-cancel" class="btn-secondary">Отмена</button><button type="button" id="story-compose-send" class="btn-primary">Опубликовать</button></div></div></div>
     <div id="video-note-overlay" class="video-note-overlay hidden"><div class="video-note-box"><video id="video-note-preview" autoplay muted playsinline></video><div class="video-note-timer" id="video-note-timer">0:00</div><div class="video-note-actions"><button type="button" id="video-note-cancel" class="btn-secondary">Отмена</button><button type="button" id="video-note-stop" class="btn-primary">Отправить</button></div></div></div>
 
-    <script src="/app.js?v=20260830-fix2"></script>
-    <script src="/mobile-nav.js?v=20260830-fix2"></script>
+    <script src="/app.js?v=20260830-v3"></script>
+    <script src="/mobile-nav.js?v=20260830-v3"></script>
+    <script src="/ui-v3.js?v=20260830-v3"></script>
 </body>
 </html>
