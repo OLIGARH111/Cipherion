@@ -1,4 +1,4 @@
-"""Media upload routes for voice messages and video notes."""
+"""Media upload routes for voice messages, video notes, and transcription."""
 from fastapi import Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 import os
@@ -39,6 +39,7 @@ def register_media_uploads(
             "media_url": msg.media_url,
             "is_encrypted": False,
             "is_pinned": bool(getattr(msg, "is_pinned", False)),
+            "transcript": getattr(msg, "transcript", None),
             "created_at": msg.created_at.isoformat() if msg.created_at else None,
             "read_status": "delivered",
         }
@@ -201,3 +202,103 @@ def register_media_uploads(
         payload["type"] = "new_message"
         await manager.send_to_chat(chat_id, payload)
         return payload
+
+    @app.post("/messages/{message_id}/transcribe")
+    async def transcribe_voice(
+        message_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        """VIP voice transcription. Uses OpenAI Whisper if OPENAI_API_KEY is set, else demo text."""
+        user = db.query(User).filter(User.id == current_user.id).first()
+        if not user or not getattr(user, "is_vip", False):
+            raise HTTPException(status_code=403, detail="Расшифровка доступна только Cipherion VIP")
+
+        msg = db.query(Message).filter(Message.id == message_id).first()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Сообщение не найдено")
+        if msg.message_type != "voice":
+            raise HTTPException(status_code=400, detail="Можно расшифровать только голосовое")
+
+        member = (
+            db.query(ChatMember)
+            .filter(ChatMember.chat_id == msg.chat_id, ChatMember.user_id == current_user.id)
+            .first()
+        )
+        if not member:
+            raise HTTPException(status_code=403, detail="Нет доступа")
+
+        if msg.transcript:
+            return {"ok": True, "transcript": msg.transcript, "cached": True}
+
+        transcript = None
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("WHISPER_API_KEY")
+        media_path = None
+        if msg.media_url:
+            # /uploads/voices/filename
+            rel = msg.media_url.lstrip("/")
+            if os.path.isfile(rel):
+                media_path = rel
+
+        if api_key and media_path:
+            try:
+                import urllib.request
+                import json as _json
+
+                boundary = "----CipherionBoundary" + uuid.uuid4().hex[:8]
+                with open(media_path, "rb") as f:
+                    audio_bytes = f.read()
+                fname = os.path.basename(media_path)
+                body = (
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="model"\r\n\r\n'
+                    f"whisper-1\r\n"
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="language"\r\n\r\n'
+                    f"ru\r\n"
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="file"; filename="{fname}"\r\n'
+                    f"Content-Type: application/octet-stream\r\n\r\n"
+                ).encode() + audio_bytes + f"\r\n--{boundary}--\r\n".encode()
+
+                req = urllib.request.Request(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    data=body,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    data = _json.loads(resp.read().decode())
+                    transcript = (data.get("text") or "").strip()
+            except Exception as exc:
+                transcript = None
+
+        if not transcript:
+            dur = msg.content or "?"
+            transcript = (
+                f"🎤 Голосовое сообщение (~{dur} сек). "
+                f"Текст распознан в демо-режиме. "
+                f"Для точной расшифровки задайте OPENAI_API_KEY на сервере."
+            )
+
+        msg.transcript = transcript[:2000]
+        db.commit()
+        db.refresh(msg)
+
+        try:
+            await manager.send_to_chat(
+                msg.chat_id,
+                {
+                    "type": "voice_transcribed",
+                    "chat_id": msg.chat_id,
+                    "message_id": msg.id,
+                    "transcript": msg.transcript,
+                },
+            )
+        except Exception:
+            pass
+
+        return {"ok": True, "transcript": msg.transcript, "cached": False}
