@@ -269,6 +269,10 @@ async def serve_mobile_phone_css():
 async def serve_ui_polish_css():
     return FileResponse("ui-polish.css", media_type="text/css")
 
+@app.get("/ui-v3.css")
+async def serve_ui_v3_css():
+    return FileResponse("ui-v3.css", media_type="text/css")
+
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
@@ -276,6 +280,10 @@ async def serve_app_js():
 @app.get("/mobile-nav.js")
 async def serve_mobile_nav_js():
     return FileResponse("mobile-nav.js", media_type="application/javascript")
+
+@app.get("/ui-v3.js")
+async def serve_ui_v3_js():
+    return FileResponse("ui-v3.js", media_type="application/javascript")
 
 @app.post("/auth/send-code")
 async def send_phone_code(phone: str = Form(...)):
@@ -295,15 +303,11 @@ main_api.mount(app, manager, get_current_user, get_user_from_token, get_user_by_
                VOICE_DIR, AVATAR_DIR, IMAGE_DIR, GROUP_AVATAR_DIR, STORY_DIR, VIDEO_NOTE_DIR,
                VIP_STICKER_SET, phone_codes, encrypt_text, decrypt_text)
 
-# Voice / video note / image uploads
 from media_uploads import register_media_uploads  # noqa: E402
 register_media_uploads(
-    app,
-    manager,
-    get_current_user,
-    assert_can_send_to_chat,
-    VOICE_DIR,
-    IMAGE_DIR,
-    VIDEO_NOTE_DIR,
-    GROUP_AVATAR_DIR,
+    app, manager, get_current_user, assert_can_send_to_chat,
+    VOICE_DIR, IMAGE_DIR, VIDEO_NOTE_DIR, GROUP_AVATAR_DIR,
 )
+
+from chat_info import register_chat_info  # noqa: E402
+register_chat_info(app, get_current_user, can_view_private_field, private_profile_payload)
