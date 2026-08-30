@@ -265,6 +265,10 @@ async def serve_style_css():
 async def serve_mobile_phone_css():
     return FileResponse("mobile-phone.css", media_type="text/css")
 
+@app.get("/ui-polish.css")
+async def serve_ui_polish_css():
+    return FileResponse("ui-polish.css", media_type="text/css")
+
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
