@@ -20,10 +20,9 @@ import string
 
 phone_codes: Dict[str, str] = {}
 
-# ==================== НАСТРОЙКИ ====================
 SECRET_KEY = os.getenv("CIPHERION_SECRET_KEY", "change-this-secret-before-public-deploy")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 дней
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 init_crypto(SECRET_KEY)
 
@@ -50,11 +49,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 app = FastAPI(title="Cipherion")
 
-# Uploads are deliberately *not* mounted as a public StaticFiles directory.
-# Every file is served by ``get_upload`` below, which authenticates the request
-# and checks the viewer's access to the corresponding resource.
-
-# ==================== УТИЛИТЫ ====================
 def verify_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
 
@@ -81,12 +75,6 @@ async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    """Authenticate using Bearer token or the secure HttpOnly session cookie.
-
-    The browser app primarily uses localStorage + Bearer, while the cookie is a
-    resilient fallback after a refresh/tab restore. This also prevents a brief
-    token race from turning a healthy session into a forced logout.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Не удалось проверить учётные данные",
@@ -102,15 +90,12 @@ async def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-
     user = get_user_by_username(db, username)
     if user is None:
         raise credentials_exception
     return user
 
-
 def get_user_from_token(token: Optional[str], db: Session) -> Optional[User]:
-    """Return a user for a bearer/cookie token without turning a bad token into 500."""
     if not token:
         return None
     try:
@@ -119,9 +104,7 @@ def get_user_from_token(token: Optional[str], db: Session) -> Optional[User]:
         return None
     return get_user_by_username(db, username) if username else None
 
-
 def users_are_contacts(db: Session, first_id: int, second_id: int) -> bool:
-    """This app has no contact table; a mutual private chat is its contact relation."""
     if first_id == second_id:
         return True
     shared = db.query(ChatMember.chat_id).filter(ChatMember.user_id == first_id).subquery()
@@ -133,16 +116,13 @@ def users_are_contacts(db: Session, first_id: int, second_id: int) -> bool:
         Chat.is_favorites == False,
     ).first() is not None
 
-
 def is_blocked_between(db: Session, first_id: int, second_id: int) -> bool:
     return db.query(Blacklist).filter(
         ((Blacklist.user_id == first_id) & (Blacklist.blocked_user_id == second_id)) |
         ((Blacklist.user_id == second_id) & (Blacklist.blocked_user_id == first_id))
     ).first() is not None
 
-
 def can_view_private_field(db: Session, owner: User, viewer: User, field: str) -> bool:
-    """Apply privacy server-side; never rely on a client hiding a value."""
     if owner.id == viewer.id:
         return True
     if is_blocked_between(db, owner.id, viewer.id):
@@ -152,11 +132,9 @@ def can_view_private_field(db: Session, owner: User, viewer: User, field: str) -
         return True
     if setting == "contacts":
         return users_are_contacts(db, owner.id, viewer.id)
-    return False  # nobody and none
-
+    return False
 
 def private_profile_payload(db: Session, owner: User, viewer: User) -> dict:
-    """The only representation of another user's private profile fields."""
     visible = lambda field: can_view_private_field(db, owner, viewer, field)
     avatar = owner.avatar_url if visible("avatar") else None
     return {
@@ -174,39 +152,30 @@ def private_profile_payload(db: Session, owner: User, viewer: User) -> dict:
         "emoji_status": getattr(owner, "emoji_status", None),
     }
 
-
 def assert_can_send_to_chat(db: Session, chat: Chat, sender_id: int) -> None:
-    """A blacklist cannot be bypassed through an already-created private chat."""
     if chat and not chat.is_group and not getattr(chat, "is_channel", False) and not getattr(chat, "is_favorites", False):
         other = db.query(ChatMember).filter(ChatMember.chat_id == chat.id, ChatMember.user_id != sender_id).first()
         if other and is_blocked_between(db, sender_id, other.user_id):
             raise HTTPException(status_code=403, detail="Нельзя отправлять сообщения заблокированному пользователю")
 
-
 def assert_can_invite(db: Session, inviter: User, target: User) -> None:
     if is_blocked_between(db, inviter.id, target.id) or not can_view_private_field(db, target, inviter, "invite"):
         raise HTTPException(status_code=403, detail="Этот пользователь запретил приглашения в группы")
 
-# ==================== МЕНЕДЖЕР ПОДКЛЮЧЕНИЙ ====================
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, WebSocket] = {}
-    
     def is_online(self, user_id: int) -> bool:
         return user_id in self.active_connections
-    
     async def connect(self, user_id: int, websocket: WebSocket):
-        # Если уже есть старое соединение — закрываем
         old = self.active_connections.get(user_id)
         if old is not None and old is not websocket:
             try:
                 await old.close(code=4000)
             except Exception:
                 pass
-        
         await websocket.accept()
         self.active_connections[user_id] = websocket
-        
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.id == user_id).first()
@@ -216,23 +185,16 @@ class ConnectionManager:
                 db.commit()
         finally:
             db.close()
-        
         await self.broadcast_user_status(user_id, True)
-    
     async def disconnect(self, user_id: int, websocket: WebSocket = None):
-        # Не снимаем онлайн, если это уже новое соединение
         current = self.active_connections.get(user_id)
         if websocket is not None and current is not None and current is not websocket:
             return
-        
         if user_id in self.active_connections:
             if websocket is None or self.active_connections.get(user_id) is websocket:
                 del self.active_connections[user_id]
-        
-        # Если пользователь снова онлайн (переподключился) — не ставим offline
         if user_id in self.active_connections:
             return
-        
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.id == user_id).first()
@@ -242,16 +204,13 @@ class ConnectionManager:
                 db.commit()
         finally:
             db.close()
-        
         await self.broadcast_user_status(user_id, False)
-    
     async def send_personal(self, user_id: int, message: dict):
         if user_id in self.active_connections:
             try:
                 await self.active_connections[user_id].send_json(message)
             except Exception:
                 pass
-    
     async def broadcast_user_status(self, user_id: int, is_online: bool):
         db = SessionLocal()
         owner = db.query(User).filter(User.id == user_id).first()
@@ -265,8 +224,6 @@ class ConnectionManager:
                 await ws.send_json({
                     "type": "user_status",
                     "user_id": user_id,
-                    # A hidden status is always reported as offline; the actual
-                    # presence bit never leaves the server for this viewer.
                     "is_online": bool(is_online and visible)
                 })
             except Exception:
@@ -274,13 +231,11 @@ class ConnectionManager:
         db.close()
         for uid in dead:
             self.active_connections.pop(uid, None)
-    
     async def send_to_chat(self, chat_id: int, message: dict, exclude_user: int = None):
         db = SessionLocal()
         members = db.query(ChatMember).filter(ChatMember.chat_id == chat_id).all()
         member_ids = [m.user_id for m in members]
         db.close()
-        
         for uid in member_ids:
             if uid != exclude_user and uid in self.active_connections:
                 try:
@@ -289,8 +244,6 @@ class ConnectionManager:
                     pass
 
 manager = ConnectionManager()
-
-# ==================== REST API ====================
 
 @app.on_event("startup")
 def startup():
@@ -319,5 +272,14 @@ async def send_phone_code(phone: str = Form(...)):
         raise HTTPException(status_code=400, detail="Некорректный номер")
     code = "".join(random.choices(string.digits, k=6))
     phone_codes[phone_clean] = code
-    # Демо: код возвращается в ответе (в проде уходит SMS)
     return {"ok": True, "demo_code": code, "message": "Код отправлен (демо-режим)"}
+
+# Load the rest of the API from the companion module (restored from git history)
+import main_api  # noqa: E402
+main_api.mount(app, manager, get_current_user, get_user_from_token, get_user_by_username,
+               authenticate_user, create_access_token, get_password_hash, verify_password,
+               private_profile_payload, can_view_private_field, assert_can_send_to_chat,
+               assert_can_invite, is_blocked_between, users_are_contacts,
+               SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES,
+               VOICE_DIR, AVATAR_DIR, IMAGE_DIR, GROUP_AVATAR_DIR, STORY_DIR, VIDEO_NOTE_DIR,
+               VIP_STICKER_SET, phone_codes, encrypt_text, decrypt_text)
