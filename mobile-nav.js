@@ -1,4 +1,4 @@
-/* Cipherion mobile: sausage nav, quick menu, pin bar, auth-hide nav */
+/* Cipherion mobile: settings screen, pin fix, auth gate */
 (function () {
   function isMobile() {
     return window.matchMedia('(max-width: 760px)').matches;
@@ -7,16 +7,16 @@
   function syncAppReady() {
     const auth = document.getElementById('auth-screen');
     const app = document.getElementById('app-screen');
-    const onApp = app && !app.classList.contains('hidden');
-    document.body.classList.toggle('app-ready', !!onApp);
-    // Extra: hide nav while auth visible
+    const onApp = !!(app && !app.classList.contains('hidden'));
+    document.body.classList.toggle('app-ready', onApp);
     const nav = document.getElementById('mobile-bottom-nav');
-    if (nav) {
-      if (auth && !auth.classList.contains('hidden')) {
-        nav.style.display = 'none';
-      } else if (onApp && !document.body.classList.contains('mobile-in-chat')) {
-        nav.style.display = '';
-      }
+    if (!nav) return;
+    if (!onApp || (auth && !auth.classList.contains('hidden'))) {
+      nav.style.setProperty('display', 'none', 'important');
+    } else if (document.body.classList.contains('mobile-in-chat')) {
+      nav.style.setProperty('display', 'none', 'important');
+    } else if (isMobile()) {
+      nav.style.setProperty('display', 'grid', 'important');
     }
   }
 
@@ -25,14 +25,104 @@
     document.querySelector('.sidebar')?.classList.add('hidden-mobile');
     document.querySelector('.chat-area')?.classList.add('chat-open');
     document.body.classList.add('mobile-in-chat');
+    syncAppReady();
   }
 
   function leaveChatMobile() {
     document.querySelector('.sidebar')?.classList.remove('hidden-mobile');
     document.querySelector('.chat-area')?.classList.remove('chat-open');
     document.body.classList.remove('mobile-in-chat');
+    syncAppReady();
   }
 
+  /* ===== Settings panel (like chats list) ===== */
+  function ensureSettingsPanel() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return null;
+    let panel = document.getElementById('settings-panel');
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = 'settings-panel';
+    panel.innerHTML = `
+      <div class="sp-header">Настройки</div>
+      <div class="sp-profile" data-sp="profile">
+        <div class="sp-av" id="sp-avatar">?</div>
+        <div>
+          <div class="sp-name" id="sp-username">Пользователь</div>
+          <div class="sp-sub">Мой профиль ›</div>
+        </div>
+      </div>
+      <div class="sp-section">Аккаунт</div>
+      <button type="button" class="sp-item" data-sp="profile"><span class="sp-ico">👤</span>Мой профиль</button>
+      <button type="button" class="sp-item" data-sp="app"><span class="sp-ico">⚙️</span>Настройки приложения</button>
+      <button type="button" class="sp-item" data-sp="vip"><span class="sp-ico">👑</span>Cipherion VIP</button>
+      <div class="sp-section">Создать</div>
+      <button type="button" class="sp-item" data-sp="group"><span class="sp-ico">👥</span>Создать группу</button>
+      <button type="button" class="sp-item" data-sp="channel"><span class="sp-ico">📢</span>Создать канал</button>
+      <button type="button" class="sp-item" data-sp="saved"><span class="sp-ico">💾</span>Избранное</button>
+      <div class="sp-section">Внешний вид</div>
+      <button type="button" class="sp-item" data-sp="theme"><span class="sp-ico" id="sp-theme-ico">☀️</span><span id="sp-theme-label">Светлый режим</span></button>
+      <div class="sp-section">Сессия</div>
+      <button type="button" class="sp-item danger" data-sp="logout"><span class="sp-ico">🚪</span>Выйти</button>
+    `;
+    sidebar.appendChild(panel);
+
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sp]');
+      if (!btn) return;
+      const a = btn.getAttribute('data-sp');
+      if (a === 'profile') document.getElementById('menu-settings')?.click();
+      else if (a === 'app') document.getElementById('menu-app-settings')?.click();
+      else if (a === 'vip') document.getElementById('menu-vip')?.click();
+      else if (a === 'group') document.getElementById('menu-new-group')?.click();
+      else if (a === 'channel') document.getElementById('menu-new-channel')?.click();
+      else if (a === 'saved') document.getElementById('menu-saved')?.click();
+      else if (a === 'theme') document.getElementById('menu-theme')?.click();
+      else if (a === 'logout') document.getElementById('logout-btn')?.click();
+      // refresh theme label after toggle
+      setTimeout(fillSettingsProfile, 50);
+    });
+    return panel;
+  }
+
+  function fillSettingsProfile() {
+    const name = localStorage.getItem('username') || '';
+    const avUrl = localStorage.getItem('avatarUrl');
+    const n = document.getElementById('sp-username');
+    const a = document.getElementById('sp-avatar');
+    if (n) n.textContent = name || 'Пользователь';
+    if (a) {
+      if (avUrl) {
+        a.innerHTML = '<img src="' + avUrl + '" alt="">';
+      } else {
+        a.textContent = (name || '?')[0].toUpperCase();
+      }
+    }
+    const light = document.body.classList.contains('light');
+    const ico = document.getElementById('sp-theme-ico');
+    const lab = document.getElementById('sp-theme-label');
+    if (ico) ico.textContent = light ? '🌙' : '☀️';
+    if (lab) lab.textContent = light ? 'Тёмный режим' : 'Светлый режим';
+  }
+
+  function openSettingsView() {
+    ensureSettingsPanel();
+    fillSettingsProfile();
+    leaveChatMobile();
+    const sidebar = document.querySelector('.sidebar');
+    sidebar?.classList.remove('mobile-contacts-view');
+    sidebar?.classList.add('mobile-settings-view');
+    document.getElementById('settings-panel')?.style.setProperty('display', 'flex');
+  }
+
+  function closeSettingsView() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar?.classList.remove('mobile-settings-view');
+    const panel = document.getElementById('settings-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  /* ===== Pin ===== */
   function ensurePinnedBar() {
     const chatView = document.getElementById('chat-view');
     if (!chatView) return null;
@@ -43,11 +133,8 @@
       bar.className = 'pinned-bar hidden';
       bar.innerHTML = '<span class="pin-icon">📌</span><span class="pin-text"></span>';
       const header = chatView.querySelector('.chat-header');
-      if (header && header.nextSibling) {
-        chatView.insertBefore(bar, header.nextSibling);
-      } else {
-        chatView.insertBefore(bar, chatView.firstChild);
-      }
+      if (header && header.nextSibling) chatView.insertBefore(bar, header.nextSibling);
+      else chatView.insertBefore(bar, chatView.firstChild);
     }
     return bar;
   }
@@ -61,7 +148,7 @@
         pinned.querySelector('.message-sticker')?.textContent ||
         pinned.querySelector('div:not(.message-sender):not(.message-time):not(.msg-actions)')?.textContent ||
         'Закреплённое сообщение';
-      bar.querySelector('.pin-text').textContent = text.trim().slice(0, 80);
+      bar.querySelector('.pin-text').textContent = String(text || '').trim().slice(0, 80);
       bar.classList.remove('hidden');
       bar.onclick = () => pinned.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
@@ -69,42 +156,50 @@
     }
   }
 
+  async function pinMessage(id, msgEl) {
+    const tok = localStorage.getItem('token');
+    if (!id || !tok) return;
+    try {
+      const res = await fetch('/messages/' + id + '/pin', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + tok },
+        credentials: 'same-origin'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.detail || 'Не удалось закрепить');
+        return;
+      }
+      const pinned = !!data.is_pinned;
+      if (pinned) {
+        document.querySelectorAll('#messages .message.pinned-msg').forEach((m) => {
+          if (m !== msgEl) m.classList.remove('pinned-msg');
+        });
+        msgEl?.classList.add('pinned-msg');
+      } else {
+        msgEl?.classList.remove('pinned-msg');
+      }
+      refreshPinnedBar();
+    } catch (e) {
+      alert('Ошибка закрепления');
+    }
+  }
+
   function enhancePinButtons() {
     document.querySelectorAll('.msg-pin').forEach((btn) => {
-      if (btn.__pinBound) return;
-      btn.__pinBound = true;
-      btn.addEventListener('click', async (e) => {
+      if (btn.__pinBound2) return;
+      btn.__pinBound2 = true;
+      // Remove duplicate listeners by cloning
+      const fresh = btn.cloneNode(true);
+      fresh.__pinBound2 = true;
+      btn.parentNode.replaceChild(fresh, btn);
+      fresh.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const id = btn.dataset.id;
-        const tok = localStorage.getItem('token');
-        if (!id || !tok) return;
-        try {
-          const res = await fetch('/messages/' + id + '/pin', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + tok },
-            credentials: 'same-origin'
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            alert(data.detail || 'Не удалось закрепить');
-            return;
-          }
-          const msg = btn.closest('.message');
-          if (msg) {
-            if (data.is_pinned) {
-              document.querySelectorAll('#messages .message.pinned-msg').forEach((m) => {
-                if (m !== msg) m.classList.remove('pinned-msg');
-              });
-              msg.classList.add('pinned-msg');
-            } else {
-              msg.classList.remove('pinned-msg');
-            }
-          }
-          refreshPinnedBar();
-        } catch (err) {
-          alert('Ошибка закрепления');
-        }
+        e.stopImmediatePropagation();
+        const id = fresh.dataset.id;
+        const msg = fresh.closest('.message');
+        pinMessage(id, msg);
       });
     });
   }
@@ -117,81 +212,6 @@
       enhancePinButtons();
       refreshPinnedBar();
     }).observe(messages, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-  }
-
-  function ensureQuickMenu() {
-    if (document.getElementById('quick-menu-sheet')) return;
-    const sheet = document.createElement('div');
-    sheet.id = 'quick-menu-sheet';
-    sheet.className = 'quick-menu-sheet hidden';
-    sheet.innerHTML = `
-      <div class="quick-menu-panel">
-        <div class="quick-menu-handle"></div>
-        <div class="quick-menu-profile">
-          <div class="avatar" id="qm-avatar">?</div>
-          <div>
-            <div id="qm-username" style="font-weight:600;font-size:16px"></div>
-            <div style="font-size:12px;opacity:.7;margin-top:2px">в сети</div>
-          </div>
-        </div>
-        <button type="button" class="quick-menu-item" data-action="profile"><span class="quick-menu-icon">👤</span>Мой профиль</button>
-        <button type="button" class="quick-menu-item" data-action="settings"><span class="quick-menu-icon">⚙️</span>Настройки</button>
-        <button type="button" class="quick-menu-item" data-action="group"><span class="quick-menu-icon">👥</span>Создать группу</button>
-        <button type="button" class="quick-menu-item" data-action="channel"><span class="quick-menu-icon">📢</span>Создать канал</button>
-        <button type="button" class="quick-menu-item" data-action="saved"><span class="quick-menu-icon">💾</span>Избранное</button>
-        <button type="button" class="quick-menu-item" data-action="vip"><span class="quick-menu-icon">👑</span>Cipherion VIP</button>
-        <div class="quick-menu-divider"></div>
-        <button type="button" class="quick-menu-item" data-action="theme"><span class="quick-menu-icon" id="qm-theme-icon">☀️</span><span id="qm-theme-label">Светлый режим</span></button>
-        <div class="quick-menu-divider"></div>
-        <button type="button" class="quick-menu-item danger" data-action="logout"><span class="quick-menu-icon">🚪</span>Выйти</button>
-      </div>`;
-    document.body.appendChild(sheet);
-    sheet.addEventListener('click', (e) => {
-      if (e.target === sheet) closeQuickMenu();
-    });
-    sheet.querySelectorAll('[data-action]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const a = btn.dataset.action;
-        closeQuickMenu();
-        if (a === 'profile') document.getElementById('menu-settings')?.click();
-        else if (a === 'settings') document.getElementById('menu-app-settings')?.click();
-        else if (a === 'group') document.getElementById('menu-new-group')?.click();
-        else if (a === 'channel') document.getElementById('menu-new-channel')?.click();
-        else if (a === 'saved') document.getElementById('menu-saved')?.click();
-        else if (a === 'vip') document.getElementById('menu-vip')?.click();
-        else if (a === 'theme') document.getElementById('menu-theme')?.click();
-        else if (a === 'logout') document.getElementById('logout-btn')?.click();
-      });
-    });
-  }
-
-  function openQuickMenu() {
-    ensureQuickMenu();
-    const sheet = document.getElementById('quick-menu-sheet');
-    const name = localStorage.getItem('username') || '';
-    const avUrl = localStorage.getItem('avatarUrl');
-    const qmName = document.getElementById('qm-username');
-    const qmAv = document.getElementById('qm-avatar');
-    if (qmName) qmName.textContent = name;
-    if (qmAv) {
-      if (avUrl) {
-        qmAv.classList.add('has-photo');
-        qmAv.innerHTML = '<img src="' + avUrl + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
-      } else {
-        qmAv.classList.remove('has-photo');
-        qmAv.textContent = (name || '?')[0].toUpperCase();
-      }
-    }
-    const light = document.body.classList.contains('light');
-    const icon = document.getElementById('qm-theme-icon');
-    const label = document.getElementById('qm-theme-label');
-    if (icon) icon.textContent = light ? '🌙' : '☀️';
-    if (label) label.textContent = light ? 'Тёмный режим' : 'Светлый режим';
-    sheet.classList.remove('hidden');
-  }
-
-  function closeQuickMenu() {
-    document.getElementById('quick-menu-sheet')?.classList.add('hidden');
   }
 
   function watchChatView() {
@@ -233,12 +253,17 @@
         leaveChatMobile();
         const sidebar = document.querySelector('.sidebar');
         if (view === 'chats') {
+          closeSettingsView();
           sidebar?.classList.remove('mobile-contacts-view');
         } else if (view === 'contacts') {
+          closeSettingsView();
           sidebar?.classList.add('mobile-contacts-view');
           document.getElementById('users-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else if (view === 'settings') {
-          openQuickMenu();
+          openSettingsView();
+        } else if (view === 'calls') {
+          closeSettingsView();
+          sidebar?.classList.remove('mobile-contacts-view');
         }
       });
     });
@@ -252,18 +277,19 @@
     setupBottomNav();
     ensurePinnedBar();
     enhancePinButtons();
+    ensureSettingsPanel();
     syncAppReady();
     document.getElementById('menu-btn')?.style.setProperty('display', 'none', 'important');
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
   window.addEventListener('load', init);
   setTimeout(init, 300);
   setTimeout(syncAppReady, 800);
 
-  window.__cipherionMobile = { enterChatMobile, leaveChatMobile, openQuickMenu, closeQuickMenu, refreshPinnedBar, syncAppReady };
+  window.__cipherionMobile = {
+    enterChatMobile, leaveChatMobile, openSettingsView, closeSettingsView,
+    refreshPinnedBar, syncAppReady, pinMessage
+  };
 })();
