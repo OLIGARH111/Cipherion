@@ -261,9 +261,17 @@ async def root():
 async def serve_style_css():
     return FileResponse("style.css", media_type="text/css")
 
+@app.get("/mobile-phone.css")
+async def serve_mobile_phone_css():
+    return FileResponse("mobile-phone.css", media_type="text/css")
+
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
+
+@app.get("/mobile-nav.js")
+async def serve_mobile_nav_js():
+    return FileResponse("mobile-nav.js", media_type="application/javascript")
 
 @app.post("/auth/send-code")
 async def send_phone_code(phone: str = Form(...)):
@@ -274,7 +282,6 @@ async def send_phone_code(phone: str = Form(...)):
     phone_codes[phone_clean] = code
     return {"ok": True, "demo_code": code, "message": "Код отправлен (демо-режим)"}
 
-# Load the rest of the API from the companion module (restored from git history)
 import main_api  # noqa: E402
 main_api.mount(app, manager, get_current_user, get_user_from_token, get_user_by_username,
                authenticate_user, create_access_token, get_password_hash, verify_password,
