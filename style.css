@@ -2475,5 +2475,4 @@ body {
   .drawer{z-index:1100}
   body.dark .mobile-bottom-nav{background:rgba(24,28,27,.92);border-color:rgba(255,255,255,.08);color:#ddd}
   body.dark .mobile-nav-item{color:#9ca5a2}
-  body.dark .mobile-nav-item.active{color:#34d399}
-}
+  body.dark .mobile-nav-item.active{color:#
