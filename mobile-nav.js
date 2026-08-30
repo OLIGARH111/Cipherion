@@ -1,7 +1,23 @@
-/* Cipherion mobile: sausage nav, quick menu, pin bar */
+/* Cipherion mobile: sausage nav, quick menu, pin bar, auth-hide nav */
 (function () {
   function isMobile() {
     return window.matchMedia('(max-width: 760px)').matches;
+  }
+
+  function syncAppReady() {
+    const auth = document.getElementById('auth-screen');
+    const app = document.getElementById('app-screen');
+    const onApp = app && !app.classList.contains('hidden');
+    document.body.classList.toggle('app-ready', !!onApp);
+    // Extra: hide nav while auth visible
+    const nav = document.getElementById('mobile-bottom-nav');
+    if (nav) {
+      if (auth && !auth.classList.contains('hidden')) {
+        nav.style.display = 'none';
+      } else if (onApp && !document.body.classList.contains('mobile-in-chat')) {
+        nav.style.display = '';
+      }
+    }
   }
 
   function enterChatMobile() {
@@ -61,11 +77,12 @@
         e.preventDefault();
         e.stopPropagation();
         const id = btn.dataset.id;
-        if (!id || !window.token) return;
+        const tok = localStorage.getItem('token');
+        if (!id || !tok) return;
         try {
           const res = await fetch('/messages/' + id + '/pin', {
             method: 'POST',
-            headers: { Authorization: 'Bearer ' + window.token },
+            headers: { Authorization: 'Bearer ' + tok },
             credentials: 'same-origin'
           });
           const data = await res.json().catch(() => ({}));
@@ -75,7 +92,6 @@
           }
           const msg = btn.closest('.message');
           if (msg) {
-            // unpin others in UI for single pin feel
             if (data.is_pinned) {
               document.querySelectorAll('#messages .message.pinned-msg').forEach((m) => {
                 if (m !== msg) m.classList.remove('pinned-msg');
@@ -97,11 +113,10 @@
     const messages = document.getElementById('messages');
     if (!messages || messages.__pinObs) return;
     messages.__pinObs = true;
-    const obs = new MutationObserver(() => {
+    new MutationObserver(() => {
       enhancePinButtons();
       refreshPinnedBar();
-    });
-    obs.observe(messages, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    }).observe(messages, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   }
 
   function ensureQuickMenu() {
@@ -131,11 +146,9 @@
         <button type="button" class="quick-menu-item danger" data-action="logout"><span class="quick-menu-icon">🚪</span>Выйти</button>
       </div>`;
     document.body.appendChild(sheet);
-
     sheet.addEventListener('click', (e) => {
       if (e.target === sheet) closeQuickMenu();
     });
-
     sheet.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const a = btn.dataset.action;
@@ -155,8 +168,8 @@
   function openQuickMenu() {
     ensureQuickMenu();
     const sheet = document.getElementById('quick-menu-sheet');
-    const name = window.username || localStorage.getItem('username') || '';
-    const avUrl = window.myAvatarUrl || localStorage.getItem('avatarUrl');
+    const name = localStorage.getItem('username') || '';
+    const avUrl = localStorage.getItem('avatarUrl');
     const qmName = document.getElementById('qm-username');
     const qmAv = document.getElementById('qm-avatar');
     if (qmName) qmName.textContent = name;
@@ -191,6 +204,15 @@
     }).observe(chatView, { attributes: true, attributeFilter: ['class'] });
   }
 
+  function watchAuthApp() {
+    const auth = document.getElementById('auth-screen');
+    const app = document.getElementById('app-screen');
+    const obs = new MutationObserver(syncAppReady);
+    if (auth) obs.observe(auth, { attributes: true, attributeFilter: ['class'] });
+    if (app) obs.observe(app, { attributes: true, attributeFilter: ['class'] });
+    syncAppReady();
+  }
+
   function bindBack() {
     const backBtn = document.getElementById('back-btn');
     if (!backBtn || backBtn.__mobileBound) return;
@@ -217,29 +239,20 @@
           document.getElementById('users-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else if (view === 'settings') {
           openQuickMenu();
-        } else if (view === 'calls') {
-          // placeholder
         }
       });
     });
   }
 
-  // Expose token for pin fetch
-  Object.defineProperty(window, 'token', {
-    get() {
-      return localStorage.getItem('token');
-    },
-    configurable: true
-  });
-
   function init() {
     bindBack();
     watchChatView();
     watchMessages();
+    watchAuthApp();
     setupBottomNav();
     ensurePinnedBar();
     enhancePinButtons();
-    // hide legacy drawer triggers
+    syncAppReady();
     document.getElementById('menu-btn')?.style.setProperty('display', 'none', 'important');
   }
 
@@ -250,6 +263,7 @@
   }
   window.addEventListener('load', init);
   setTimeout(init, 300);
+  setTimeout(syncAppReady, 800);
 
-  window.__cipherionMobile = { enterChatMobile, leaveChatMobile, openQuickMenu, closeQuickMenu, refreshPinnedBar };
+  window.__cipherionMobile = { enterChatMobile, leaveChatMobile, openQuickMenu, closeQuickMenu, refreshPinnedBar, syncAppReady };
 })();
