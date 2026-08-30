@@ -294,3 +294,16 @@ main_api.mount(app, manager, get_current_user, get_user_from_token, get_user_by_
                SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES,
                VOICE_DIR, AVATAR_DIR, IMAGE_DIR, GROUP_AVATAR_DIR, STORY_DIR, VIDEO_NOTE_DIR,
                VIP_STICKER_SET, phone_codes, encrypt_text, decrypt_text)
+
+# Voice / video note / image uploads
+from media_uploads import register_media_uploads  # noqa: E402
+register_media_uploads(
+    app,
+    manager,
+    get_current_user,
+    assert_can_send_to_chat,
+    VOICE_DIR,
+    IMAGE_DIR,
+    VIDEO_NOTE_DIR,
+    GROUP_AVATAR_DIR,
+)
