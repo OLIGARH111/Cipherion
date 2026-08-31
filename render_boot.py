@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Cipherion")
@@ -16,6 +17,25 @@ MEDIA = {
     ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon",
     ".woff": "font/woff", ".woff2": "font/woff2",
 }
+
+BOOTSTRAP = r'''<script>
+(() => {
+  const style = document.createElement('style');
+  style.textContent = `html,body{margin:0!important;width:100%!important;min-height:100%!important;background:#022c22!important}#auth-screen{display:flex!important;min-height:100vh;align-items:center;justify-content:center}#auth-screen.hidden{display:flex!important}.auth-box{display:block!important;visibility:visible!important;opacity:1!important}`;
+  document.head.appendChild(style);
+  window.addEventListener('error', e => {
+    console.error('Cipherion JS error:', e.error || e.message);
+    const box = document.getElementById('auth-screen');
+    if (box && !box.querySelector('.boot-error')) {
+      const p = document.createElement('p');
+      p.className = 'boot-error';
+      p.style.cssText = 'color:#fca5a5;text-align:center;margin-top:12px;font:14px system-ui;';
+      p.textContent = 'Интерфейс загружен. Ошибка JavaScript: ' + (e.message || 'неизвестная ошибка');
+      box.querySelector('.auth-box')?.appendChild(p);
+    }
+  });
+})();
+</script>'''
 
 
 def load_backend():
@@ -51,7 +71,10 @@ async def health():
 
 @app.get("/")
 async def root():
-    return FileResponse(BASE / "index.html", media_type=MEDIA[".html"])
+    html = (BASE / "index.html").read_text(encoding="utf-8")
+    if "Cipherion JS error" not in html:
+        html = html.replace("</body>", BOOTSTRAP + "</body>")
+    return HTMLResponse(html)
 
 
 @app.middleware("http")
