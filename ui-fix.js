@@ -1,4 +1,4 @@
-/* ui-fix: polls, stories, KILL floating settings modal */
+/* ui-fix: polls, stories, hide settings modal, boot guards */
 (function () {
   const POLL_KEY = 'cipherion_poll_votes';
 
@@ -9,13 +9,8 @@
     m.style.setProperty('display', 'none', 'important');
     m.style.setProperty('visibility', 'hidden', 'important');
     m.style.setProperty('pointer-events', 'none', 'important');
-    // strip children clickability
-    try {
-      m.setAttribute('aria-hidden', 'true');
-    } catch (e) {}
   }
 
-  // Continuous watch — anything that removes .hidden gets slammed shut
   function watchKillModal() {
     const m = document.getElementById('app-settings-modal');
     if (!m || m.__killObs) return;
@@ -27,11 +22,10 @@
     killAppSettingsModal();
   }
 
-  // Intercept menu-app-settings clicks in capture phase
   document.addEventListener(
     'click',
     (e) => {
-      const t = e.target.closest && e.target.closest('#menu-app-settings, [data-open-app-settings]');
+      const t = e.target.closest && e.target.closest('#menu-app-settings');
       if (!t) return;
       e.preventDefault();
       e.stopPropagation();
@@ -96,7 +90,6 @@
     const total = Object.values(votes.counts).reduce((a, b) => a + b, 0) || 0;
     const card = document.createElement('div');
     card.className = 'poll-card';
-    card.dataset.pollId = id;
     let html = `<div class="poll-q">📊 ${esc(poll.q)}</div>`;
     poll.opts.forEach((opt, i) => {
       const c = votes.counts[i] || 0;
@@ -154,11 +147,8 @@
     row.classList.remove('hidden');
     row.style.setProperty('display', 'flex', 'important');
     if (!row.querySelector('.story-bubble')) {
-      row.innerHTML = `
-        <div class="story-bubble" id="story-add-btn-fix">
-          <div class="story-ring"><div class="story-ring-inner story-add">+</div></div>
-          <div class="story-name">Ваша</div>
-        </div>`;
+      row.innerHTML =
+        '<div class="story-bubble" id="story-add-btn-fix"><div class="story-ring"><div class="story-ring-inner story-add">+</div></div><div class="story-name">Ваша</div></div>';
       document.getElementById('story-add-btn-fix')?.addEventListener('click', () => {
         document.getElementById('story-compose-modal')?.classList.remove('hidden');
       });
@@ -193,15 +183,18 @@
   });
 
   function init() {
-    watchKillModal();
-    killAppSettingsModal();
-    watchPolls();
-    forceStoriesRow();
-    patchLoadStories();
-    setTimeout(killAppSettingsModal, 200);
-    setTimeout(killAppSettingsModal, 1000);
-    setTimeout(forceStoriesRow, 500);
-    setTimeout(patchLoadStories, 800);
+    try {
+      watchKillModal();
+      killAppSettingsModal();
+      watchPolls();
+      forceStoriesRow();
+      patchLoadStories();
+    } catch (e) {
+      console.warn('ui-fix init', e);
+    }
+    setTimeout(killAppSettingsModal, 300);
+    setTimeout(forceStoriesRow, 600);
+    setTimeout(patchLoadStories, 900);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
