@@ -1,4 +1,4 @@
-/* ui-fix: polls, stories, hide settings modal, boot guards */
+/* ui-fix: polls, stories, settings guard, resilient boot */
 (function () {
   const POLL_KEY = 'cipherion_poll_votes';
 
@@ -15,69 +15,68 @@
     const m = document.getElementById('app-settings-modal');
     if (!m || m.__killObs) return;
     m.__killObs = true;
-    new MutationObserver(() => killAppSettingsModal()).observe(m, {
-      attributes: true,
-      attributeFilter: ['class', 'style']
-    });
+    new MutationObserver(() => killAppSettingsModal()).observe(m, { attributes: true, attributeFilter: ['class', 'style'] });
     killAppSettingsModal();
   }
 
-  document.addEventListener(
-    'click',
-    (e) => {
-      const t = e.target.closest && e.target.closest('#menu-app-settings');
-      if (!t) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      killAppSettingsModal();
-      if (window.__cipherionMobile && window.__cipherionMobile.openSettingsView) {
-        window.__cipherionMobile.openSettingsView();
-      }
-    },
-    true
-  );
+  // Recover the initial screen if a stale/broken client script left both screens hidden.
+  function ensureBootVisible() {
+    const auth = document.getElementById('auth-screen');
+    const app = document.getElementById('app-screen');
+    if (!auth || !app) return;
+    const token = localStorage.getItem('token');
+    if (token) {
+      app.classList.remove('hidden');
+      app.style.removeProperty('display');
+      auth.classList.add('hidden');
+    } else {
+      auth.classList.remove('hidden');
+      auth.style.setProperty('display', 'flex', 'important');
+      app.classList.add('hidden');
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('#menu-app-settings');
+    if (!t) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    killAppSettingsModal();
+    if (window.__cipherionMobile && window.__cipherionMobile.openSettingsView) window.__cipherionMobile.openSettingsView();
+  }, true);
 
   function esc(s) {
     return String(s ?? '')
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function parsePoll(text) {
     if (!text || !String(text).includes('📊')) return null;
-    const lines = String(text)
-      .replace(/\r/g, '')
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const qLine = lines.find((l) => l.includes('Опрос:') || l.startsWith('📊'));
+    const lines = String(text).replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+    const qLine = lines.find(l => l.includes('Опрос:') || l.startsWith('📊'));
     if (!qLine) return null;
     const q = qLine.replace(/^📊\s*/, '').replace(/^Опрос:\s*/i, '').trim();
-    const opts = lines
-      .filter((l) => /^[•\-·*]\s*/.test(l) || /^\d+[.)]\s*/.test(l))
-      .map((l) => l.replace(/^[•\-·*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim())
-      .filter(Boolean);
+    const opts = lines.filter(l => /^[•\-·*]\s*/.test(l) || /^\d+[.)]\s*/.test(l))
+      .map(l => l.replace(/^[•\-·*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean);
     if (!q || opts.length < 2) return null;
     return { q, opts };
   }
 
   function getVotes(id) {
-    try {
-      return JSON.parse(localStorage.getItem(POLL_KEY) || '{}')[id] || { counts: {}, mine: null };
-    } catch {
-      return { counts: {}, mine: null };
-    }
+    try { return JSON.parse(localStorage.getItem(POLL_KEY) || '{}')[id] || { counts: {}, mine: null }; }
+    catch { return { counts: {}, mine: null }; }
   }
 
   function saveVote(id, i) {
-    const all = JSON.parse(localStorage.getItem(POLL_KEY) || '{}');
+    let all;
+    try { all = JSON.parse(localStorage.getItem(POLL_KEY) || '{}'); } catch { all = {}; }
     const cur = all[id] || { counts: {}, mine: null };
-    if (cur.mine != null && cur.counts[cur.mine]) {
-      cur.counts[cur.mine] = Math.max(0, (cur.counts[cur.mine] || 0) - 1);
-    }
+    if (cur.mine != null && cur.counts[cur.mine]) cur.counts[cur.mine] = Math.max(0, (cur.counts[cur.mine] || 0) - 1);
     cur.mine = i;
     cur.counts[i] = (cur.counts[i] || 0) + 1;
     all[id] = cur;
@@ -99,24 +98,22 @@
     });
     html += `<div class="poll-meta">Голосов: ${total}</div>`;
     card.innerHTML = html;
-    card.querySelectorAll('.poll-opt').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        saveVote(id, +btn.dataset.i);
-        card.replaceWith(renderPollCard(msgEl, poll, id));
-      });
-    });
+    card.querySelectorAll('.poll-opt').forEach(btn => btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      saveVote(id, +btn.dataset.i);
+      card.replaceWith(renderPollCard(msgEl, poll, id));
+    }));
     return card;
   }
 
   function enhancePolls() {
-    document.querySelectorAll('#messages .message').forEach((div) => {
+    document.querySelectorAll('#messages .message').forEach(div => {
       if (div.querySelector('.poll-card')) return;
       const id = div.dataset.msgId || ('m' + Math.random().toString(36).slice(2));
       if (!div.dataset.msgId) div.dataset.msgId = id;
       let text = '';
-      div.querySelectorAll(':scope > div').forEach((el) => {
+      div.querySelectorAll(':scope > div').forEach(el => {
         const t = el.textContent || '';
         if (t.includes('📊') || t.includes('Опрос')) text = t;
       });
@@ -124,12 +121,11 @@
       const poll = parsePoll(text);
       if (!poll) return;
       let target = null;
-      div.querySelectorAll(':scope > div').forEach((el) => {
+      div.querySelectorAll(':scope > div').forEach(el => {
         const t = el.textContent || '';
         if (t.includes('📊') || t.includes('Опрос')) target = el;
       });
-      if (!target) return;
-      target.replaceWith(renderPollCard(div, poll, id));
+      if (target) target.replaceWith(renderPollCard(div, poll, id));
     });
   }
 
@@ -147,11 +143,8 @@
     row.classList.remove('hidden');
     row.style.setProperty('display', 'flex', 'important');
     if (!row.querySelector('.story-bubble')) {
-      row.innerHTML =
-        '<div class="story-bubble" id="story-add-btn-fix"><div class="story-ring"><div class="story-ring-inner story-add">+</div></div><div class="story-name">Ваша</div></div>';
-      document.getElementById('story-add-btn-fix')?.addEventListener('click', () => {
-        document.getElementById('story-compose-modal')?.classList.remove('hidden');
-      });
+      row.innerHTML = '<div class="story-bubble" id="story-add-btn-fix"><div class="story-ring"><div class="story-ring-inner story-add">+</div></div><div class="story-name">Ваша</div></div>';
+      document.getElementById('story-add-btn-fix')?.addEventListener('click', () => document.getElementById('story-compose-modal')?.classList.remove('hidden'));
     }
   }
 
@@ -159,16 +152,14 @@
     const orig = window.loadStories;
     if (typeof orig !== 'function' || orig.__patched) return;
     const wrapped = async function () {
-      try {
-        await orig.apply(this, arguments);
-      } catch (e) {}
+      try { await orig.apply(this, arguments); } catch (e) { console.warn('loadStories', e); }
       forceStoriesRow();
     };
     wrapped.__patched = true;
     window.loadStories = wrapped;
   }
 
-  window.addEventListener('cipherion-ws-message', (ev) => {
+  window.addEventListener('cipherion-ws-message', ev => {
     try {
       const data = JSON.parse(ev.detail);
       if (data.type === 'call_offline') {
@@ -184,14 +175,14 @@
 
   function init() {
     try {
+      ensureBootVisible();
       watchKillModal();
       killAppSettingsModal();
       watchPolls();
       forceStoriesRow();
       patchLoadStories();
-    } catch (e) {
-      console.warn('ui-fix init', e);
-    }
+    } catch (e) { console.warn('ui-fix init', e); }
+    setTimeout(ensureBootVisible, 300);
     setTimeout(killAppSettingsModal, 300);
     setTimeout(forceStoriesRow, 600);
     setTimeout(patchLoadStories, 900);
