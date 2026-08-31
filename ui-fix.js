@@ -1,6 +1,48 @@
-/* ui-fix: polls, stories visibility, call offline */
+/* ui-fix: polls, stories, KILL floating settings modal */
 (function () {
   const POLL_KEY = 'cipherion_poll_votes';
+
+  function killAppSettingsModal() {
+    const m = document.getElementById('app-settings-modal');
+    if (!m) return;
+    m.classList.add('hidden');
+    m.style.setProperty('display', 'none', 'important');
+    m.style.setProperty('visibility', 'hidden', 'important');
+    m.style.setProperty('pointer-events', 'none', 'important');
+    // strip children clickability
+    try {
+      m.setAttribute('aria-hidden', 'true');
+    } catch (e) {}
+  }
+
+  // Continuous watch — anything that removes .hidden gets slammed shut
+  function watchKillModal() {
+    const m = document.getElementById('app-settings-modal');
+    if (!m || m.__killObs) return;
+    m.__killObs = true;
+    new MutationObserver(() => killAppSettingsModal()).observe(m, {
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+    killAppSettingsModal();
+  }
+
+  // Intercept menu-app-settings clicks in capture phase
+  document.addEventListener(
+    'click',
+    (e) => {
+      const t = e.target.closest && e.target.closest('#menu-app-settings, [data-open-app-settings]');
+      if (!t) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      killAppSettingsModal();
+      if (window.__cipherionMobile && window.__cipherionMobile.openSettingsView) {
+        window.__cipherionMobile.openSettingsView();
+      }
+    },
+    true
+  );
 
   function esc(s) {
     return String(s ?? '')
@@ -69,8 +111,7 @@
         e.preventDefault();
         e.stopPropagation();
         saveVote(id, +btn.dataset.i);
-        const next = renderPollCard(msgEl, poll, id);
-        card.replaceWith(next);
+        card.replaceWith(renderPollCard(msgEl, poll, id));
       });
     });
     return card;
@@ -81,38 +122,21 @@
       if (div.querySelector('.poll-card')) return;
       const id = div.dataset.msgId || ('m' + Math.random().toString(36).slice(2));
       if (!div.dataset.msgId) div.dataset.msgId = id;
-
-      // Collect text from direct child divs that look like content
       let text = '';
-      div.childNodes.forEach((n) => {
-        if (n.nodeType === 1) {
-          const el = n;
-          if (
-            el.classList.contains('message-sender') ||
-            el.classList.contains('message-time') ||
-            el.classList.contains('msg-actions') ||
-            el.classList.contains('message-status') ||
-            el.classList.contains('voice-message') ||
-            el.classList.contains('poll-card')
-          )
-            return;
-          const t = el.innerText || el.textContent || '';
-          if (t.includes('📊') || t.includes('Опрос')) text = t;
-        }
+      div.querySelectorAll(':scope > div').forEach((el) => {
+        const t = el.textContent || '';
+        if (t.includes('📊') || t.includes('Опрос')) text = t;
       });
       if (!text) text = div.innerText || '';
       const poll = parsePoll(text);
       if (!poll) return;
-
-      // Replace the content div that holds the poll text
       let target = null;
       div.querySelectorAll(':scope > div').forEach((el) => {
         const t = el.textContent || '';
         if (t.includes('📊') || t.includes('Опрос')) target = el;
       });
       if (!target) return;
-      const card = renderPollCard(div, poll, id);
-      target.replaceWith(card);
+      target.replaceWith(renderPollCard(div, poll, id));
     });
   }
 
@@ -124,16 +148,11 @@
     enhancePolls();
   }
 
-  /* Stories always visible at top */
   function forceStoriesRow() {
     const row = document.getElementById('stories-row');
     if (!row) return;
     row.classList.remove('hidden');
     row.style.setProperty('display', 'flex', 'important');
-    row.style.setProperty('visibility', 'visible', 'important');
-    row.style.setProperty('opacity', '1', 'important');
-    row.style.setProperty('min-height', '88px', 'important');
-
     if (!row.querySelector('.story-bubble')) {
       row.innerHTML = `
         <div class="story-bubble" id="story-add-btn-fix">
@@ -141,9 +160,7 @@
           <div class="story-name">Ваша</div>
         </div>`;
       document.getElementById('story-add-btn-fix')?.addEventListener('click', () => {
-        const modal = document.getElementById('story-compose-modal');
-        if (modal) modal.classList.remove('hidden');
-        else alert('Войдите и откройте VIP, чтобы добавить историю');
+        document.getElementById('story-compose-modal')?.classList.remove('hidden');
       });
     }
   }
@@ -161,7 +178,6 @@
     window.loadStories = wrapped;
   }
 
-  /* Call offline handler */
   window.addEventListener('cipherion-ws-message', (ev) => {
     try {
       const data = JSON.parse(ev.detail);
@@ -177,15 +193,15 @@
   });
 
   function init() {
+    watchKillModal();
+    killAppSettingsModal();
     watchPolls();
     forceStoriesRow();
     patchLoadStories();
+    setTimeout(killAppSettingsModal, 200);
+    setTimeout(killAppSettingsModal, 1000);
     setTimeout(forceStoriesRow, 500);
-    setTimeout(forceStoriesRow, 1500);
     setTimeout(patchLoadStories, 800);
-    setTimeout(() => {
-      if (typeof window.loadStories === 'function') window.loadStories();
-    }, 1200);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
