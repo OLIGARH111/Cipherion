@@ -32,9 +32,40 @@
     } else {
       auth.classList.remove('hidden');
       auth.style.setProperty('display', 'flex', 'important');
+      auth.style.setProperty('visibility', 'visible', 'important');
+      auth.style.setProperty('opacity', '1', 'important');
       app.classList.add('hidden');
     }
   }
+
+  // Emergency recovery: a runtime error in another client script must never leave
+  // the user with an empty/white page. Keep the login screen usable when no session
+  // exists, and keep the application shell visible when a session exists.
+  function emergencyRecover() {
+    try {
+      const auth = document.getElementById('auth-screen');
+      const app = document.getElementById('app-screen');
+      if (!auth || !app) return;
+      const hasSession = !!localStorage.getItem('token');
+      if (hasSession) {
+        app.classList.remove('hidden');
+        app.style.setProperty('display', 'flex', 'important');
+        app.style.setProperty('visibility', 'visible', 'important');
+        app.style.setProperty('opacity', '1', 'important');
+        auth.classList.add('hidden');
+      } else {
+        auth.classList.remove('hidden');
+        auth.style.setProperty('display', 'flex', 'important');
+        auth.style.setProperty('visibility', 'visible', 'important');
+        auth.style.setProperty('opacity', '1', 'important');
+        auth.style.setProperty('z-index', '5000', 'important');
+        app.classList.add('hidden');
+      }
+    } catch (e) {}
+  }
+
+  window.addEventListener('error', () => setTimeout(emergencyRecover, 0));
+  window.addEventListener('unhandledrejection', () => setTimeout(emergencyRecover, 0));
 
   document.addEventListener('click', (e) => {
     const t = e.target.closest && e.target.closest('#menu-app-settings');
@@ -51,7 +82,7 @@
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/\"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
 
@@ -176,6 +207,7 @@
   function init() {
     try {
       ensureBootVisible();
+      emergencyRecover();
       watchKillModal();
       killAppSettingsModal();
       watchPolls();
@@ -183,6 +215,7 @@
       patchLoadStories();
     } catch (e) { console.warn('ui-fix init', e); }
     setTimeout(ensureBootVisible, 300);
+    setTimeout(emergencyRecover, 350);
     setTimeout(killAppSettingsModal, 300);
     setTimeout(forceStoriesRow, 600);
     setTimeout(patchLoadStories, 900);
