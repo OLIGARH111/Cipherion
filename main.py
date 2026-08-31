@@ -280,6 +280,10 @@ async def serve_ui_v3_css():
 async def serve_emerald_css():
     return FileResponse("emerald.css", media_type="text/css")
 
+@app.get("/ui-fix.css")
+async def serve_ui_fix_css():
+    return FileResponse("ui-fix.css", media_type="text/css")
+
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
@@ -303,6 +307,10 @@ async def serve_ws_bridge():
 @app.get("/webrtc-calls.js")
 async def serve_webrtc_calls():
     return FileResponse("webrtc-calls.js", media_type="application/javascript")
+
+@app.get("/ui-fix.js")
+async def serve_ui_fix_js():
+    return FileResponse("ui-fix.js", media_type="application/javascript")
 
 @app.post("/auth/send-code")
 async def send_phone_code(phone: str = Form(...)):
@@ -334,7 +342,6 @@ register_chat_info(app, get_current_user, can_view_private_field, private_profil
 from stories_api import register_stories  # noqa: E402
 register_stories(app, get_current_user, STORY_DIR)
 
-# Replace WebSocket route with one that supports WebRTC call signaling
 app.router.routes = [
     r for r in app.router.routes
     if not (getattr(r, "path", None) == "/ws/{token}")
@@ -369,7 +376,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             except Exception:
                 continue
 
-            # WebRTC call signaling
             if await handle_call_signal(manager, user_id, username_cached, message_data):
                 continue
 
