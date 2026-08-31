@@ -56,7 +56,7 @@ body.light .story-ring-inner { background: #fff; color: #064e3b; }
   text-overflow: ellipsis;
 }
 
-/* Settings hero: round avatar + one meta line */
+/* Settings hero */
 #settings-panel .sp-hero {
   display: flex;
   flex-direction: column;
@@ -127,7 +127,7 @@ body.light .story-ring-inner { background: #fff; color: #064e3b; }
   color: inherit;
 }
 
-/* Poll vote buttons */
+/* Polls */
 .poll-card {
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.28);
@@ -136,10 +136,7 @@ body.light .story-ring-inner { background: #fff; color: #064e3b; }
   margin-top: 4px;
   min-width: 200px;
 }
-.poll-card .poll-q {
-  font-weight: 600;
-  margin-bottom: 10px;
-}
+.poll-card .poll-q { font-weight: 600; margin-bottom: 10px; }
 .poll-card .poll-opt {
   display: block;
   width: 100%;
@@ -154,32 +151,30 @@ body.light .story-ring-inner { background: #fff; color: #064e3b; }
   position: relative;
   overflow: hidden;
   font-size: 14px;
-  z-index: 1;
   pointer-events: auto;
 }
 .poll-card .poll-opt .bar {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  left: 0; top: 0; bottom: 0;
   background: rgba(16, 185, 129, 0.28);
   z-index: 0;
   transition: width 0.25s ease;
 }
-.poll-card .poll-opt .poll-opt-label {
-  position: relative;
-  z-index: 1;
-}
+.poll-card .poll-opt .poll-opt-label { position: relative; z-index: 1; }
 .poll-card .poll-opt.voted {
   border-color: #34d399;
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
 }
-.poll-card .poll-meta {
-  font-size: 12px;
-  opacity: 0.7;
-  margin-top: 8px;
-}
-body.light .poll-card .poll-opt {
-  background: rgba(255, 255, 255, 0.9);
-  color: #064e3b;
+.poll-card .poll-meta { font-size: 12px; opacity: 0.7; margin-top: 8px; }
+
+/* KILL floating app-settings modal completely */
+#app-settings-modal,
+#app-settings-modal.modal,
+#app-settings-modal:not(.hidden),
+.modal#app-settings-modal {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
 }
