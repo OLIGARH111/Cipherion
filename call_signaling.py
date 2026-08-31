@@ -28,15 +28,31 @@ async def handle_call_signal(
     try:
         target_id = int(target)
     except (TypeError, ValueError):
-        return True  # swallow invalid
+        return True
 
     if target_id == user_id:
         return True
 
     payload = dict(message_data)
     payload["from_user_id"] = user_id
-    if "from_username" not in payload or not payload.get("from_username"):
+    if not payload.get("from_username"):
         payload["from_username"] = username
 
-    await manager.send_personal(target_id, payload)
+    delivered = await manager.send_personal(target_id, payload)
+
+    # Tell caller that invite could not be delivered (peer offline)
+    if msg_type == "call_invite" and not delivered:
+        try:
+            await manager.send_personal(
+                user_id,
+                {
+                    "type": "call_offline",
+                    "to_user_id": target_id,
+                    "call_id": message_data.get("call_id"),
+                    "detail": "Пользователь не в сети",
+                },
+            )
+        except Exception:
+            pass
+
     return True
