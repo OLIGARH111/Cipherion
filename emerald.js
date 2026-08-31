@@ -1,8 +1,8 @@
-/* Cipherion emerald UX: composer, polls, calls, profile, settings */
+/* Cipherion emerald UX: composer, polls, calls UI, profile, settings */
 (function () {
   const CALLS_KEY = 'cipherion_call_history';
   const POLL_KEY = 'cipherion_poll_votes';
-  let mediaMode = 'voice'; // voice | circle
+  let mediaMode = 'voice';
   let holdTimer = null;
   let holdStarted = false;
   let recordingActive = false;
@@ -14,7 +14,6 @@
     return window.__currentChatId || (+($('#chats-list .list-item.active')?.dataset?.chatId) || null);
   }
 
-  /* ---------- Composer structure ---------- */
   function setupComposer() {
     const form = $('#message-form');
     if (!form || form.__em) return;
@@ -27,7 +26,6 @@
     const videoBtn = $('#video-note-btn');
     const nativeSubmit = form.querySelector('button[type="submit"]');
 
-    // Wrap input + sticker
     if (input && !input.closest('.composer-field')) {
       const wrap = document.createElement('div');
       wrap.className = 'composer-field';
@@ -39,20 +37,16 @@
       }
     }
 
-    // Main send button (airplane) — shared for text & voice
     let sendBtn = $('#send-main-btn');
     if (!sendBtn) {
       sendBtn = document.createElement('button');
       sendBtn.type = 'button';
       sendBtn.id = 'send-main-btn';
       sendBtn.title = 'Отправить';
-      sendBtn.setAttribute('aria-label', 'Отправить');
       sendBtn.innerHTML = '✈';
       form.appendChild(sendBtn);
     }
     if (nativeSubmit) nativeSubmit.style.display = 'none';
-
-    // Order: attach, field, voice/send
     if (attach) attach.style.order = '1';
 
     function syncSendMode() {
@@ -67,26 +61,20 @@
     sendBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       if (recordingActive) {
-        // Finish & send voice via existing stopRecording
         recordingActive = false;
         form.classList.remove('is-recording');
         if (typeof stopRecording === 'function') stopRecording();
-        else $('#cancel-rec-btn'); // fallback
-        // stopRecording already uploads when not cancelled
         syncSendMode();
         return;
       }
       const text = (input?.value || '').trim();
       if (!text) return;
-      // Trigger native form submit path
       if (nativeSubmit) nativeSubmit.click();
       else form.requestSubmit?.();
       setTimeout(syncSendMode, 50);
     });
 
-    // Voice: tap = toggle mode; hold 2s = record
     if (voice) {
-      // Remove conflicting ui-v3 listeners by cloning
       const v = voice.cloneNode(true);
       voice.parentNode.replaceChild(v, voice);
 
@@ -112,19 +100,12 @@
       });
 
       const cancelHold = () => {
-        if (holdTimer) {
-          clearTimeout(holdTimer);
-          holdTimer = null;
-        }
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
       };
 
       v.addEventListener('pointerup', (e) => {
         cancelHold();
-        if (holdStarted) {
-          holdStarted = false;
-          return; // recording already started
-        }
-        // short tap: toggle mode
+        if (holdStarted) { holdStarted = false; return; }
         mediaMode = mediaMode === 'voice' ? 'circle' : 'voice';
         v.classList.toggle('mode-circle', mediaMode === 'circle');
         v.textContent = mediaMode === 'circle' ? '🔵' : '🎤';
@@ -132,19 +113,15 @@
       });
       v.addEventListener('pointerleave', cancelHold);
       v.addEventListener('pointercancel', cancelHold);
-
-      // Prevent old click toggle/start
       v.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
       }, true);
     }
 
-    // Hide separate send-rec inside indicator
     const sendRec = $('#send-rec-btn');
     if (sendRec) sendRec.style.display = 'none';
 
-    // When recording UI resets, clear state
     const recInd = $('#recording-indicator');
     if (recInd) {
       new MutationObserver(() => {
@@ -160,7 +137,6 @@
       }).observe(recInd, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // Cancel recording
     $('#cancel-rec-btn')?.addEventListener('click', () => {
       recordingActive = false;
       form.classList.remove('is-recording');
@@ -170,7 +146,6 @@
     syncSendMode();
   }
 
-  /* ---------- Polls with vote buttons ---------- */
   function parsePoll(text) {
     if (!text || !String(text).includes('📊')) return null;
     const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
@@ -234,8 +209,7 @@
 
       card.querySelectorAll('.poll-opt').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const i = +btn.dataset.i;
-          saveVote(id, i);
+          saveVote(id, +btn.dataset.i);
           div.__pollDone = false;
           enhancePolls();
         });
@@ -251,7 +225,6 @@
     enhancePolls();
   }
 
-  /* ---------- Full-screen profile + call ---------- */
   function ensureProfileFull() {
     let el = $('#profile-full');
     if (el) return el;
@@ -307,12 +280,19 @@
     el.classList.remove('hidden');
     $('#pf-back')?.addEventListener('click', () => el.classList.add('hidden'));
     $('#pf-call')?.addEventListener('click', () => {
-      startCall({
+      const payload = {
         name,
         avatar: av,
         userId: other?.id,
         chatId: info.id
-      });
+      };
+      if (typeof window.__cipherionStartCall === 'function') {
+        window.__cipherionStartCall(payload);
+      } else if (typeof window.startCall === 'function') {
+        window.startCall(payload);
+      } else {
+        alert('Модуль звонков ещё загружается…');
+      }
     });
   }
 
@@ -340,90 +320,12 @@
     );
   }
 
-  /* ---------- Calls ---------- */
   function loadCalls() {
     try {
       return JSON.parse(localStorage.getItem(CALLS_KEY) || '[]');
     } catch {
       return [];
     }
-  }
-  function saveCall(entry) {
-    const list = loadCalls();
-    list.unshift(entry);
-    localStorage.setItem(CALLS_KEY, JSON.stringify(list.slice(0, 100)));
-    renderCallsList();
-  }
-
-  function ensureCallScreen() {
-    let el = $('#call-screen');
-    if (el) return el;
-    el = document.createElement('div');
-    el.id = 'call-screen';
-    el.className = 'call-screen hidden';
-    el.innerHTML = `
-      <div class="cs-av" id="cs-av">?</div>
-      <div class="cs-name" id="cs-name"></div>
-      <div class="cs-status" id="cs-status">Вызов…</div>
-      <div id="cs-timer" style="font-variant-numeric:tabular-nums;opacity:.8">0:00</div>
-      <button type="button" class="cs-hang" id="cs-hang" title="Завершить">📵</button>
-    `;
-    document.body.appendChild(el);
-    return el;
-  }
-
-  let callTimer = null;
-  let callStart = 0;
-  let currentCall = null;
-
-  function startCall({ name, avatar, userId, chatId: cid }) {
-    const el = ensureCallScreen();
-    currentCall = { name, avatar, userId, chatId: cid, started: Date.now() };
-    const av = $('#cs-av');
-    if (avatar) av.innerHTML = '<img src="' + avatar + '" alt="">';
-    else av.textContent = (name || '?')[0].toUpperCase();
-    $('#cs-name').textContent = name || 'Абонент';
-    $('#cs-status').textContent = 'Вызов…';
-    $('#cs-timer').textContent = '0:00';
-    el.classList.remove('hidden');
-    callStart = Date.now();
-    let connected = false;
-    clearInterval(callTimer);
-    callTimer = setInterval(() => {
-      const sec = Math.floor((Date.now() - callStart) / 1000);
-      if (!connected && sec >= 2) {
-        connected = true;
-        $('#cs-status').textContent = 'Идёт разговор';
-        callStart = Date.now();
-      }
-      const s = connected ? Math.floor((Date.now() - callStart) / 1000) : sec;
-      const m = Math.floor(s / 60);
-      const r = String(s % 60).padStart(2, '0');
-      $('#cs-timer').textContent = m + ':' + r;
-    }, 500);
-
-    $('#cs-hang').onclick = () => endCall(connected);
-  }
-
-  function endCall(wasConnected) {
-    clearInterval(callTimer);
-    const el = $('#call-screen');
-    el?.classList.add('hidden');
-    if (currentCall) {
-      const dur = wasConnected ? Math.floor((Date.now() - callStart) / 1000) : 0;
-      saveCall({
-        id: Date.now(),
-        name: currentCall.name,
-        avatar: currentCall.avatar,
-        userId: currentCall.userId,
-        chatId: currentCall.chatId,
-        direction: 'out',
-        status: wasConnected ? 'answered' : 'cancelled',
-        duration: dur,
-        at: new Date().toISOString()
-      });
-    }
-    currentCall = null;
   }
 
   function renderCallsList() {
@@ -449,8 +351,8 @@
         const d = new Date(c.at);
         const time = d.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
         const dir = c.direction === 'in' ? '📥' : '📤';
-        const st = c.status === 'answered' ? formatDur(c.duration) : 'отменён';
-        return `<div class="call-item" data-chat="${c.chatId || ''}">
+        const st = c.status === 'answered' ? formatDur(c.duration) : (c.status || '');
+        return `<div class="call-item">
           <span class="ci-dir">${dir}</span>
           <div class="ci-meta"><div class="ci-name">${esc(c.name)}</div><div class="ci-time">${time} · ${st}</div></div>
           <button type="button" class="pf-call" style="width:40px;height:40px;font-size:16px" data-recall='${esc(JSON.stringify({ name: c.name, avatar: c.avatar, userId: c.userId, chatId: c.chatId }))}'>📞</button>
@@ -461,11 +363,14 @@
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         try {
-          startCall(JSON.parse(btn.getAttribute('data-recall')));
+          const p = JSON.parse(btn.getAttribute('data-recall'));
+          if (window.__cipherionStartCall) window.__cipherionStartCall(p);
         } catch {}
       });
     });
   }
+
+  window.__renderCallsList = renderCallsList;
 
   function formatDur(s) {
     s = s || 0;
@@ -485,10 +390,8 @@
         if (view === 'calls') {
           sidebar?.classList.remove('mobile-contacts-view');
           sidebar?.classList.remove('mobile-settings-view');
-          $('#settings-panel') && ($('#settings-panel').style.display = 'none');
+          if ($('#settings-panel')) $('#settings-panel').style.display = 'none';
           $$('.sidebar > *:not(#calls-panel)').forEach((n) => {
-            if (n.id === 'calls-panel') return;
-            n.dataset.prevDisplay = n.style.display;
             n.style.display = 'none';
           });
           if (panel) panel.style.display = 'block';
@@ -496,9 +399,8 @@
         } else if (panel) {
           panel.style.display = 'none';
           $$('.sidebar > *').forEach((n) => {
-            if (n.id === 'calls-panel') return;
+            if (n.id === 'calls-panel' || n.id === 'settings-panel') return;
             if (n.classList?.contains('section-title-users') || n.id === 'users-list') return;
-            if (n.id === 'settings-panel') return;
             n.style.display = '';
           });
         }
@@ -506,13 +408,11 @@
     });
   }
 
-  /* ---------- Settings: expand sections inline, no nested small window ---------- */
   function setupInlineSettings() {
     const panel = $('#settings-panel');
     if (!panel || panel.__emSet) return;
     panel.__emSet = true;
 
-    // Intercept section opens: show inline instead of modal where possible
     panel.addEventListener(
       'click',
       (e) => {
@@ -521,11 +421,8 @@
         const a = btn.getAttribute('data-sp');
         const inlineKeys = ['security', 'chat', 'language', 'sound', 'anim', 'notif'];
         if (!inlineKeys.includes(a)) return;
-
         e.preventDefault();
         e.stopPropagation();
-
-        // Toggle inline block
         let block = panel.querySelector('.sp-inline[data-for="' + a + '"]');
         if (!block) {
           block = document.createElement('div');
@@ -533,9 +430,7 @@
           block.dataset.for = a;
           block.innerHTML = inlineSettingsHtml(a);
           btn.after(block);
-          bindInlineControls(block, a);
         }
-        // close others
         panel.querySelectorAll('.sp-inline').forEach((b) => {
           if (b !== block) b.classList.remove('open');
         });
@@ -548,45 +443,25 @@
   function inlineSettingsHtml(a) {
     if (a === 'security') {
       return `
-        <label class="set-row"><span>Облачный пароль</span><input type="password" id="em-cloud" placeholder="Новый"></label>
-        <label class="set-row"><span>Код-пароль</span><input type="password" id="em-passcode" maxlength="6" placeholder="4–6 цифр"></label>
-        <label class="set-row"><span>Кто видит номер</span><select id="em-priv-phone"><option value="all">Все</option><option value="contacts" selected>Контакты</option><option value="nobody">Никто</option></select></label>
-        <label class="set-row"><span>Кто видит онлайн</span><select id="em-priv-online"><option value="all" selected>Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option></select></label>
-        <p style="font-size:12px;opacity:.65;padding:8px 0">Полные настройки приватности — в профиле после сохранения на сервере.</p>`;
+        <label class="set-row"><span>Облачный пароль</span><input type="password" placeholder="Новый"></label>
+        <label class="set-row"><span>Код-пароль</span><input type="password" maxlength="6"></label>`;
     }
     if (a === 'chat') {
-      return `
-        <label class="set-row"><span>Шрифт</span><select id="em-font"><option value="14">S</option><option value="15" selected>M</option><option value="17">L</option><option value="19">XL</option></select></label>
-        <label class="set-row"><span>Плотность</span><select id="em-density"><option value="compact">Компактно</option><option value="normal" selected>Обычная</option><option value="relaxed">Свободная</option></select></label>`;
+      return `<label class="set-row"><span>Шрифт</span><select id="em-font"><option value="14">S</option><option value="15" selected>M</option><option value="17">L</option></select></label>`;
     }
     if (a === 'language') {
-      return `<label class="set-row"><span>Язык</span><select id="em-lang"><option value="ru" selected>Русский</option><option value="en">English</option><option value="uk">Українська</option></select></label>`;
+      return `<label class="set-row"><span>Язык</span><select><option selected>Русский</option><option>English</option></select></label>`;
     }
     if (a === 'sound') {
-      return `
-        <label class="set-row"><span>Звук отправки</span><input type="checkbox" id="em-snd-send" checked></label>
-        <label class="set-row"><span>Звук входящих</span><input type="checkbox" id="em-snd-recv" checked></label>`;
+      return `<label class="set-row"><span>Звук входящих</span><input type="checkbox" checked></label>`;
     }
     if (a === 'anim') {
-      return `
-        <label class="set-row"><span>Анимации</span><input type="checkbox" id="em-anim" checked></label>
-        <label class="set-row"><span>Меньше движения</span><input type="checkbox" id="em-reduce"></label>`;
+      return `<label class="set-row"><span>Анимации</span><input type="checkbox" checked></label>`;
     }
     if (a === 'notif') {
-      return `
-        <label class="set-row"><span>В браузере</span><input type="checkbox" id="em-notif" checked></label>
-        <label class="set-row"><span>Не беспокоить</span><input type="checkbox" id="em-dnd"></label>`;
+      return `<label class="set-row"><span>Уведомления</span><input type="checkbox" checked></label>`;
     }
     return '';
-  }
-
-  function bindInlineControls(block, a) {
-    if (a === 'chat') {
-      $('#em-font', block)?.addEventListener('change', (e) => {
-        document.documentElement.style.setProperty('--msg-font', e.target.value + 'px');
-        $$('.message').forEach((m) => (m.style.fontSize = e.target.value + 'px'));
-      });
-    }
   }
 
   function trackChat() {
@@ -615,7 +490,6 @@
     setupCallsTab();
     setupInlineSettings();
     trackChat();
-    // Re-try settings panel after mobile-nav creates it
     setTimeout(setupInlineSettings, 600);
   }
 
