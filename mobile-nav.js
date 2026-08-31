@@ -1,4 +1,4 @@
-/* Cipherion mobile: flat settings, pin, auth gate */
+/* Cipherion mobile: settings inline, pin, auth gate */
 (function () {
   function isMobile() {
     return window.matchMedia('(max-width: 760px)').matches;
@@ -35,56 +35,87 @@
     syncAppReady();
   }
 
-  function openAppSection(section) {
-    // Map to data-section buttons in app-settings-modal
-    const map = {
-      security: 'security',
-      chat: 'chat-style',
-      language: 'language',
-      sound: 'av',
-      anim: 'anim',
-      notif: 'notif'
+  function inlineBlock(a) {
+    const titles = {
+      security: 'Безопасность',
+      chat: 'Оформление чатов',
+      language: 'Язык',
+      sound: 'Звук и медиа',
+      anim: 'Анимации',
+      notif: 'Уведомления'
     };
-    const key = map[section] || section;
-    document.getElementById('menu-app-settings')?.click();
-    setTimeout(() => {
-      const btn = document.querySelector('.app-set-nav[data-section="' + key + '"]');
-      btn?.click();
-    }, 80);
+    let body = '';
+    if (a === 'security') {
+      body = `
+        <label class="set-row"><span>Облачный пароль</span><input type="password" id="sp-cloud" placeholder="Новый"></label>
+        <label class="set-row"><span>Код-пароль</span><input type="password" id="sp-code" maxlength="6" placeholder="4–6 цифр"></label>
+        <label class="set-row"><span>Кто видит номер</span>
+          <select id="sp-priv-phone"><option value="all">Все</option><option value="contacts" selected>Контакты</option><option value="nobody">Никто</option></select>
+        </label>
+        <label class="set-row"><span>Кто видит онлайн</span>
+          <select id="sp-priv-online"><option value="all" selected>Все</option><option value="contacts">Контакты</option><option value="nobody">Никто</option></select>
+        </label>`;
+    } else if (a === 'chat') {
+      body = `
+        <label class="set-row"><span>Шрифт</span>
+          <select id="sp-font"><option value="14">S</option><option value="15" selected>M</option><option value="17">L</option><option value="19">XL</option></select>
+        </label>
+        <label class="set-row"><span>Плотность</span>
+          <select id="sp-density"><option value="compact">Компактно</option><option value="normal" selected>Обычная</option><option value="relaxed">Свободная</option></select>
+        </label>`;
+    } else if (a === 'language') {
+      body = `<label class="set-row"><span>Язык</span><select><option selected>Русский</option><option>English</option><option>Українська</option></select></label>`;
+    } else if (a === 'sound') {
+      body = `
+        <label class="set-row"><span>Звук отправки</span><input type="checkbox" checked></label>
+        <label class="set-row"><span>Звук входящих</span><input type="checkbox" checked></label>`;
+    } else if (a === 'anim') {
+      body = `
+        <label class="set-row"><span>Анимации</span><input type="checkbox" checked></label>
+        <label class="set-row"><span>Меньше движения</span><input type="checkbox"></label>`;
+    } else if (a === 'notif') {
+      body = `
+        <label class="set-row"><span>В браузере</span><input type="checkbox" checked></label>
+        <label class="set-row"><span>Не беспокоить</span><input type="checkbox"></label>`;
+    }
+    return `<div class="sp-inline-title">${titles[a] || ''}</div>${body}`;
   }
 
   function ensureSettingsPanel() {
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return null;
     let panel = document.getElementById('settings-panel');
-    if (panel) {
-      // upgrade content if old nested version
-      if (!panel.querySelector('[data-sp="security"]')) {
-        panel.remove();
-        panel = null;
-      } else return panel;
+    // Always rebuild to apply new layout
+    if (panel && !panel.dataset.v2) {
+      panel.remove();
+      panel = null;
     }
+    if (panel) return panel;
+
     panel = document.createElement('div');
     panel.id = 'settings-panel';
+    panel.dataset.v2 = '1';
     panel.innerHTML = `
       <div class="sp-header">Настройки</div>
-      <div class="sp-profile" data-sp="profile">
-        <div class="sp-av" id="sp-avatar">?</div>
-        <div>
-          <div class="sp-name" id="sp-username">Пользователь</div>
-          <div class="sp-sub">Мой профиль ›</div>
-        </div>
+      <div class="sp-hero" id="sp-hero">
+        <div class="sp-av-lg" id="sp-avatar">?</div>
+        <div class="sp-meta-line" id="sp-meta-line">—</div>
       </div>
       <div class="sp-section">Аккаунт</div>
-      <button type="button" class="sp-item" data-sp="profile"><span class="sp-ico">👤</span>Мой профиль</button>
       <button type="button" class="sp-item" data-sp="vip"><span class="sp-ico">👑</span>Cipherion VIP</button>
       <div class="sp-section">Приватность и приложение</div>
       <button type="button" class="sp-item" data-sp="security"><span class="sp-ico">🔒</span>Безопасность</button>
+      <div class="sp-inline" data-for="security"></div>
       <button type="button" class="sp-item" data-sp="chat"><span class="sp-ico">🎨</span>Оформление чатов</button>
+      <div class="sp-inline" data-for="chat"></div>
       <button type="button" class="sp-item" data-sp="language"><span class="sp-ico">🌐</span>Язык</button>
+      <div class="sp-inline" data-for="language"></div>
       <button type="button" class="sp-item" data-sp="sound"><span class="sp-ico">🔊</span>Звук и медиа</button>
+      <div class="sp-inline" data-for="sound"></div>
       <button type="button" class="sp-item" data-sp="anim"><span class="sp-ico">✨</span>Анимации</button>
+      <div class="sp-inline" data-for="anim"></div>
       <button type="button" class="sp-item" data-sp="notif"><span class="sp-ico">🔔</span>Уведомления</button>
+      <div class="sp-inline" data-for="notif"></div>
       <div class="sp-section">Создать</div>
       <button type="button" class="sp-item" data-sp="group"><span class="sp-ico">👥</span>Создать группу</button>
       <button type="button" class="sp-item" data-sp="channel"><span class="sp-ico">📢</span>Создать канал</button>
@@ -100,9 +131,32 @@
       const btn = e.target.closest('[data-sp]');
       if (!btn) return;
       const a = btn.getAttribute('data-sp');
-      if (a === 'profile') document.getElementById('menu-settings')?.click();
-      else if (a === 'vip') document.getElementById('menu-vip')?.click();
-      else if (a === 'security' || a === 'chat' || a === 'language' || a === 'sound' || a === 'anim' || a === 'notif') openAppSection(a);
+      const inlineKeys = ['security', 'chat', 'language', 'sound', 'anim', 'notif'];
+
+      if (inlineKeys.includes(a)) {
+        e.preventDefault();
+        e.stopPropagation();
+        // close other inlines
+        panel.querySelectorAll('.sp-inline').forEach((b) => {
+          if (b.dataset.for !== a) b.classList.remove('open');
+        });
+        const block = panel.querySelector('.sp-inline[data-for="' + a + '"]');
+        if (!block) return;
+        if (!block.dataset.filled) {
+          block.innerHTML = inlineBlock(a);
+          block.dataset.filled = '1';
+          const font = block.querySelector('#sp-font');
+          font?.addEventListener('change', () => {
+            document.querySelectorAll('.message').forEach((m) => {
+              m.style.fontSize = font.value + 'px';
+            });
+          });
+        }
+        block.classList.toggle('open');
+        return;
+      }
+
+      if (a === 'vip') document.getElementById('menu-vip')?.click();
       else if (a === 'group') document.getElementById('menu-new-group')?.click();
       else if (a === 'channel') document.getElementById('menu-new-channel')?.click();
       else if (a === 'saved') document.getElementById('menu-saved')?.click();
@@ -111,18 +165,54 @@
         setTimeout(fillSettingsProfile, 50);
       } else if (a === 'logout') document.getElementById('logout-btn')?.click();
     });
+
+    // Tap avatar → edit profile modal (optional, not a list item)
+    panel.querySelector('#sp-hero')?.addEventListener('click', () => {
+      document.getElementById('menu-settings')?.click();
+    });
+
     return panel;
   }
 
-  function fillSettingsProfile() {
+  async function fillSettingsProfile() {
     const name = localStorage.getItem('username') || '';
-    const avUrl = localStorage.getItem('avatarUrl');
-    const n = document.getElementById('sp-username');
+    let phone = localStorage.getItem('phone') || '';
+    let avUrl = localStorage.getItem('avatarUrl');
+
+    try {
+      const tok = localStorage.getItem('token');
+      if (tok) {
+        const res = await fetch('/me', {
+          headers: { Authorization: 'Bearer ' + tok },
+          credentials: 'same-origin'
+        });
+        if (res.ok) {
+          const me = await res.json();
+          if (me.phone) {
+            phone = me.phone;
+            localStorage.setItem('phone', phone);
+          }
+          if (me.username) localStorage.setItem('username', me.username);
+          if (me.avatar_url) {
+            avUrl = me.avatar_url;
+            localStorage.setItem('avatarUrl', avUrl);
+          }
+        }
+      }
+    } catch (e) {}
+
+    const uname = localStorage.getItem('username') || name || 'Пользователь';
     const a = document.getElementById('sp-avatar');
-    if (n) n.textContent = name || 'Пользователь';
+    const meta = document.getElementById('sp-meta-line');
     if (a) {
       if (avUrl) a.innerHTML = '<img src="' + avUrl + '" alt="">';
-      else a.textContent = (name || '?')[0].toUpperCase();
+      else a.textContent = (uname || '?')[0].toUpperCase();
+    }
+    if (meta) {
+      const parts = [];
+      if (phone) parts.push(phone);
+      if (uname) parts.push(uname);
+      meta.textContent = parts.length ? parts.join(' · ') : uname;
     }
     const light = document.body.classList.contains('light');
     const ico = document.getElementById('sp-theme-ico');
@@ -170,6 +260,7 @@
     if (pinned) {
       const text =
         pinned.querySelector('.message-sticker')?.textContent ||
+        pinned.querySelector('.poll-q')?.textContent ||
         pinned.querySelector('div:not(.message-sender):not(.message-time):not(.msg-actions)')?.textContent ||
         'Закреплённое сообщение';
       bar.querySelector('.pin-text').textContent = String(text || '').trim().slice(0, 80);
@@ -306,6 +397,6 @@
 
   window.__cipherionMobile = {
     enterChatMobile, leaveChatMobile, openSettingsView, closeSettingsView,
-    refreshPinnedBar, syncAppReady, pinMessage
+    refreshPinnedBar, syncAppReady, pinMessage, fillSettingsProfile
   };
 })();
