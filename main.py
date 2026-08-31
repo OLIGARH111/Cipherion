@@ -250,7 +250,13 @@ manager = ConnectionManager()
 
 @app.on_event("startup")
 def startup():
-    init_db()
+    try:
+        init_db()
+        print("Cipherion: database initialized")
+    except Exception as exc:
+        # Do not let a transient SQLite/schema problem prevent Uvicorn from
+        # binding to Render's $PORT. The health endpoint and UI can still boot.
+        print(f"Cipherion: database initialization warning: {exc!r}")
 
 @app.get("/health")
 async def health():
@@ -336,10 +342,10 @@ register_media_uploads(
     VOICE_DIR, IMAGE_DIR, VIDEO_NOTE_DIR, GROUP_AVATAR_DIR,
 )
 
-from chat_info import register_chat_info  # noqa: E402
+from chat_info import register_chat_info
 register_chat_info(app, get_current_user, can_view_private_field, private_profile_payload)
 
-from stories_api import register_stories  # noqa: E402
+from stories_api import register_stories
 register_stories(app, get_current_user, STORY_DIR)
 
 app.router.routes = [
