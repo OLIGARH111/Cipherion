@@ -210,8 +210,10 @@ class ConnectionManager:
         if user_id in self.active_connections:
             try:
                 await self.active_connections[user_id].send_json(message)
+                return True
             except Exception:
-                pass
+                return False
+        return False
     async def broadcast_user_status(self, user_id: int, is_online: bool):
         db = SessionLocal()
         owner = db.query(User).filter(User.id == user_id).first()
@@ -329,6 +331,9 @@ register_media_uploads(
 from chat_info import register_chat_info  # noqa: E402
 register_chat_info(app, get_current_user, can_view_private_field, private_profile_payload)
 
+from stories_api import register_stories  # noqa: E402
+register_stories(app, get_current_user, STORY_DIR)
+
 # Replace WebSocket route with one that supports WebRTC call signaling
 app.router.routes = [
     r for r in app.router.routes
@@ -359,7 +364,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     try:
         while True:
             data = await websocket.receive_text()
-            message_data = json.loads(data)
+            try:
+                message_data = json.loads(data)
+            except Exception:
+                continue
 
             # WebRTC call signaling
             if await handle_call_signal(manager, user_id, username_cached, message_data):
