@@ -273,6 +273,10 @@ async def serve_ui_polish_css():
 async def serve_ui_v3_css():
     return FileResponse("ui-v3.css", media_type="text/css")
 
+@app.get("/emerald.css")
+async def serve_emerald_css():
+    return FileResponse("emerald.css", media_type="text/css")
+
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
@@ -284,6 +288,10 @@ async def serve_mobile_nav_js():
 @app.get("/ui-v3.js")
 async def serve_ui_v3_js():
     return FileResponse("ui-v3.js", media_type="application/javascript")
+
+@app.get("/emerald.js")
+async def serve_emerald_js():
+    return FileResponse("emerald.js", media_type="application/javascript")
 
 @app.post("/auth/send-code")
 async def send_phone_code(phone: str = Form(...)):
