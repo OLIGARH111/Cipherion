@@ -43,6 +43,9 @@ def load_backend():
     if _backend is not None:
         return _backend
     try:
+        from database import init_db
+        init_db()
+        print("Cipherion: database schema initialized")
         _backend = importlib.import_module("main").app
         _backend_error = None
         print("Cipherion: backend loaded")
