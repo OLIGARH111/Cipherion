@@ -17,6 +17,7 @@ from models import User, Chat, ChatMember, Message, Story, StoryReaction, StoryR
 from crypto_utils import init_crypto, encrypt_text, decrypt_text
 import random
 import string
+from call_signaling import handle_call_signal
 
 phone_codes: Dict[str, str] = {}
 
@@ -293,6 +294,14 @@ async def serve_ui_v3_js():
 async def serve_emerald_js():
     return FileResponse("emerald.js", media_type="application/javascript")
 
+@app.get("/ws-bridge.js")
+async def serve_ws_bridge():
+    return FileResponse("ws-bridge.js", media_type="application/javascript")
+
+@app.get("/webrtc-calls.js")
+async def serve_webrtc_calls():
+    return FileResponse("webrtc-calls.js", media_type="application/javascript")
+
 @app.post("/auth/send-code")
 async def send_phone_code(phone: str = Form(...)):
     phone_clean = (phone or "").strip()
@@ -319,3 +328,99 @@ register_media_uploads(
 
 from chat_info import register_chat_info  # noqa: E402
 register_chat_info(app, get_current_user, can_view_private_field, private_profile_payload)
+
+# Replace WebSocket route with one that supports WebRTC call signaling
+app.router.routes = [
+    r for r in app.router.routes
+    if not (getattr(r, "path", None) == "/ws/{token}")
+]
+
+@app.websocket("/ws/{token}")
+async def websocket_endpoint(websocket: WebSocket, token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            await websocket.close(code=4001)
+            return
+    except JWTError:
+        await websocket.close(code=4001)
+        return
+    db = SessionLocal()
+    user = get_user_by_username(db, username)
+    if not user:
+        db.close()
+        await websocket.close(code=4001)
+        return
+    user_id = user.id
+    username_cached = user.username
+    db.close()
+    await manager.connect(user_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+
+            # WebRTC call signaling
+            if await handle_call_signal(manager, user_id, username_cached, message_data):
+                continue
+
+            if message_data.get("type") in ("message", "sticker"):
+                chat_id = message_data.get("chat_id")
+                content = (message_data.get("content") or "").strip()
+                msg_type = "sticker" if message_data.get("type") == "sticker" else "text"
+                if not content or not chat_id:
+                    continue
+                if msg_type == "sticker" and len(content) > 16:
+                    continue
+                if msg_type == "text" and len(content) > 4000:
+                    content = content[:4000]
+                db = SessionLocal()
+                member = db.query(ChatMember).filter(
+                    ChatMember.chat_id == chat_id, ChatMember.user_id == user_id
+                ).first()
+                if not member:
+                    db.close()
+                    continue
+                if msg_type == "sticker" and content in VIP_STICKER_SET:
+                    user_row = db.query(User).filter(User.id == user_id).first()
+                    if not user_row or not getattr(user_row, "is_vip", False):
+                        db.close()
+                        try:
+                            await websocket.send_json({"type": "error", "detail": "Этот стикер доступен только Cipherion VIP"})
+                        except Exception:
+                            pass
+                        continue
+                chat = db.query(Chat).filter(Chat.id == chat_id).first()
+                if chat and getattr(chat, "is_channel", False) and chat.created_by != user_id:
+                    db.close()
+                    continue
+                try:
+                    assert_can_send_to_chat(db, chat, user_id)
+                except HTTPException as exc:
+                    db.close()
+                    try:
+                        await websocket.send_json({"type": "error", "detail": exc.detail})
+                    except Exception:
+                        pass
+                    continue
+                msg = Message(
+                    chat_id=chat_id, sender_id=user_id, content=encrypt_text(content),
+                    message_type=msg_type, is_encrypted=True
+                )
+                db.add(msg)
+                db.commit()
+                db.refresh(msg)
+                response = {
+                    "type": "new_message", "id": msg.id, "chat_id": chat_id,
+                    "sender_id": user_id, "sender_name": username_cached,
+                    "content": content, "message_type": msg_type,
+                    "media_url": None, "is_encrypted": True,
+                    "created_at": msg.created_at.isoformat()
+                }
+                db.close()
+                await manager.send_to_chat(chat_id, response)
+    except WebSocketDisconnect:
+        await manager.disconnect(user_id, websocket)
+    except Exception:
+        await manager.disconnect(user_id, websocket)
