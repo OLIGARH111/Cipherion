@@ -5,9 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#022c22">
+<meta name="theme-color" content="#0f0f13">
 <title>Cipherion</title>
-<link rel="stylesheet" href="/style.css?v=20260901-fix5">
+<link rel="stylesheet" href="/style.css?v=20260901-fix6">
+<style>
+  /* Guarantee auth can hide and app can show */
+  #auth-screen.hidden { display: none !important; }
+  #app-screen { display: flex; height: 100vh; width: 100%; }
+  #app-screen.hidden { display: none !important; }
+</style>
 </head>
 <body>
 <div id="auth-screen" class="auth-screen">
@@ -36,18 +42,39 @@
 
 <div id="app-screen" class="app-screen hidden">
   <aside class="sidebar">
-    <div class="sidebar-header"><button id="menu-btn">☰</button><h2>Чаты</h2></div>
-    <input id="user-search" placeholder="Поиск">
+    <div class="sidebar-header">
+      <button id="menu-btn" type="button">☰</button>
+      <h2>Чаты</h2>
+      <button id="logout-btn" type="button" style="margin-left:auto;background:transparent;border:0;color:#a1a1aa;font-size:13px;cursor:pointer">Выйти</button>
+    </div>
+    <input id="user-search" placeholder="Поиск пользователей">
+    <div class="section-title" style="padding:8px 12px;color:#a1a1aa;font-size:12px">Чаты</div>
     <div id="chats-list" class="list"></div>
+    <div class="section-title" style="padding:8px 12px;color:#a1a1aa;font-size:12px">Пользователи</div>
     <div id="users-list" class="list"></div>
   </aside>
   <main class="chat-area">
-    <div id="no-chat" class="no-chat"><div class="no-chat-content"><div class="no-chat-icon">💬</div><p>Выберите чат</p></div></div>
-    <div id="chat-view" class="hidden"><header class="chat-header"><button id="back-btn">←</button><h3 id="chat-title"></h3></header><div id="messages" class="messages"></div><form id="message-form"><input id="message-input" placeholder="Сообщение"><button type="submit">Отправить</button></form></div>
+    <div id="no-chat" class="no-chat">
+      <div class="no-chat-content">
+        <div class="no-chat-icon">💬</div>
+        <p>Выберите чат или пользователя</p>
+      </div>
+    </div>
+    <div id="chat-view" class="hidden">
+      <header class="chat-header">
+        <button id="back-btn" type="button">←</button>
+        <h3 id="chat-title"></h3>
+      </header>
+      <div id="messages" class="messages"></div>
+      <form id="message-form">
+        <input id="message-input" placeholder="Сообщение" autocomplete="off">
+        <button type="submit">Отправить</button>
+      </form>
+    </div>
   </main>
 </div>
-<script src="/ws-bridge.js?v=20260901-fix5"></script>
-<script src="/app.js?v=20260901-fix5"></script>
-<script src="/auth-recovery.js?v=20260901-fix5"></script>
+<script src="/ws-bridge.js?v=20260901-fix6"></script>
+<script src="/app.js?v=20260901-fix6"></script>
+<script src="/auth-recovery.js?v=20260901-fix6"></script>
 </body>
 </html>
