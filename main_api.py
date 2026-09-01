@@ -303,12 +303,22 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
             chat = m.chat
             last_msg = db.query(Message).filter(Message.chat_id == chat.id).order_by(Message.created_at.desc()).first()
             chat_name = chat.name
+            other_avatar = None
             if getattr(chat, "is_favorites", False):
                 chat_name = "⭐ Избранное"
             elif not chat.is_group and not getattr(chat, "is_channel", False):
                 other = db.query(ChatMember).filter(ChatMember.chat_id == chat.id, ChatMember.user_id != current_user.id).first()
-                if other and can_view_private_field(db, other.user, current_user, "avatar"):
-                    other_avatar = other.user.avatar_url
+                if other:
+                    chat_name = other.user.username
+                    if can_view_private_field(db, other.user, current_user, "avatar"):
+                        other_avatar = other.user.avatar_url
+            last_text = None
+            if last_msg:
+                if last_msg.message_type == "voice": last_text = "🎤 Голосовое сообщение"
+                elif last_msg.message_type == "image": last_text = "📷 Фото"
+                elif last_msg.message_type == "video_note": last_text = "🔵 Видеосообщение"
+                elif last_msg.message_type == "sticker": last_text = decrypt_text(last_msg.content) if last_msg.content else "Стикер"
+                else: last_text = decrypt_text(last_msg.content) if last_msg.content else None
             is_channel = bool(getattr(chat, "is_channel", False))
             is_favorites = bool(getattr(chat, "is_favorites", False))
             result.append({
