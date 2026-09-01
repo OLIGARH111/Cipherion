@@ -1,4 +1,4 @@
-name: Restore and fix app.js
+name: Fix registration redirect
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  restore:
+  fix:
     runs-on: ubuntu-latest
     if: github.actor == 'OLIGARH111'
     steps:
@@ -16,32 +16,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Restore full app.js and fix registration
+      - name: Patch registration without replacing app.js
         shell: python
         run: |
-          import subprocess
           from pathlib import Path
+          import re
 
-          parent = "8205bf17d521ad6322fd8c267f22470618969496"
-          restored = subprocess.check_output(
-              ["git", "show", f"{parent}:app.js"], text=True
-          )
-          path = Path("app.js")
-          text = restored
+          p = Path('app.js')
+          text = p.read_text(encoding='utf-8')
 
-          old = """registerForm.addEventListener('submit', async (e) => {\n    e.preventDefault();\n    const formData = new FormData();\n    formData.append('username', document.getElementById('reg-username').value.trim());\n    formData.append('password', document.getElementById('reg-password').value);\n    formData.append('phone', document.getElementById('reg-phone').value.trim());\n    formData.append('email', document.getElementById('reg-email').value.trim());\n    formData.append('phone_code', document.getElementById('reg-phone-code').value.trim());\n    \n    try {\n        const res = await fetch('/register', { method: 'POST', body: formData });\n        const data = await res.json();\n        \n        if (!res.ok) {\n            authError.textContent = typeof data.detail === 'string' ? data.detail : (data.detail?.[0]?.msg || 'Ошибка регистрации');\n            return;\n        }\n        \n        saveAuth(data);\n        showApp();\n    } catch (err) {\n        authError.textContent = 'Ошибка соединения с сервером';\n    }\n});"""
+          # Make registration impossible to submit as a native HTML form.
+          text = text.replace("registerForm.addEventListener('submit', async (e) => {\n    e.preventDefault();\n    e.stopPropagation();", "registerForm.addEventListener('submit', async (e) => {\n    e.preventDefault();\n    e.stopImmediatePropagation();")
 
-          new = """registerForm.addEventListener('submit', async (e) => {\n    e.preventDefault();\n    e.stopPropagation();\n    const submitButton = registerForm.querySelector('button[type=\"submit\"]');\n    const formData = new FormData();\n    formData.append('username', document.getElementById('reg-username').value.trim());\n    formData.append('password', document.getElementById('reg-password').value);\n    formData.append('phone', document.getElementById('reg-phone').value.trim());\n    formData.append('email', document.getElementById('reg-email').value.trim());\n    formData.append('phone_code', document.getElementById('reg-phone-code').value.trim());\n    authError.textContent = '';\n    if (submitButton) {\n        submitButton.disabled = true;\n        submitButton.textContent = 'Создаём аккаунт…';\n    }\n\n    try {\n        const res = await fetch('/register', {\n            method: 'POST',\n            body: formData,\n            credentials: 'same-origin',\n            headers: { 'Accept': 'application/json' },\n            redirect: 'error'\n        });\n        const data = await res.json().catch(() => ({}));\n        if (!res.ok) {\n            authError.textContent = typeof data.detail === 'string'\n                ? data.detail\n                : (data.detail?.[0]?.msg || `Ошибка регистрации (код ${res.status})`);\n            return;\n        }\n        if (!data.access_token || !data.user_id || !data.username) {\n            authError.textContent = 'Сервер создал аккаунт, но не вернул данные сессии.';\n            return;\n        }\n        saveAuth(data);\n        showApp();\n    } catch (err) {\n        console.error('Registration error:', err);\n        authError.textContent = 'Ошибка соединения с сервером. Попробуйте ещё раз.';\n    } finally {\n        if (submitButton) {\n            submitButton.disabled = false;\n            submitButton.textContent = 'Зарегистрироваться';\n        }\n    }\n});"""
+          # Ensure successful registration switches screens in-place and does not navigate.
+          text = text.replace('saveAuth(data);\n        showApp();', 'saveAuth(data);\n        authScreen.classList.add(\'hidden\');\n        appScreen.classList.remove(\'hidden\');\n        await showApp();', 1)
 
-          if old not in text:
-              raise SystemExit("Expected registration block was not found in parent app.js")
-          text = text.replace(old, new, 1)
-          path.write_text(text, encoding="utf-8")
+          p.write_text(text, encoding='utf-8')
 
-      - name: Commit repaired app.js
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app.js
-          git diff --cached --quiet || git commit -m "Restore full app.js and fix registration redirect"
+          git diff --cached --quiet || git commit -m "Fix registration redirect to chats"
           git push
