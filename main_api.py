@@ -67,7 +67,7 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
     async def register(
         form: OAuth2PasswordRequestForm = Depends(),
         phone: str = Form(...),
-        email: str = Form(...),
+        email: Optional[str] = Form(None),
         phone_code: str = Form(...),
         db: Session = Depends(get_db)
     ):
@@ -78,8 +78,8 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
         phone_clean = (phone or "").strip()
         if len(phone_clean) < 10:
             raise HTTPException(status_code=400, detail="Укажите корректный номер телефона")
-        email_clean = (email or "").strip()
-        if "@" not in email_clean or len(email_clean) < 5:
+        email_clean = (email or "").strip() or None
+        if email_clean and ("@" not in email_clean or len(email_clean) < 5):
             raise HTTPException(status_code=400, detail="Укажите корректную почту")
         expected = phone_codes.get(phone_clean)
         if not expected or expected != (phone_code or "").strip():
@@ -89,7 +89,7 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
             raise HTTPException(status_code=400, detail="Пользователь уже существует")
         if db.query(User).filter(User.phone == phone_clean).first():
             raise HTTPException(status_code=400, detail="Этот номер уже зарегистрирован")
-        if db.query(User).filter(User.email == email_clean).first():
+        if email_clean and db.query(User).filter(User.email == email_clean).first():
             raise HTTPException(status_code=400, detail="Эта почта уже зарегистрирована")
         user = User(
             username=login,
@@ -306,18 +306,6 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
             if getattr(chat, "is_favorites", False):
                 chat_name = "⭐ Избранное"
             elif not chat.is_group and not getattr(chat, "is_channel", False):
-                other = db.query(ChatMember).filter(ChatMember.chat_id == chat.id, ChatMember.user_id != current_user.id).first()
-                if other:
-                    chat_name = other.user.username
-            last_text = None
-            if last_msg:
-                if last_msg.message_type == "voice": last_text = "🎤 Голосовое сообщение"
-                elif last_msg.message_type == "image": last_text = "📷 Фото"
-                elif last_msg.message_type == "video_note": last_text = "🔵 Видеосообщение"
-                elif last_msg.message_type == "sticker": last_text = decrypt_text(last_msg.content) if last_msg.content else "Стикер"
-                else: last_text = decrypt_text(last_msg.content) if last_msg.content else None
-            other_avatar = None
-            if not chat.is_group and not getattr(chat, "is_channel", False):
                 other = db.query(ChatMember).filter(ChatMember.chat_id == chat.id, ChatMember.user_id != current_user.id).first()
                 if other and can_view_private_field(db, other.user, current_user, "avatar"):
                     other_avatar = other.user.avatar_url
