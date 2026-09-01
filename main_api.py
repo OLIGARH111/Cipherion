@@ -66,52 +66,30 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
     @app.post("/register")
     async def register(
         form: OAuth2PasswordRequestForm = Depends(),
-        phone: str = Form(...),
-        email: Optional[str] = Form(None),
-        phone_code: str = Form(...),
         db: Session = Depends(get_db)
     ):
         if len(form.username) < 3:
             raise HTTPException(status_code=400, detail="Имя пользователя слишком короткое")
         if len(form.password) < 4:
             raise HTTPException(status_code=400, detail="Пароль слишком короткий")
-        phone_clean = (phone or "").strip()
-        if len(phone_clean) < 10:
-            raise HTTPException(status_code=400, detail="Укажите корректный номер телефона")
-        email_clean = (email or "").strip() or None
-        if email_clean and ("@" not in email_clean or len(email_clean) < 5):
-            raise HTTPException(status_code=400, detail="Укажите корректную почту")
-        expected = phone_codes.get(phone_clean)
-        if not expected or expected != (phone_code or "").strip():
-            raise HTTPException(status_code=400, detail="Неверный код подтверждения телефона")
         login = form.username.strip().lstrip("@")
         if get_user_by_username(db, login):
             raise HTTPException(status_code=400, detail="Пользователь уже существует")
-        if db.query(User).filter(User.phone == phone_clean).first():
-            raise HTTPException(status_code=400, detail="Этот номер уже зарегистрирован")
-        if email_clean and db.query(User).filter(User.email == email_clean).first():
-            raise HTTPException(status_code=400, detail="Эта почта уже зарегистрирована")
         user = User(
             username=login,
             handle=login.lower(),
-            phone=phone_clean,
-            phone_verified=True,
-            email=email_clean,
             password_hash=get_password_hash(form.password)
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-        phone_codes.pop(phone_clean, None)
         access_token = create_access_token(data={"sub": user.username})
         response = JSONResponse({
             "access_token": access_token,
             "token_type": "bearer",
             "user_id": user.id,
             "username": user.username,
-            "handle": user.handle,
-            "phone": user.phone,
-            "email": user.email
+            "handle": user.handle
         })
         response.set_cookie("cipherion_access_token", access_token, httponly=True, samesite="lax", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
         return response
