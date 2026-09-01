@@ -88,7 +88,9 @@ loginForm.addEventListener('submit', async (e) => {
         }
 
         saveAuth(data);
-        showApp();
+        authScreen.classList.add('hidden');
+        appScreen.classList.remove('hidden');
+        await showApp();
     } catch (err) {
         authError.textContent = 'Нет связи с сервером. Подождите несколько секунд и повторите.';
     } finally {
@@ -124,7 +126,7 @@ document.getElementById('reg-send-code')?.addEventListener('click', async () => 
 
 registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     const submitButton = registerForm.querySelector('button[type="submit"]');
     const formData = new FormData();
     formData.append('username', document.getElementById('reg-username').value.trim());
