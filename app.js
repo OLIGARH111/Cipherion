@@ -160,7 +160,9 @@ registerForm.addEventListener('submit', async (e) => {
             return;
         }
         saveAuth(data);
-        showApp();
+        authScreen.classList.add('hidden');
+        appScreen.classList.remove('hidden');
+        await showApp();
     } catch (err) {
         console.error('Registration error:', err);
         authError.textContent = 'Ошибка соединения с сервером. Попробуйте ещё раз.';
