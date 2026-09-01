@@ -52,6 +52,36 @@ function saveAuth(data) {
   localStorage.setItem('username', username);
 }
 
+function hideAuthShowApp() {
+  if (authScreen) {
+    authScreen.classList.add('hidden');
+    authScreen.style.setProperty('display', 'none', 'important');
+    authScreen.style.setProperty('visibility', 'hidden', 'important');
+    authScreen.style.setProperty('pointer-events', 'none', 'important');
+  }
+  if (appScreen) {
+    appScreen.classList.remove('hidden');
+    appScreen.style.setProperty('display', 'flex', 'important');
+    appScreen.style.setProperty('visibility', 'visible', 'important');
+    appScreen.style.setProperty('pointer-events', 'auto', 'important');
+    appScreen.style.setProperty('height', '100vh', 'important');
+    appScreen.style.setProperty('width', '100%', 'important');
+  }
+}
+
+function showAuthHideApp() {
+  if (appScreen) {
+    appScreen.classList.add('hidden');
+    appScreen.style.setProperty('display', 'none', 'important');
+  }
+  if (authScreen) {
+    authScreen.classList.remove('hidden');
+    authScreen.style.setProperty('display', 'flex', 'important');
+    authScreen.style.setProperty('visibility', 'visible', 'important');
+    authScreen.style.setProperty('pointer-events', 'auto', 'important');
+  }
+}
+
 function logout() {
   wsIntentionalClose = true;
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
@@ -62,8 +92,7 @@ function logout() {
   myAvatarUrl = null;
   isVip = false;
   currentChatId = null;
-  authScreen?.classList.remove('hidden');
-  appScreen?.classList.add('hidden');
+  showAuthHideApp();
 }
 
 async function api(url, options = {}) {
@@ -158,14 +187,13 @@ registerForm?.addEventListener('submit', async (e) => {
 });
 
 function showApp() {
-  authScreen?.classList.add('hidden');
-  appScreen?.classList.remove('hidden');
+  hideAuthShowApp();
   loadMe().then(ok => {
     if (!ok || !token) return;
     connectWebSocket();
     loadUsers();
     loadChats();
-  });
+  }).catch(() => {});
 }
 
 async function loadMe() {
@@ -218,6 +246,10 @@ function renderUsers(users) {
 
 function renderChats(chats) {
   if (!chatsList) return;
+  if (!chats.length) {
+    chatsList.innerHTML = '<p style="padding:12px;color:#71717a;font-size:13px">Пока нет чатов. Выберите пользователя ниже.</p>';
+    return;
+  }
   chatsList.innerHTML = chats.map(c => `
     <div class="list-item ${currentChatId === c.id ? 'active' : ''}" data-chat-id="${c.id}">
       <div class="avatar">${escapeHtml((c.name || '?')[0].toUpperCase())}</div>
@@ -360,8 +392,10 @@ backBtn?.addEventListener('click', () => {
   document.querySelector('.sidebar')?.classList.remove('hidden-mobile');
 });
 
+document.getElementById('logout-btn')?.addEventListener('click', logout);
+
 if (token && userId && username) {
   showApp();
 } else {
-  authScreen?.classList.remove('hidden');
+  showAuthHideApp();
 }
