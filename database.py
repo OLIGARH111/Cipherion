@@ -1,8 +1,17 @@
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from models import Base
+import os
+from pathlib import Path
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./messenger.db"
+# On Render free tier the filesystem is ephemeral. If a persistent disk is
+# mounted at /data (or DATABASE_DIR is set), keep messenger.db there so
+# registrations survive restarts/deploys.
+_db_dir = os.getenv("DATABASE_DIR") or ("/data" if Path("/data").is_dir() else ".")
+Path(_db_dir).mkdir(parents=True, exist_ok=True)
+_db_path = str(Path(_db_dir) / "messenger.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{_db_path}"
+print(f"Cipherion: SQLite database at {_db_path}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -21,15 +30,12 @@ def _sqlite_literal(value):
 
 
 def _default_for_column(column):
-    # Existing rows need a value when a newly-added column is NOT NULL.
-    # Most project columns are nullable or have Python-side defaults.
     if column.server_default is not None:
         return str(column.server_default.arg)
     if column.default is not None and column.default.is_scalar:
         return _sqlite_literal(column.default.arg)
     if column.nullable:
         return None
-    # Safe fallbacks for legacy databases.
     name = column.name.lower()
     if "is_" in name or name.startswith("phone_verified"):
         return "0"
@@ -39,7 +45,6 @@ def _default_for_column(column):
 
 
 def _upgrade_sqlite_schema():
-    """Add columns introduced by newer Cipherion versions to old SQLite DBs."""
     inspector = inspect(engine)
     with engine.begin() as connection:
         for table in Base.metadata.sorted_tables:
@@ -54,9 +59,6 @@ def _upgrade_sqlite_schema():
                 default = _default_for_column(column)
                 if default is not None:
                     statement += f" DEFAULT {default}"
-                # SQLite permits adding nullable columns without a default.
-                # Avoid adding primary-key/unique constraints during migration;
-                # these are already present on databases created from metadata.
                 connection.execute(text(statement))
                 print(f"Cipherion: migrated {table.name}.{column.name}")
 
