@@ -11,6 +11,7 @@ import json
 import os
 import uuid
 import aiofiles
+import traceback
 
 from database import get_db, SessionLocal
 from models import User, Chat, ChatMember, Message, Story, StoryReaction, StoryReply, StoryView, Blacklist, DeviceSession
@@ -65,55 +66,92 @@ def mount(app, manager, get_current_user, get_user_from_token, get_user_by_usern
 
     @app.post("/register")
     async def register(
-        form: OAuth2PasswordRequestForm = Depends(),
+        username: str = Form(...),
+        password: str = Form(...),
         db: Session = Depends(get_db)
     ):
-        if len(form.username) < 3:
-            raise HTTPException(status_code=400, detail="Имя пользователя слишком короткое")
-        if len(form.password) < 4:
-            raise HTTPException(status_code=400, detail="Пароль слишком короткий")
-        login = form.username.strip().lstrip("@")
-        if get_user_by_username(db, login):
-            raise HTTPException(status_code=400, detail="Пользователь уже существует")
-        user = User(
-            username=login,
-            handle=login.lower(),
-            password_hash=get_password_hash(form.password)
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        access_token = create_access_token(data={"sub": user.username})
-        response = JSONResponse({
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user_id": user.id,
-            "username": user.username,
-            "handle": user.handle
-        })
-        response.set_cookie("cipherion_access_token", access_token, httponly=True, samesite="lax", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-        return response
+        try:
+            login = (username or "").strip().lstrip("@")
+            if len(login) < 3:
+                raise HTTPException(status_code=400, detail="Имя пользователя слишком короткое")
+            if len(password or "") < 4:
+                raise HTTPException(status_code=400, detail="Пароль слишком короткий")
+            if get_user_by_username(db, login):
+                raise HTTPException(status_code=400, detail="Пользователь уже существует")
+            handle = login.lower()
+            # Avoid unique handle collision if another user already took this handle
+            if db.query(User).filter(User.handle == handle).first():
+                handle = f"{handle}_{uuid.uuid4().hex[:6]}"
+            try:
+                password_hash = get_password_hash(password)
+            except Exception as e:
+                print(f"Cipherion register hash error: {e!r}")
+                raise HTTPException(status_code=500, detail="Ошибка хеширования пароля")
+            user = User(
+                username=login,
+                handle=handle,
+                password_hash=password_hash
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            access_token = create_access_token(data={"sub": user.username})
+            response = JSONResponse({
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user_id": user.id,
+                "username": user.username,
+                "handle": user.handle
+            })
+            response.set_cookie(
+                "cipherion_access_token",
+                access_token,
+                httponly=True,
+                samesite="lax",
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+            return response
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            print(f"Cipherion register error: {e!r}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Не удалось сохранить пользователя: {type(e).__name__}")
 
     @app.post("/token")
     async def login(
-        form: OAuth2PasswordRequestForm = Depends(),
+        username: str = Form(...),
+        password: str = Form(...),
         cloud_password: Optional[str] = Form(None),
         db: Session = Depends(get_db)
     ):
-        user = authenticate_user(db, form.username, form.password)
-        if not user:
-            raise HTTPException(status_code=400, detail="Неверный логин или пароль")
-        if user.cloud_password_hash and not (cloud_password and verify_password(cloud_password, user.cloud_password_hash)):
-            raise HTTPException(status_code=401, detail="Введите облачный пароль")
-        access_token = create_access_token(data={"sub": user.username})
-        response = JSONResponse({
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user_id": user.id,
-            "username": user.username
-        })
-        response.set_cookie("cipherion_access_token", access_token, httponly=True, samesite="lax", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-        return response
+        try:
+            login = (username or "").strip().lstrip("@")
+            user = authenticate_user(db, login, password)
+            if not user:
+                raise HTTPException(status_code=400, detail="Неверный логин или пароль")
+            if user.cloud_password_hash and not (cloud_password and verify_password(cloud_password, user.cloud_password_hash)):
+                raise HTTPException(status_code=401, detail="Введите облачный пароль")
+            access_token = create_access_token(data={"sub": user.username})
+            response = JSONResponse({
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user_id": user.id,
+                "username": user.username
+            })
+            response.set_cookie(
+                "cipherion_access_token",
+                access_token,
+                httponly=True,
+                samesite="lax",
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+            return response
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Cipherion login error: {e!r}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Ошибка входа: {type(e).__name__}")
 
     @app.get("/me")
     async def get_me(current_user: User = Depends(get_current_user)):
