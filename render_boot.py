@@ -17,10 +17,20 @@ MEDIA = {
     ".woff": "font/woff", ".woff2": "font/woff2",
 }
 
+# Critical: #auth-screen.hidden MUST be display:none so login can leave the chat UI.
+# Previous bootstrap forced display:flex on .hidden and blocked the app screen forever.
 BOOTSTRAP = r'''<script>
 (() => {
   const style = document.createElement('style');
-  style.textContent = `html,body{margin:0!important;width:100%!important;min-height:100%!important;background:#022c22!important}#auth-screen{display:flex!important;min-height:100vh;align-items:center;justify-content:center}#auth-screen.hidden{display:flex!important}.auth-box{display:block!important;visibility:visible!important;opacity:1!important}`;
+  style.textContent = [
+    'html,body{margin:0!important;width:100%!important;min-height:100%!important;background:#0f0f13!important}',
+    '#auth-screen{display:flex;min-height:100vh;align-items:center;justify-content:center}',
+    '#auth-screen.hidden{display:none!important;visibility:hidden!important;pointer-events:none!important}',
+    '#app-screen{display:flex;height:100vh;width:100%}',
+    '#app-screen.hidden{display:none!important}',
+    '.auth-box{display:block;visibility:visible;opacity:1}',
+    '.hidden{display:none!important}'
+  ].join('');
   document.head.appendChild(style);
   window.addEventListener('error', e => {
     console.error('Cipherion JS error:', e.error || e.message);
@@ -68,7 +78,6 @@ def static_file(path: str):
 
 @app.get("/health")
 async def health():
-    # Health endpoint must remain useful even while the lazy backend is unavailable.
     return {
         "ok": True,
         "service": "cipherion",
@@ -81,11 +90,18 @@ async def health():
 async def root():
     html_path = BASE / "index.html"
     html = html_path.read_text(encoding="utf-8")
-    # index.html already contains the complete script bootstrap. Only inject the
-    # diagnostic/error guard; never inject a second set of application scripts.
-    marker = "Cipherion JS error"
-    if marker not in html:
-        html = html.replace("</body>", BOOTSTRAP + "</body>")
+    # Always inject fixed bootstrap so auth can hide after login.
+    # Strip any older broken bootstrap first.
+    if "Cipherion JS error" in html:
+        # remove previous injected script blocks that contain the marker
+        import re
+        html = re.sub(
+            r"<script>\s*\(\(\)\s*=>\s*\{[\s\S]*?Cipherion JS error[\s\S]*?\}\)\(\);\s*</script>",
+            "",
+            html,
+            count=1,
+        )
+    html = html.replace("</body>", BOOTSTRAP + "</body>")
     return HTMLResponse(html)
 
 
