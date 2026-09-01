@@ -28,5 +28,8 @@ html,body{height:100%;min-height:100%;overflow:hidden}body{overscroll-behavior:n
  .modal{padding:10px!important;align-items:flex-end!important}
  .modal-box{width:100%!important;max-width:none!important;max-height:88dvh!important;overflow:auto!important;border-radius:18px 18px 10px 10px!important;padding-bottom:calc(14px + env(safe-area-inset-bottom))!important}
  .drawer{width:min(320px,88vw)!important;height:100dvh!important;padding-top:env(safe-area-inset-top)!important;box-sizing:border-box!important;overflow:auto!important}
+ .menu-btn{display:none!important}
+ .sidebar-header{padding-left:12px!important}
+ .search-box-header{width:100%!important;flex:1 1 100%!important}
 }
 @media(min-width:701px){.mobile-bottom-nav{display:none!important}}
