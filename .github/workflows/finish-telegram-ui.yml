@@ -1,0 +1,150 @@
+name: Finish Cipherion Telegram UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply UI and registration patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Remove phone/SMS/email from registration. Backend registration already
+          # accepts only username + password in the current app.js.
+          s = re.sub(r'\s*<input type="tel" id="reg-phone"[^>]*>', '', s)
+          s = re.sub(r'\s*<div class="phone-code-row">.*?</div>\s*<p id="reg-code-hint"[^>]*>.*?</p>', '', s, flags=re.S)
+          s = re.sub(r'\s*<input type="email" id="reg-email"[^>]*>', '', s)
+
+          # Load the emerald Telegram-inspired skin after the base stylesheet.
+          if 'emerald-theme.css' not in s:
+              s = s.replace('</head>', '    <link rel="stylesheet" href="/emerald-theme.css?v=20260901-telegram">\n</head>')
+          else:
+              s = s.replace('emerald-theme.css?v=20260901-emerald1', 'emerald-theme.css?v=20260901-telegram')
+
+          # Cache-bust the base stylesheet too.
+          s = s.replace('style.css?v=20260829-modern1', 'style.css?v=20260901-telegram')
+
+          marker = '<!-- TELEGRAM_UI_PATCHED -->'
+          if marker not in s:
+              s = s.replace('<body>', '<body>\n    ' + marker, 1)
+          p.write_text(s, encoding='utf-8')
+
+          css = Path('emerald-theme.css')
+          c = css.read_text(encoding='utf-8') if css.exists() else ''
+          marker_css = '/* TELEGRAM_INSPIRED_UI_V2 */'
+          if marker_css not in c:
+              c += r'''
+
+/* TELEGRAM_INSPIRED_UI_V2 */
+:root {
+  --tg-bg: #0e1621;
+  --tg-sidebar: #17212b;
+  --tg-sidebar-2: #202b36;
+  --tg-chat: #0e1621;
+  --tg-accent: #2aabee;
+  --tg-accent-dark: #229ed9;
+  --tg-text: #f1f1f1;
+  --tg-muted: #8c9aa8;
+  --tg-border: rgba(255,255,255,.08);
+  --tg-own: #2b5278;
+}
+
+html, body { margin:0; width:100%; height:100%; overflow:hidden; }
+body { background:var(--tg-chat); color:var(--tg-text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+
+/* Auth */
+#auth-screen { background: radial-gradient(circle at 50% 20%, #1d4f68 0, #102330 38%, #0e1621 75%); }
+.auth-box { background:rgba(23,33,43,.96); border:1px solid var(--tg-border); border-radius:14px; box-shadow:0 12px 45px rgba(0,0,0,.35); }
+.auth-box h1 { letter-spacing:.2px; }
+.tabs { border-bottom:1px solid var(--tg-border); }
+.tab.active { color:var(--tg-accent); border-bottom-color:var(--tg-accent); }
+.auth-box input { background:#17212b; border:1px solid #263746; color:var(--tg-text); border-radius:8px; }
+.auth-box input:focus { border-color:var(--tg-accent); outline:none; }
+.auth-box button[type="submit"] { background:var(--tg-accent); border-radius:8px; }
+.auth-box button[type="submit"]:hover { background:var(--tg-accent-dark); }
+
+/* Main Telegram-like two-column shell */
+#app-screen { background:var(--tg-chat); }
+.sidebar { background:var(--tg-sidebar); border-right:1px solid var(--tg-border); }
+.sidebar-header, .chat-header { background:var(--tg-sidebar); border-color:var(--tg-border); }
+.search-box-header input { background:#242f3a; border:0; color:var(--tg-text); border-radius:22px; }
+.search-box-header input::placeholder { color:var(--tg-muted); }
+.section-title { color:var(--tg-muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.list-item { border-radius:8px; margin:2px 6px; transition:background .12s ease; }
+.list-item:hover { background:var(--tg-sidebar-2); }
+.list-item.active { background:#2b5278; }
+.item-name { color:var(--tg-text); }
+.item-preview, .drawer-status { color:var(--tg-muted); }
+.avatar, .drawer-avatar, .profile-photo-preview { background:linear-gradient(135deg,#2aabee,#168acd); color:#fff; }
+
+.chat-area { background:var(--tg-chat); }
+.chat-header { box-shadow:0 1px 2px rgba(0,0,0,.22); }
+.chat-title-clickable { color:#fff; }
+.messages { background:var(--tg-chat); }
+.message { max-width:min(70%,520px); border-radius:12px; box-shadow:0 1px 1px rgba(0,0,0,.18); }
+.message.mine { background:var(--tg-own); }
+.message.theirs { background:#182533; }
+.message-time { color:#a9b7c4; }
+.message-sender { color:#5cc8ff; }
+
+.message-form { background:var(--tg-sidebar); border-top:1px solid var(--tg-border); }
+.message-form input { background:#202b36; color:#fff; border:0; border-radius:20px; }
+.attach-btn, .voice-btn { color:#aebdcc; background:transparent; }
+.message-form > button[type="submit"] { color:var(--tg-accent); background:transparent; }
+
+/* Drawer */
+.drawer { background:#17212b; box-shadow:8px 0 30px rgba(0,0,0,.4); }
+.drawer-item:hover { background:#202b36; }
+.drawer-divider { background:var(--tg-border); }
+.drawer-item-danger { color:#ff6b6b; }
+
+/* Modals */
+.modal { background:rgba(0,0,0,.58); }
+.modal-box { background:#17212b; color:#fff; border:1px solid var(--tg-border); border-radius:14px; }
+.modal-box input, .modal-box textarea { background:#202b36; color:#fff; border:1px solid #2b3a48; border-radius:8px; }
+.btn-primary { background:var(--tg-accent); }
+.btn-secondary { background:#263442; color:#fff; }
+
+/* Mobile bottom bar */
+.mobile-bottom-nav { background:#17212b !important; border-top:1px solid var(--tg-border) !important; }
+.mobile-nav-item { color:#7f8c99 !important; }
+.mobile-nav-item.active { color:var(--tg-accent) !important; }
+
+/* Phone/email are intentionally absent from the registration UI. */
+#reg-phone, #reg-phone-code, #reg-email, #reg-send-code, #reg-code-hint, .phone-code-row { display:none !important; }
+
+@media (max-width:700px) {
+  .sidebar { border-right:0; }
+  .chat-area { background:var(--tg-chat); }
+  .message { max-width:82%; }
+  .mobile-bottom-nav { height:58px; }
+  .mobile-nav-item { font-size:11px; }
+}
+'''
+              css.write_text(c, encoding='utf-8')
+          PY
+
+      - name: Commit generated changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html emerald-theme.css
+          git commit -m "Apply Telegram-inspired UI and remove registration contacts"
+          git push
