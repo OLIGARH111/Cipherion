@@ -2,8 +2,7 @@ import importlib
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Cipherion")
@@ -30,7 +29,7 @@ BOOTSTRAP = r'''<script>
       const p = document.createElement('p');
       p.className = 'boot-error';
       p.style.cssText = 'color:#fca5a5;text-align:center;margin-top:12px;font:14px system-ui;';
-      p.textContent = 'Интерфейс загружен. Ошибка JavaScript: ' + (e.message || 'неизвестная ошибка');
+      p.textContent = 'Ошибка JavaScript: ' + (e.message || 'неизвестная ошибка');
       box.querySelector('.auth-box')?.appendChild(p);
     }
   });
@@ -69,13 +68,23 @@ def static_file(path: str):
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "service": "cipherion", "backend_loaded": _backend is not None, "backend_error": _backend_error}
+    # Health endpoint must remain useful even while the lazy backend is unavailable.
+    return {
+        "ok": True,
+        "service": "cipherion",
+        "backend_loaded": _backend is not None,
+        "backend_error": _backend_error,
+    }
 
 
 @app.get("/")
 async def root():
-    html = (BASE / "index.html").read_text(encoding="utf-8")
-    if "Cipherion JS error" not in html:
+    html_path = BASE / "index.html"
+    html = html_path.read_text(encoding="utf-8")
+    # index.html already contains the complete script bootstrap. Only inject the
+    # diagnostic/error guard; never inject a second set of application scripts.
+    marker = "Cipherion JS error"
+    if marker not in html:
         html = html.replace("</body>", BOOTSTRAP + "</body>")
     return HTMLResponse(html)
 
@@ -83,17 +92,25 @@ async def root():
 @app.middleware("http")
 async def backend_middleware(request, call_next):
     path = request.url.path
-    if path == "/" or path == "/health":
+    if path in ("/", "/health"):
         return await call_next(request)
+
     asset = static_file(path)
     if asset is not None:
         return FileResponse(asset, media_type=MEDIA[asset.suffix.lower()])
+
     backend = load_backend()
     if backend is None:
-        return JSONResponse({"ok": False, "detail": "Backend failed to load", "error": _backend_error}, status_code=503)
+        return JSONResponse(
+            {"ok": False, "detail": "Backend failed to load", "error": _backend_error},
+            status_code=503,
+        )
+
     messages = []
+
     async def send(message):
         messages.append(message)
+
     await backend(request.scope, request.receive, send)
     status = 500
     headers = []
@@ -104,7 +121,12 @@ async def backend_middleware(request, call_next):
             headers = message.get("headers", [])
         elif message["type"] == "http.response.body":
             body.extend(message.get("body", b""))
-    return Response(content=bytes(body), status_code=status, headers={k.decode(): v.decode() for k, v in headers})
+
+    return Response(
+        content=bytes(body),
+        status_code=status,
+        headers={k.decode(): v.decode() for k, v in headers},
+    )
 
 
 @app.get("/{path:path}")
