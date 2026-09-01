@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#022c22">
 <title>Cipherion</title>
-<link rel="stylesheet" href="/style.css?v=20260901-auth-fix">
+<link rel="stylesheet" href="/style.css?v=20260901-simple-reg">
 </head>
 <body>
 <div id="auth-screen" class="auth-screen">
@@ -29,13 +29,6 @@
     <form id="register-form" class="hidden">
       <input id="reg-username" placeholder="Имя пользователя" autocomplete="username" required minlength="3">
       <input id="reg-password" type="password" placeholder="Пароль (мин. 4 символа)" autocomplete="new-password" required minlength="4">
-      <input id="reg-phone" type="tel" placeholder="Номер телефона" autocomplete="tel" required>
-      <input id="reg-email" type="email" placeholder="Email (необязательно)">
-      <div class="phone-code-row">
-        <button type="button" id="reg-send-code">Получить код</button>
-        <input id="reg-phone-code" placeholder="Код из SMS" inputmode="numeric" autocomplete="one-time-code">
-      </div>
-      <span id="reg-code-hint" class="photo-hint"></span>
       <button type="submit">Зарегистрироваться</button>
     </form>
   </div>
@@ -53,7 +46,7 @@
     <div id="chat-view" class="hidden"><header class="chat-header"><button id="back-btn">←</button><h3 id="chat-title"></h3></header><div id="messages" class="messages"></div><form id="message-form"><input id="message-input"><button type="submit">Отправить</button></form></div>
   </main>
 </div>
-<script src="/ws-bridge.js?v=20260901-auth-fix"></script>
-<script src="/app.js?v=20260901-auth-fix"></script>
+<script src="/ws-bridge.js?v=20260901-simple-reg"></script>
+<script src="/app.js?v=20260901-simple-reg"></script>
 </body>
 </html>
