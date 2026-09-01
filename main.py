@@ -254,8 +254,6 @@ def startup():
         init_db()
         print("Cipherion: database initialized")
     except Exception as exc:
-        # Do not let a transient SQLite/schema problem prevent Uvicorn from
-        # binding to Render's $PORT. The health endpoint and UI can still boot.
         print(f"Cipherion: database initialization warning: {exc!r}")
 
 @app.get("/health")
@@ -293,6 +291,10 @@ async def serve_ui_fix_css():
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse("app.js", media_type="application/javascript")
+
+@app.get("/auth-recovery.js")
+async def serve_auth_recovery_js():
+    return FileResponse("auth-recovery.js", media_type="application/javascript")
 
 @app.get("/mobile-nav.js")
 async def serve_mobile_nav_js():
