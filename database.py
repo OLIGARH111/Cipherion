@@ -4,14 +4,39 @@ from models import Base
 import os
 from pathlib import Path
 
-# On Render free tier the filesystem is ephemeral. If a persistent disk is
-# mounted at /data (or DATABASE_DIR is set), keep messenger.db there so
-# registrations survive restarts/deploys.
-_db_dir = os.getenv("DATABASE_DIR") or ("/data" if Path("/data").is_dir() else ".")
-Path(_db_dir).mkdir(parents=True, exist_ok=True)
-_db_path = str(Path(_db_dir) / "messenger.db")
+
+def _resolve_db_path() -> str:
+    """Pick a writable place for messenger.db without crashing boot."""
+    candidates = []
+    env_dir = os.getenv("DATABASE_DIR")
+    if env_dir:
+        candidates.append(Path(env_dir))
+    # Render persistent disk (only if it already exists and is writable)
+    data = Path("/data")
+    if data.is_dir():
+        candidates.append(data)
+    candidates.append(Path("."))
+    candidates.append(Path("/tmp"))
+
+    for folder in candidates:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            probe = folder / ".cipherion_write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            path = str((folder / "messenger.db").resolve())
+            print(f"Cipherion: SQLite database at {path}")
+            return path
+        except Exception as exc:
+            print(f"Cipherion: cannot use DB dir {folder}: {exc!r}")
+            continue
+    # Last resort — relative path (may still work)
+    print("Cipherion: falling back to ./messenger.db")
+    return "messenger.db"
+
+
+_db_path = _resolve_db_path()
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_db_path}"
-print(f"Cipherion: SQLite database at {_db_path}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -45,27 +70,33 @@ def _default_for_column(column):
 
 
 def _upgrade_sqlite_schema():
-    inspector = inspect(engine)
-    with engine.begin() as connection:
-        for table in Base.metadata.sorted_tables:
-            if not inspector.has_table(table.name):
-                continue
-            existing = {col["name"] for col in inspector.get_columns(table.name)}
-            for column in table.columns:
-                if column.name in existing:
+    try:
+        inspector = inspect(engine)
+        with engine.begin() as connection:
+            for table in Base.metadata.sorted_tables:
+                if not inspector.has_table(table.name):
                     continue
-                type_sql = column.type.compile(dialect=engine.dialect)
-                statement = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {type_sql}'
-                default = _default_for_column(column)
-                if default is not None:
-                    statement += f" DEFAULT {default}"
-                connection.execute(text(statement))
-                print(f"Cipherion: migrated {table.name}.{column.name}")
+                existing = {col["name"] for col in inspector.get_columns(table.name)}
+                for column in table.columns:
+                    if column.name in existing:
+                        continue
+                    type_sql = column.type.compile(dialect=engine.dialect)
+                    statement = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {type_sql}'
+                    default = _default_for_column(column)
+                    if default is not None:
+                        statement += f" DEFAULT {default}"
+                    connection.execute(text(statement))
+                    print(f"Cipherion: migrated {table.name}.{column.name}")
+    except Exception as exc:
+        print(f"Cipherion: schema upgrade warning: {exc!r}")
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
-    _upgrade_sqlite_schema()
+    try:
+        Base.metadata.create_all(bind=engine)
+        _upgrade_sqlite_schema()
+    except Exception as exc:
+        print(f"Cipherion: init_db warning: {exc!r}")
 
 
 def get_db():
