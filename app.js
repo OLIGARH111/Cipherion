@@ -60,24 +60,42 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ==================== AUTH ====================
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const submitButton = loginForm.querySelector('button[type="submit"]');
     const formData = new FormData();
     formData.append('username', document.getElementById('login-username').value.trim());
     formData.append('password', document.getElementById('login-password').value);
     formData.append('cloud_password', document.getElementById('login-cloud-password').value);
-    
+    authError.textContent = '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Входим…';
+    }
+
     try {
-        const res = await fetch('/token', { method: 'POST', body: formData });
-        const data = await res.json();
-        
+        const res = await fetch('/token', { method: 'POST', body: formData, credentials: 'same-origin' });
+        const contentType = res.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+            ? await res.json().catch(() => ({}))
+            : { detail: 'Сервер вернул некорректный ответ' };
+
         if (!res.ok) {
-            authError.textContent = data.detail || 'Ошибка входа';
+            authError.textContent = data.detail || `Не удалось войти (код ${res.status})`;
             return;
         }
-        
+        if (!data.access_token || !data.user_id || !data.username) {
+            authError.textContent = 'Сервер не вернул данные сессии. Попробуйте ещё раз.';
+            return;
+        }
+
         saveAuth(data);
         showApp();
     } catch (err) {
-        authError.textContent = 'Ошибка соединения с сервером';
+        authError.textContent = 'Нет связи с сервером. Подождите несколько секунд и повторите.';
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Войти';
+        }
     }
 });
 
@@ -1170,6 +1188,9 @@ backBtn.addEventListener('click', () => {
 });
 
 async function api(url, options = {}) {
+    if (!token) {
+        throw new Error('No active session');
+    }
     const res = await fetch(url, {
         credentials: 'same-origin',
         ...options,
@@ -1178,12 +1199,13 @@ async function api(url, options = {}) {
             ...(options.headers || {})
         }
     });
-    
+
     if (res.status === 401) {
         logout();
+        authError.textContent = 'Сессия истекла. Войдите в аккаунт ещё раз.';
         throw new Error('Unauthorized');
     }
-    
+
     return res;
 }
 
