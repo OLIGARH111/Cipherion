@@ -1,0 +1,26 @@
+/* Cipherion mobile settings — full-screen iPhone UX */
+@media (max-width:700px){
+  #app-settings-modal{position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;padding:0!important;align-items:stretch!important;justify-content:stretch!important;background:#0e1621!important}
+  #app-settings-modal.hidden{display:none!important}
+  #app-settings-modal .modal-box{position:relative!important;width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;background:#0e1621!important}
+  #app-settings-modal .app-settings-layout{height:100%!important;min-height:0!important;display:flex!important;flex-direction:column!important}
+  #app-settings-modal .app-settings-nav{flex:0 0 auto!important;padding:calc(env(safe-area-inset-top) + 12px) 10px 7px!important;background:#17212b!important;border-bottom:1px solid rgba(255,255,255,.08)!important;overflow-x:auto!important;white-space:nowrap!important;display:block!important;-webkit-overflow-scrolling:touch!important}
+  #app-settings-modal .app-settings-nav h3{margin:0 8px 8px!important;font-size:21px!important}
+  #app-settings-modal .app-set-nav{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:42px!important;margin:2px!important;padding:0 13px!important;border:0!important;border-radius:12px!important;background:#202b36!important;color:#aebdcc!important;font-size:13px!important}
+  #app-settings-modal .app-set-nav.active{background:#2b5278!important;color:#fff!important}
+  #app-settings-modal .app-settings-content{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;padding:14px 12px calc(76px + env(safe-area-inset-bottom))!important}
+  #app-settings-modal .app-set-section h4{font-size:19px!important;margin:3px 0 12px!important}
+  #app-settings-modal .set-row{min-height:54px!important;padding:10px 12px!important;box-sizing:border-box!important;border-radius:12px!important;background:#17212b!important;margin-bottom:7px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important}
+  #app-settings-modal .set-row span{font-size:15px!important}
+  #app-settings-modal .modal-actions{position:absolute!important;left:0!important;right:0!important;bottom:0!important;z-index:10!important;margin:0!important;padding:8px 12px calc(8px + env(safe-area-inset-bottom))!important;background:rgba(23,33,43,.97)!important;border-top:1px solid rgba(255,255,255,.08)!important;display:flex!important;gap:8px!important}
+  #app-settings-modal .modal-actions button{height:44px!important;flex:1!important}
+  #app-settings-close{order:0!important}
+  #app-settings-save{order:1!important}
+  #app-settings-modal .app-settings-content input,#app-settings-modal .app-settings-content select{max-width:48%!important}
+  /* Exit buttons for other full-screen mobile panels */
+  #settings-modal .modal-box,#group-settings-modal .modal-box,#vip-modal .modal-box{width:100%!important;max-width:none!important;margin:0!important}
+  #settings-close,#group-settings-cancel,#vip-close{min-height:44px!important}
+  .modal-close-x{min-width:42px!important;min-height:42px!important}
+  /* Never show the old hamburger on iPhone */
+  #menu-btn,.menu-btn{display:none!important}
+}
