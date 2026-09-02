@@ -1,0 +1,11 @@
+/* Empty chats — centered Telegram-like state */
+@media(max-width:700px){
+  #chats-list:empty{position:relative;min-height:calc(100dvh - 150px);display:flex!important;align-items:center;justify-content:center;overflow:visible}
+  #chats-list:empty::before{content:'🚫';position:absolute;top:50%;left:50%;transform:translate(-50%,-58px);font-size:58px;line-height:1}
+  #chats-list:empty::after{content:'Нет чатов\\AНачните общение';white-space:pre;text-align:center;position:absolute;top:50%;left:50%;transform:translate(-50%,22px);font-size:20px;font-weight:500;line-height:32px;color:#e6edf3;min-width:250px}
+}
+@media(min-width:701px){
+  #chats-list:empty{position:relative;min-height:320px;display:flex!important;align-items:center;justify-content:center}
+  #chats-list:empty::before{content:'🚫';position:absolute;top:50%;left:50%;transform:translate(-50%,-58px);font-size:58px}
+  #chats-list:empty::after{content:'Нет чатов\\AНачните общение';white-space:pre;text-align:center;position:absolute;top:50%;left:50%;transform:translate(-50%,22px);font-size:20px;line-height:32px;color:#e6edf3}
+}
