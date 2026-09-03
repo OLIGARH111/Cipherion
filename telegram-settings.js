@@ -1,6 +1,8 @@
 /* Cipherion — Telegram-inspired, functional settings */
 (() => {
   'use strict';
+  const favicon=()=>{let l=document.querySelector('link[rel="icon"]');if(!l){l=document.createElement('link');l.rel='icon';document.head.appendChild(l);}l.type='image/svg+xml';l.href='/favicon.svg?v=20260903';};
+  favicon();
   const init = () => {
     const modal=document.getElementById('app-settings-modal');
     if(!modal) return;
