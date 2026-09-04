@@ -94,7 +94,7 @@
         if (!actionEl) return;
         const action = actionEl.dataset.action;
         if (action === 'profile' || action === 'avatar') { document.getElementById('menu-settings')?.click(); return; }
-        if (action === 'vip') { document.getElementById('menu-vip')?.click(); return; }
+        if (action === 'vip') { window.openCipherionVIP?.(); return; }
         if (action === 'clear') { localStorage.removeItem('cipherionDrafts'); localStorage.removeItem('cipherionCache'); alert('Локальные данные очищены.'); return; }
         if (action === 'refresh') { alert('Сеанс обновлён.'); return; }
         if (action === 'sessions') { alert('Другие сеансы завершены.'); return; }
@@ -142,7 +142,6 @@
       page.scrollTop = 0;
     }
 
-    // One delegated handler controls every settings row. It survives iOS touch/click quirks.
     list.addEventListener('click', e => {
       const button = e.target.closest('.settings-home-row');
       if (!button || !list.contains(button)) return;
@@ -191,4 +190,17 @@
     const back = e.target.closest('#app-settings-modal .settings-back');
     if (back) { e.preventDefault(); e.stopImmediatePropagation(); home(); }
   }, true);
+})();
+
+/* Load the VIP feature center without changing the existing app shell. */
+(() => {
+  const loadVIP = () => {
+    if (window.openCipherionVIP || document.getElementById('cipherion-vip-js')) return;
+    const script = document.createElement('script');
+    script.id = 'cipherion-vip-js';
+    script.src = '/cipherion-vip.js?v=20260905-1';
+    script.defer = true;
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadVIP, {once:true}); else loadVIP();
 })();
