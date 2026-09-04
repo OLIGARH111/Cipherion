@@ -1,6 +1,7 @@
-/* Cipherion — settings navigation fix */
+/* Cipherion — settings navigation, hardened for iPhone */
 (() => {
   'use strict';
+
   const init = () => {
     const modal = document.getElementById('app-settings-modal');
     if (!modal || modal.dataset.settingsFixed === '1') return;
@@ -9,7 +10,6 @@
     if (!nav || !content) return;
     modal.dataset.settingsFixed = '1';
 
-    // Remove the legacy settings controls, including the old cloud-password field.
     nav.querySelectorAll('.app-set-nav').forEach(el => el.remove());
     content.querySelectorAll('.app-set-section').forEach(el => el.remove());
     content.querySelector('.modal-actions')?.remove();
@@ -82,7 +82,7 @@
       if (id === 'vip') c.innerHTML = '<div class="vip-settings-banner">👑 Cipherion VIP</div><button class="tg-wide-action" data-action="vip">Открыть VIP</button>';
       if (id === 'help') c.innerHTML = '<button class="tg-wide-action" data-action="faq">Частые вопросы</button><button class="tg-wide-action" data-action="support">Связаться с поддержкой</button><p class="settings-about">Cipherion · безопасный мессенджер</p>';
 
-      page.querySelector('.settings-back').onclick = () => showHome();
+      page.querySelector('.settings-back').addEventListener('click', e => { e.preventDefault(); showHome(); });
       page.addEventListener('change', e => {
         const el = e.target.closest('[data-setting]');
         if (!el) return;
@@ -98,7 +98,7 @@
         if (action === 'clear') { localStorage.removeItem('cipherionDrafts'); localStorage.removeItem('cipherionCache'); alert('Локальные данные очищены.'); return; }
         if (action === 'refresh') { alert('Сеанс обновлён.'); return; }
         if (action === 'sessions') { alert('Другие сеансы завершены.'); return; }
-        if (action === 'faq') { alert('Здесь находятся настройки Cipherion. Выберите нужный раздел на предыдущем экране.'); return; }
+        if (action === 'faq') { alert('Здесь находятся настройки Cipherion.'); return; }
         if (action === 'support') { alert('Поддержка Cipherion доступна через администратора проекта.'); return; }
         if (action === 'passcode') { const v = prompt('Новый код-пароль (4–6 цифр):'); if (v && /^\d{4,6}$/.test(v)) { state.passcode=v; apply(); actionEl.textContent='Изменить'; } else if (v) alert('Введите 4–6 цифр.'); return; }
         if (action === 'mic' || action === 'camera') { if (!navigator.mediaDevices?.getUserMedia) return alert('Проверка устройства недоступна.'); try { const s=await navigator.mediaDevices.getUserMedia({audio:action==='mic',video:action==='camera'}); s.getTracks().forEach(t=>t.stop()); alert(action==='mic'?'Микрофон доступен.':'Камера доступна.'); } catch (_) { alert('Доступ не предоставлен.'); } }
@@ -114,9 +114,6 @@
       b.className = 'settings-home-row';
       b.dataset.page = id;
       b.innerHTML = `<span class="settings-home-icon">${icon}</span><span><b>${name}</b><small>${desc}</small></span><i>›</i>`;
-      // Direct handlers are intentional: this avoids interference from old delegated handlers/touch layers.
-      b.onclick = e => { e.preventDefault(); e.stopPropagation(); showPage(id); };
-      b.ontouchend = e => { e.preventDefault(); showPage(id); };
       list.appendChild(b);
     });
 
@@ -133,23 +130,65 @@
       document.body.classList.remove('settings-subpage');
     }
     function showPage(id) {
-      const page = pageMap.get(id);
+      const page = pageMap.get(id) || content.querySelector(`.settings-page[data-page="${CSS.escape(id)}"]`);
       if (!page) return;
       nav.classList.add('hidden');
       nav.style.display = 'none';
       pageMap.forEach(p => { p.classList.add('hidden'); p.style.display = 'none'; });
+      content.querySelectorAll('.settings-page').forEach(p => { p.classList.add('hidden'); p.style.display = 'none'; });
       page.classList.remove('hidden');
       page.style.display = 'block';
       document.body.classList.add('settings-subpage');
       page.scrollTop = 0;
     }
 
+    // One delegated handler controls every settings row. It survives iOS touch/click quirks.
+    list.addEventListener('click', e => {
+      const button = e.target.closest('.settings-home-row');
+      if (!button || !list.contains(button)) return;
+      e.preventDefault();
+      showPage(button.dataset.page);
+    });
+
     const close = document.getElementById('app-settings-close');
     if (close) close.onclick = () => { modal.classList.add('hidden'); showHome(); };
-    // If the modal is opened by app.js, always reset to the settings home.
-    const observer = new MutationObserver(() => { if (modal.classList.contains('hidden')) return; if (!document.body.classList.contains('settings-subpage') && nav.style.display === 'none') showHome(); });
-    observer.observe(modal, {attributes:true, attributeFilter:['class']});
     showHome();
   };
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+})();
+
+/* Hard iPhone fallback: navigation works even if another script consumes click events. */
+(() => {
+  const route = (id) => {
+    const modal = document.getElementById('app-settings-modal');
+    if (!modal || modal.classList.contains('hidden')) return false;
+    const nav = modal.querySelector('.telegram-settings-home');
+    const page = modal.querySelector(`.settings-page[data-page="${CSS.escape(id)}"]`);
+    if (!nav || !page) return false;
+    nav.classList.add('hidden');
+    nav.style.display = 'none';
+    modal.querySelectorAll('.settings-page').forEach(p => { p.classList.add('hidden'); p.style.display = 'none'; });
+    page.classList.remove('hidden');
+    page.style.display = 'block';
+    page.scrollTop = 0;
+    document.body.classList.add('settings-subpage');
+    return true;
+  };
+  const home = () => {
+    const modal = document.getElementById('app-settings-modal');
+    if (!modal) return;
+    const nav = modal.querySelector('.telegram-settings-home');
+    if (!nav) return;
+    modal.querySelectorAll('.settings-page').forEach(p => { p.classList.add('hidden'); p.style.display = 'none'; });
+    nav.classList.remove('hidden');
+    nav.style.display = 'block';
+    document.body.classList.remove('settings-subpage');
+  };
+  document.addEventListener('click', e => {
+    const row = e.target.closest('#app-settings-modal .settings-home-row');
+    if (row) { e.preventDefault(); e.stopImmediatePropagation(); route(row.dataset.page); return; }
+    const back = e.target.closest('#app-settings-modal .settings-back');
+    if (back) { e.preventDefault(); e.stopImmediatePropagation(); home(); }
+  }, true);
 })();
