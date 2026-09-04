@@ -10,39 +10,18 @@
   #app-settings-modal .settings-home-row{position:relative!important;appearance:none!important;border:0!important;background:#fff!important;color:#111!important;width:100%!important;min-height:72px!important;margin:0!important;padding:9px 16px!important;display:flex!important;align-items:center!important;text-align:left!important;gap:14px!important;flex:0 0 auto!important;border-radius:0!important;box-shadow:none!important;-webkit-tap-highlight-color:transparent!important;transition:transform .14s ease,background .14s ease!important}
   #app-settings-modal .settings-home-row:active{background:#e5e5ea!important;transform:none!important}
   #app-settings-modal .settings-home-row:after{content:"";position:absolute;left:76px;right:16px;bottom:0;height:1px;background:#e5e5ea!important}
-  #app-settings-modal .settings-home-row:nth-child(1),
-  #app-settings-modal .settings-home-row:nth-child(4),
-  #app-settings-modal .settings-home-row:nth-child(8),
-  #app-settings-modal .settings-home-row:nth-child(13){border-radius:22px!important}
+  #app-settings-modal .settings-home-row:nth-child(1),#app-settings-modal .settings-home-row:nth-child(4),#app-settings-modal .settings-home-row:nth-child(8),#app-settings-modal .settings-home-row:nth-child(13){border-radius:22px!important}
   #app-settings-modal .settings-home-row:nth-child(1){margin-bottom:18px!important;min-height:84px!important}
   #app-settings-modal .settings-home-row:nth-child(4){margin-top:18px!important}
   #app-settings-modal .settings-home-row:nth-child(8){margin-top:18px!important}
   #app-settings-modal .settings-home-row:nth-child(13){margin-top:18px!important}
-  #app-settings-modal .settings-home-row:nth-child(4):before,
-  #app-settings-modal .settings-home-row:nth-child(8):before,
-  #app-settings-modal .settings-home-row:nth-child(13):before{content:"";position:absolute;left:0;right:0;top:0;height:100%;border-radius:22px;pointer-events:none}
-  #app-settings-modal .settings-home-row:nth-child(1):after,
-  #app-settings-modal .settings-home-row:nth-child(4):after,
-  #app-settings-modal .settings-home-row:nth-child(8):after,
-  #app-settings-modal .settings-home-row:nth-child(13):after{display:none!important}
-  #app-settings-modal .settings-home-row:nth-child(3):after,
-  #app-settings-modal .settings-home-row:nth-child(7):after,
-  #app-settings-modal .settings-home-row:nth-child(12):after{display:none!important}
+  #app-settings-modal .settings-home-row:nth-child(4):before,#app-settings-modal .settings-home-row:nth-child(8):before,#app-settings-modal .settings-home-row:nth-child(13):before{content:"";position:absolute;left:0;right:0;top:0;height:100%;border-radius:22px;pointer-events:none}
+  #app-settings-modal .settings-home-row:nth-child(1):after,#app-settings-modal .settings-home-row:nth-child(4):after,#app-settings-modal .settings-home-row:nth-child(8):after,#app-settings-modal .settings-home-row:nth-child(13):after{display:none!important}
+  #app-settings-modal .settings-home-row:nth-child(3):after,#app-settings-modal .settings-home-row:nth-child(7):after,#app-settings-modal .settings-home-row:nth-child(12):after{display:none!important}
   #app-settings-modal .settings-home-row:nth-child(1){box-shadow:0 1px 2px rgba(0,0,0,.035)!important}
   #app-settings-modal .settings-home-row:nth-child(1) .settings-home-icon{width:58px!important;height:58px!important;flex-basis:58px!important;border-radius:29px!important;font-size:26px!important}
   #app-settings-modal .settings-home-icon{width:46px!important;height:46px!important;display:grid!important;place-items:center!important;border-radius:12px!important;background:#4b8df8!important;font-size:23px!important;flex:0 0 46px!important;box-shadow:none!important}
-  #app-settings-modal .settings-home-row:nth-child(2) .settings-home-icon{background:#8e8e93!important}
-  #app-settings-modal .settings-home-row:nth-child(3) .settings-home-icon{background:#34c759!important}
-  #app-settings-modal .settings-home-row:nth-child(4) .settings-home-icon{background:#32ade6!important}
-  #app-settings-modal .settings-home-row:nth-child(5) .settings-home-icon{background:#ff9f0a!important}
-  #app-settings-modal .settings-home-row:nth-child(6) .settings-home-icon{background:#af52de!important}
-  #app-settings-modal .settings-home-row:nth-child(7) .settings-home-icon{background:#ff453a!important}
-  #app-settings-modal .settings-home-row:nth-child(8) .settings-home-icon{background:#5e5ce6!important}
-  #app-settings-modal .settings-home-row:nth-child(9) .settings-home-icon{background:#64d2ff!important}
-  #app-settings-modal .settings-home-row:nth-child(10) .settings-home-icon{background:#30d158!important}
-  #app-settings-modal .settings-home-row:nth-child(11) .settings-home-icon{background:#ff9f0a!important}
-  #app-settings-modal .settings-home-row:nth-child(12) .settings-home-icon{background:#bf5af2!important}
-  #app-settings-modal .settings-home-row:nth-child(13) .settings-home-icon{background:#ff375f!important}
+  #app-settings-modal .settings-home-row:nth-child(2) .settings-home-icon{background:#8e8e93!important}.settings-home-row:nth-child(3) .settings-home-icon{background:#34c759!important}.settings-home-row:nth-child(4) .settings-home-icon{background:#32ade6!important}.settings-home-row:nth-child(5) .settings-home-icon{background:#ff9f0a!important}.settings-home-row:nth-child(6) .settings-home-icon{background:#af52de!important}.settings-home-row:nth-child(7) .settings-home-icon{background:#ff453a!important}.settings-home-row:nth-child(8) .settings-home-icon{background:#5e5ce6!important}.settings-home-row:nth-child(9) .settings-home-icon{background:#64d2ff!important}.settings-home-row:nth-child(10) .settings-home-icon{background:#30d158!important}.settings-home-row:nth-child(11) .settings-home-icon{background:#ff9f0a!important}.settings-home-row:nth-child(12) .settings-home-icon{background:#bf5af2!important}.settings-home-row:nth-child(13) .settings-home-icon{background:#ff375f!important}
   #app-settings-modal .settings-home-row span:nth-child(2){display:flex!important;flex-direction:column!important;gap:1px!important;min-width:0!important;flex:1!important}
   #app-settings-modal .settings-home-row b{font-size:20px!important;font-weight:500!important;line-height:25px!important;letter-spacing:-.25px!important;color:#111!important}
   #app-settings-modal .settings-home-row:nth-child(1) b{font-size:21px!important;font-weight:600!important}
@@ -60,8 +39,7 @@
   #app-settings-modal .settings-page-body h4{text-align:center!important;color:#111!important;font-size:25px!important;margin:0 0 5px!important}
   #app-settings-modal .settings-page-desc{text-align:center!important;color:#8e8e93!important;font-size:14px!important;margin:0 auto 24px!important;max-width:340px!important}
   #app-settings-modal .tg-setting-row{min-height:58px!important;margin:0!important;padding:10px 15px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;background:#fff!important;color:#111!important;border-bottom:1px solid #e5e5ea!important;box-sizing:border-box!important}
-  #app-settings-modal .tg-setting-row:first-child{border-radius:16px 16px 0 0!important}
-  #app-settings-modal .tg-setting-row:last-child{border-radius:0 0 16px 16px!important;border-bottom:0!important}
+  #app-settings-modal .tg-setting-row:first-child{border-radius:16px 16px 0 0!important}#app-settings-modal .tg-setting-row:last-child{border-radius:0 0 16px 16px!important;border-bottom:0!important}
   #app-settings-modal .tg-setting-row span{font-size:17px!important;color:#111!important}
   #app-settings-modal .tg-setting-row select,#app-settings-modal .tg-setting-row button{max-width:52%!important;background:transparent!important;color:#007aff!important;border:0!important;border-radius:8px!important;padding:7px 4px!important;font-size:16px!important;text-align:right!important}
   #app-settings-modal .tg-setting-row input[type=checkbox]{width:51px!important;height:31px!important;accent-color:#34c759!important}
@@ -70,7 +48,27 @@
   #app-settings-modal .device-card{display:flex!important;flex-direction:column!important;gap:5px!important}.device-card span{color:#8e8e93!important;font-size:13px!important}
   #app-settings-modal .vip-settings-banner{text-align:center!important;font-size:21px!important}
   #app-settings-modal .settings-about{color:#8e8e93!important;text-align:center!important;margin-top:24px!important;font-size:13px!important}
-  #app-settings-modal .settings-content-hidden{display:block!important}
-  #app-settings-modal .app-settings-content>.app-set-section{display:none!important}
-  #app-settings-modal .modal-actions{display:none!important}
+  #app-settings-modal .settings-content-hidden{display:block!important}#app-settings-modal .app-settings-content>.app-set-section{display:none!important}#app-settings-modal .modal-actions{display:none!important}
 }
+
+/* Wide iPhone Liquid Glass navigation — restore the large pill */
+@media(max-width:700px){
+  .mobile-bottom-nav{left:38px!important;right:112px!important;bottom:calc(12px + env(safe-area-inset-bottom))!important;width:auto!important;height:66px!important;min-height:66px!important;padding:3px!important;border-radius:999px!important;background:rgba(255,255,255,.82)!important;border:1px solid rgba(255,255,255,.95)!important;box-shadow:0 14px 38px rgba(30,35,45,.20),inset 0 1px 0 rgba(255,255,255,.98)!important;backdrop-filter:blur(30px) saturate(190%)!important;-webkit-backdrop-filter:blur(30px) saturate(190%)!important;display:flex!important;align-items:center!important;justify-content:space-around!important;gap:2px!important;overflow:visible!important}
+  .mobile-bottom-nav .mobile-nav-item{height:60px!important;min-height:60px!important;flex:1!important;border-radius:999px!important;font-size:13px!important;font-weight:600!important;gap:2px!important}.mobile-bottom-nav .mobile-nav-item .nav-icon{font-size:26px!important;line-height:27px!important}.mobile-bottom-nav .mobile-nav-item.active{background:rgba(230,232,236,.78)!important;color:#2f80ed!important}
+  .mobile-bottom-nav::after{content:'⌕';position:absolute;right:-92px;top:50%;transform:translateY(-50%);width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.86);border:1px solid rgba(255,255,255,.95);box-shadow:0 14px 38px rgba(30,35,45,.20),inset 0 1px 0 rgba(255,255,255,.98);font-size:34px;color:#111;pointer-events:none}
+}
+
+/* Emerald Liquid Glass authentication */
+#auth-screen{background:radial-gradient(circle at 50% 0%,rgba(16,185,129,.22),transparent 42%),linear-gradient(145deg,#06120f 0%,#071a16 48%,#0a2520 100%)!important}
+#auth-screen .auth-box{width:min(420px,calc(100vw - 32px))!important;padding:30px 24px!important;background:rgba(10,30,25,.48)!important;border:1px solid rgba(167,243,208,.22)!important;border-radius:30px!important;box-shadow:0 30px 90px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.14)!important;backdrop-filter:blur(32px) saturate(170%)!important;-webkit-backdrop-filter:blur(32px) saturate(170%)!important}
+#auth-screen .auth-box h1{background:linear-gradient(90deg,#a7f3d0,#34d399,#6ee7b7)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;font-size:38px!important;text-shadow:0 0 30px rgba(52,211,153,.16)!important}
+#auth-screen .auth-subtitle{color:rgba(236,253,245,.70)!important;text-align:center!important;margin:-18px 0 22px!important}
+#auth-screen .tabs{background:rgba(2,12,10,.34)!important;border:1px solid rgba(167,243,208,.13)!important;border-radius:17px!important;padding:4px!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important}
+#auth-screen .tab{color:rgba(236,253,245,.62)!important;border-radius:13px!important;font-size:15px!important;padding:12px!important}
+#auth-screen .tab.active{background:rgba(52,211,153,.25)!important;color:#ecfdf5!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 8px 24px rgba(16,185,129,.12)!important}
+#auth-screen .auth-box input{background:rgba(255,255,255,.075)!important;border:1px solid rgba(167,243,208,.16)!important;color:#f0fdf4!important;border-radius:17px!important;padding:15px 16px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important}
+#auth-screen .auth-box input::placeholder{color:rgba(236,253,245,.46)!important}
+#auth-screen .auth-box input:focus{border-color:rgba(52,211,153,.65)!important;box-shadow:0 0 0 4px rgba(16,185,129,.12),inset 0 1px 0 rgba(255,255,255,.08)!important}
+#auth-screen .auth-box button[type=submit]{background:linear-gradient(135deg,#059669,#10b981,#34d399)!important;border:1px solid rgba(167,243,208,.20)!important;border-radius:17px!important;box-shadow:0 12px 30px rgba(5,150,105,.28),inset 0 1px 0 rgba(255,255,255,.22)!important;padding:15px!important}
+#auth-screen .auth-logo{color:#a7f3d0!important;text-shadow:0 0 28px rgba(52,211,153,.35)!important}
+@media(max-width:700px){#auth-screen{min-height:100dvh!important;padding:20px 0!important}#auth-screen .auth-box{padding:28px 20px!important;border-radius:28px!important}}
