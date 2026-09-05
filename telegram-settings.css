@@ -8,7 +8,6 @@
   #app-settings-modal .app-set-nav.active{background:#e7f0ff!important;color:#007aff!important}
   #app-settings-modal .settings-home-logout{display:block!important;width:100%!important;margin-top:8px!important;padding:8px 0 calc(6px + env(safe-area-inset-bottom))!important}
   #app-settings-modal .settings-home-logout button{display:block!important;width:100%!important;min-height:52px!important;border:0!important;border-radius:15px!important;background:#fff!important;color:#ff3b30!important;font-size:17px!important;font-weight:600!important;cursor:pointer!important}
-
   #app-settings-modal .app-settings-content{flex:1 1 auto!important;min-height:0!important;padding:18px 14px calc(78px + env(safe-area-inset-bottom))!important;box-sizing:border-box!important}
   #app-settings-modal .app-set-section{display:block!important;width:100%!important;min-height:10px!important}
   #app-settings-modal .app-set-section.hidden{display:none!important}
@@ -21,14 +20,11 @@
   #app-settings-close{background:transparent!important;color:#007aff!important;padding:0 10px!important;font-size:0!important}
   #app-settings-close::before{content:'‹'!important;font-size:38px!important;line-height:1!important}
   #app-settings-save{background:transparent!important;color:#007aff!important;padding:0 10px!important}
-
   #settings-modal,#group-settings-modal,#vip-modal{padding:0!important;align-items:stretch!important;justify-content:stretch!important}
   #settings-modal .modal-box,#group-settings-modal .modal-box,#vip-modal .modal-box{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important}
   #settings-close,#group-settings-cancel,#vip-close{min-height:44px!important}
   #menu-btn,.menu-btn{display:none!important}
 }
-
-/* Stable iPhone Liquid Glass bottom navigation. */
 @media(max-width:700px){
   .mobile-bottom-nav{position:fixed!important;left:50%!important;right:auto!important;bottom:calc(10px + env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:calc(100vw - 28px)!important;max-width:430px!important;height:58px!important;min-height:58px!important;padding:3px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:space-around!important;gap:2px!important;z-index:100000!important;border-radius:999px!important;background:rgba(25,32,42,.38)!important;border:1px solid rgba(255,255,255,.28)!important;box-shadow:0 12px 34px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.22)!important;backdrop-filter:blur(28px) saturate(180%)!important;-webkit-backdrop-filter:blur(28px) saturate(180%)!important;overflow:hidden!important;transition:opacity .22s ease,transform .28s ease!important}
   .mobile-bottom-nav::after{display:none!important;content:none!important}
