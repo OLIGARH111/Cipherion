@@ -40,20 +40,27 @@
     if (nav) new MutationObserver(bindLogout).observe(nav, {childList:true, subtree:true});
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
-  else init();
-})();
-
-/* Load the mobile bridge with a versioned URL so iPhone Safari cannot keep the broken cached copy. */
-(() => {
-  const load = () => {
-    if (document.getElementById('mobile-stability-fix-js')) return;
-    const script = document.createElement('script');
-    script.id = 'mobile-stability-fix-js';
-    script.src = '/mobile-stability-fix.js?v=20260905-2';
-    script.defer = true;
-    document.head.appendChild(script);
+  const loadAssets = () => {
+    if (!document.getElementById('mobile-final-fix-css')) {
+      const css = document.createElement('link');
+      css.id = 'mobile-final-fix-css';
+      css.rel = 'stylesheet';
+      css.href = '/mobile-final-fix.css?v=20260905-1';
+      document.head.appendChild(css);
+    }
+    if (!document.getElementById('mobile-stability-fix-js')) {
+      const script = document.createElement('script');
+      script.id = 'mobile-stability-fix-js';
+      script.src = '/mobile-stability-fix.js?v=20260905-2';
+      script.defer = true;
+      document.head.appendChild(script);
+    }
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
-  else load();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { init(); loadAssets(); }, {once:true});
+  } else {
+    init();
+    loadAssets();
+  }
 })();
