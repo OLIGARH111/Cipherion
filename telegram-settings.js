@@ -69,6 +69,13 @@
       script.defer = true;
       document.head.appendChild(script);
     }
+    if (!document.getElementById('cipherion-runtime-fix-js')) {
+      const script = document.createElement('script');
+      script.id = 'cipherion-runtime-fix-js';
+      script.src = '/cipherion-runtime-fix.js?v=20260905-1';
+      script.defer = true;
+      document.head.appendChild(script);
+    }
   };
 
   if (document.readyState === 'loading') {
