@@ -55,6 +55,20 @@
       script.defer = true;
       document.head.appendChild(script);
     }
+    if (!document.getElementById('cipherion-enhancements-css')) {
+      const css = document.createElement('link');
+      css.id = 'cipherion-enhancements-css';
+      css.rel = 'stylesheet';
+      css.href = '/cipherion-enhancements.css?v=20260905-1';
+      document.head.appendChild(css);
+    }
+    if (!document.getElementById('cipherion-enhancements-js')) {
+      const script = document.createElement('script');
+      script.id = 'cipherion-enhancements-js';
+      script.src = '/cipherion-enhancements.js?v=20260905-1';
+      script.defer = true;
+      document.head.appendChild(script);
+    }
   };
 
   if (document.readyState === 'loading') {
