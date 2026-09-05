@@ -21,23 +21,24 @@
     }
 
     const performLogout = () => {
-      // Remove client-side session/auth state without touching settings data.
+      // Prefer the app's own logout routine so every auth key used by Cipherion
+      // is cleared consistently. Fall back to local cleanup if it is unavailable.
+      try {
+        if (typeof window.logout === 'function' && window.logout !== performLogout) {
+          window.logout();
+          return;
+        }
+      } catch (_) {}
+
       const keys = [
         'token', 'access_token', 'auth_token', 'jwt', 'session',
-        'cipherionToken', 'cipherion_token', 'cipherionUser', 'currentUser'
+        'cipherionToken', 'cipherion_token', 'cipherionUser', 'currentUser',
+        'userId', 'username'
       ];
       keys.forEach(k => {
         try { localStorage.removeItem(k); } catch (_) {}
         try { sessionStorage.removeItem(k); } catch (_) {}
       });
-
-      // Also clear common auth cookies when the browser allows it.
-      try {
-        document.cookie.split(';').forEach(part => {
-          const name = part.split('=')[0].trim();
-          if (name) document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-        });
-      } catch (_) {}
 
       modal.classList.add('hidden');
       document.getElementById('app-screen')?.classList.add('hidden');
