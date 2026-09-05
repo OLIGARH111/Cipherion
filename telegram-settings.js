@@ -20,21 +20,38 @@
       if (!button || button.dataset.logoutBound === '1') return;
       button.dataset.logoutBound = '1';
       button.type = 'button';
-      button.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
+      button.style.position = 'relative';
+      button.style.zIndex = '200001';
+      button.style.pointerEvents = 'auto';
+      button.setAttribute('aria-label', 'Выйти из аккаунта');
+
+      let lastRun = 0;
+      const runLogout = e => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+        const now = Date.now();
+        if (now - lastRun < 400) return;
+        lastRun = now;
         try {
           if (typeof window.logout === 'function') {
             window.logout();
             return;
           }
         } catch (_) {}
+        try { window.__cipherionWS?.close(1000, 'logout'); } catch (_) {}
         ['token','userId','username'].forEach(k => {
           try { localStorage.removeItem(k); } catch (_) {}
           try { sessionStorage.removeItem(k); } catch (_) {}
         });
         window.location.reload();
-      });
+      };
+
+      button.addEventListener('pointerdown', runLogout, {capture:true, passive:false});
+      button.addEventListener('touchstart', runLogout, {capture:true, passive:false});
+      button.addEventListener('click', runLogout, {capture:true});
     };
     bindLogout();
     if (nav) new MutationObserver(bindLogout).observe(nav, {childList:true, subtree:true});
