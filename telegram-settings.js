@@ -70,3 +70,17 @@
     init();
   }
 })();
+
+/* Load the mobile stability bridge after the existing app scripts are ready. */
+(() => {
+  const load = () => {
+    if (document.getElementById('mobile-stability-fix-js')) return;
+    const script = document.createElement('script');
+    script.id = 'mobile-stability-fix-js';
+    script.src = '/mobile-stability-fix.js?v=20260905-1';
+    script.defer = true;
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
