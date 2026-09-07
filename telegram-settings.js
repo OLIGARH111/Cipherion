@@ -15,46 +15,48 @@
       nav.appendChild(logout);
     }
 
+    const performLogout = () => {
+      try { window.__cipherionWS?.close(1000, 'logout'); } catch (_) {}
+      try { localStorage.removeItem('token'); localStorage.removeItem('userId'); localStorage.removeItem('username'); } catch (_) {}
+      try { sessionStorage.removeItem('token'); sessionStorage.removeItem('userId'); sessionStorage.removeItem('username'); } catch (_) {}
+      try {
+        if (typeof window.logout === 'function') {
+          window.logout();
+          return;
+        }
+      } catch (_) {}
+      window.location.reload();
+    };
+
     const bindLogout = () => {
       const button = modal.querySelector('.settings-logout-btn');
       if (!button || button.dataset.logoutBound === '1') return;
       button.dataset.logoutBound = '1';
       button.type = 'button';
-      button.style.position = 'relative';
-      button.style.zIndex = '200001';
       button.style.pointerEvents = 'auto';
-      button.setAttribute('aria-label', 'Выйти из аккаунта');
-
-      let lastRun = 0;
-      const runLogout = e => {
-        if (e) {
+      button.style.position = 'relative';
+      button.style.zIndex = '100002';
+      ['pointerdown', 'touchstart', 'click'].forEach(type => {
+        button.addEventListener(type, e => {
           e.preventDefault();
           e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-        const now = Date.now();
-        if (now - lastRun < 400) return;
-        lastRun = now;
-        try {
-          if (typeof window.logout === 'function') {
-            window.logout();
-            return;
-          }
-        } catch (_) {}
-        try { window.__cipherionWS?.close(1000, 'logout'); } catch (_) {}
-        ['token','userId','username'].forEach(k => {
-          try { localStorage.removeItem(k); } catch (_) {}
-          try { sessionStorage.removeItem(k); } catch (_) {}
-        });
-        window.location.reload();
-      };
-
-      button.addEventListener('pointerdown', runLogout, {capture:true, passive:false});
-      button.addEventListener('touchstart', runLogout, {capture:true, passive:false});
-      button.addEventListener('click', runLogout, {capture:true});
+          performLogout();
+        }, { capture: true, passive: false });
+      });
     };
+
     bindLogout();
     if (nav) new MutationObserver(bindLogout).observe(nav, {childList:true, subtree:true});
+
+    // Delegated fallback: catches the Settings logout even if another UI layer
+    // replaces the button or re-renders the settings navigation.
+    document.addEventListener('pointerdown', e => {
+      if (e.target?.closest?.('#app-settings-modal .settings-logout-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        performLogout();
+      }
+    }, { capture: true, passive: false });
   };
 
   const loadAssets = () => {
