@@ -1,0 +1,356 @@
+import http from 'node:http';
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { resolve, dirname, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { database } from './db.js';
+import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const data = resolve(process.env.DATA_DIR || resolve(root, 'data'));
+await mkdir(resolve(data, 'media'), { recursive: true });
+const db = database(data);
+const all = (sql, ...p) => db.prepare(sql).all(...p);
+const one = (sql, ...p) => db.prepare(sql).get(...p);
+const run = (sql, ...p) => db.prepare(sql).run(...p);
+const id = () => randomUUID();
+const now = () => Date.now();
+const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
+const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
+const publicUser = u => u && ({ id: u.id, username: u.username, name: u.name, bio: u.bio, avatar: u.avatar, online: streams.has(u.id) });
+const streams = new Map(), liveCalls = new Map(), limits = new Map();
+function rate(key, count, window = 60_000) {
+  const entry = limits.get(key);
+  if (!entry || entry.until < now()) { limits.set(key, { n: 1, until: now() + window }); return; }
+  if (++entry.n > count) fail(429, 'Слишком много запросов. Попробуйте позже.');
+}
+function emit(user, event, payload) {
+  for (const res of streams.get(user) || []) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
+function broadcast(chat, event, payload) {
+  for (const m of all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'", chat)) emit(m.user_id, event, payload);
+}
+function membership(chatId, userId) {
+  const chat = one('SELECT * FROM chats WHERE id=?', chatId);
+  const member = one('SELECT * FROM members WHERE chat_id=? AND user_id=?', chatId, userId);
+  if (!chat || !member || member.role === 'banned') fail(403, 'Нет доступа к чату');
+  return { chat, member };
+}
+function requirePermission(chatId, userId, permission) {
+  const { chat, member } = membership(chatId, userId);
+  if (!allowed(member, chat, permission)) fail(403, 'Недостаточно прав');
+  return { chat, member };
+}
+function audit(chat, actor, action, target = '') {
+  run('INSERT INTO audit VALUES(?,?,?,?,?,?)', id(), chat, actor, action, target, now());
+  broadcast(chat, 'refresh', { chat });
+}
+function message(row, viewer) {
+  const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id));
+  if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, deleted: true, author };
+  const result = { ...row, author, media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
+  if (row.poll) {
+    result.poll = JSON.parse(row.poll);
+    result.poll.counts = all('SELECT choice,COUNT(*) AS n FROM votes WHERE message_id=? GROUP BY choice', row.id);
+    result.poll.mine = all('SELECT choice FROM votes WHERE message_id=? AND user_id=?', row.id, viewer).map(v => v.choice);
+    result.poll.total = one('SELECT COUNT(DISTINCT user_id) AS n FROM votes WHERE message_id=?', row.id).n;
+  }
+  return result;
+}
+function chatView(c, user) {
+  const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
+  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC LIMIT 1', c.id);
+  const mine = members.find(m => m.user_id === user);
+  return { ...c, title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
+    members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, online: streams.has(m.user_id) })),
+    last: last ? message(last, user) : null,
+    unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>?', c.id, user, mine.read_at).n };
+}
+function authenticate(req) {
+  const raw = /(?:^|;\s*)session=([a-f0-9]+)/.exec(req.headers.cookie || '')?.[1];
+  if (!raw) return null;
+  const session = one('SELECT * FROM sessions WHERE id=? AND expires>?', createHash('sha256').update(raw).digest('hex'), now());
+  if (!session) return null;
+  run('UPDATE sessions SET active=? WHERE id=?', now(), session.id);
+  return { ...one('SELECT * FROM users WHERE id=?', session.user_id), session };
+}
+async function body(req, limit = 1024 * 1024) {
+  const chunks = []; let size = 0;
+  for await (const chunk of req) { size += chunk.length; if (size > limit) fail(413, 'Файл слишком большой'); chunks.push(chunk); }
+  return Buffer.concat(chunks);
+}
+function endCall(call, status = 'ended') {
+  run('UPDATE calls SET ended=?,status=? WHERE id=?', now(), status, call.id);
+  broadcast(call.chat, 'call', { ...call, participants: [...call.participants], state: status });
+  liveCalls.delete(call.id);
+}
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const server = http.createServer(async (req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  const json = (value, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); };
+  try {
+    const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
+    if (!path.startsWith('/api/')) {
+      if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
+      const file = resolve(root, 'public', path === '/' ? 'index.html' : '.' + decodeURIComponent(path));
+      if (!file.startsWith(resolve(root, 'public') + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) fail(404, 'Не найдено');
+      const content = await readFile(file).catch(() => fail(404, 'Не найдено'));
+      res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      return res.end(req.method === 'HEAD' ? undefined : content);
+    }
+    const expectedOrigin = process.env.PUBLIC_ORIGIN || `http://${req.headers.host}`;
+    if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
+    rate(req.socket.remoteAddress, 600);
+    const user = authenticate(req);
+    let b = {};
+    if (!['GET', 'HEAD'].includes(req.method) && path !== '/api/media') {
+      if (!(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'Ожидается JSON');
+      try { b = JSON.parse((await body(req)).toString() || '{}'); } catch (error) { if (error.status) throw error; fail(400, 'Некорректный JSON'); }
+    }
+    if (path === '/api/auth' && req.method === 'POST') {
+      rate('auth:' + req.socket.remoteAddress, 20, 900_000);
+      const username = clean(b.username, 32).toLowerCase(); const password = String(b.password || '');
+      if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
+      let account = one('SELECT * FROM users WHERE username=?', username);
+      if (b.register) {
+        if (account) fail(409, 'Этот username уже занят');
+        const salt = randomBytes(16).toString('hex'); const hash = scryptSync(password, salt, 64).toString('hex');
+        run('INSERT INTO users(id,username,name,password,created) VALUES(?,?,?,?,?)', id(), username, clean(b.name, 80) || username, salt + ':' + hash, now());
+        account = one('SELECT * FROM users WHERE username=?', username);
+      } else {
+        const [salt, hash] = (account?.password || 'dummy:' + '0'.repeat(128)).split(':');
+        const attempt = scryptSync(password, salt, 64);
+        if (!account || !timingSafeEqual(attempt, Buffer.from(hash, 'hex'))) fail(401, 'Неверный username или пароль');
+      }
+      const token = randomBytes(32).toString('hex');
+      run('INSERT INTO sessions VALUES(?,?,?,?,?,?)', createHash('sha256').update(token).digest('hex'), account.id, clean(req.headers['user-agent'], 200), now(), now(), now() + 30 * 86400_000);
+      res.setHeader('Set-Cookie', `session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${process.env.COOKIE_SECURE === '1' ? '; Secure' : ''}`);
+      return json({ user: publicUser(account), settings: JSON.parse(account.settings) });
+    }
+    if (!user) fail(401, 'Войдите в аккаунт');
+    if (path === '/api/me' && req.method === 'GET') return json({ user: publicUser(user), settings: JSON.parse(user.settings), transcription: !!process.env.TRANSCRIPTION_KEY, iceServers: JSON.parse(process.env.ICE_SERVERS || '[]') });
+    if (path === '/api/logout' && req.method === 'POST') {
+      run('DELETE FROM sessions WHERE id=?', user.session.id);
+      for (const stream of streams.get(user.id) || []) if (stream.sessionId === user.session.id) stream.end();
+      res.setHeader('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ ok: true });
+    }
+    if (path === '/api/me' && req.method === 'PATCH') {
+      const avatar = b.avatar === undefined ? user.avatar : clean(b.avatar, 200);
+      if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
+      const settings = b.settings === undefined ? JSON.parse(user.settings) : b.settings;
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings) || JSON.stringify(settings).length > 80_000) fail(400, 'Некорректные настройки');
+      run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, clean(b.bio ?? user.bio, 300), avatar, JSON.stringify(settings), user.id);
+      return json({ user: publicUser(one('SELECT * FROM users WHERE id=?', user.id)), settings });
+    }
+    if (path === '/api/users' && req.method === 'GET') {
+      const q = clean(url.searchParams.get('q'), 80).toLowerCase();
+      return json(q ? all('SELECT * FROM users WHERE id!=? AND (instr(lower(username),?)>0 OR instr(lower(name),?)>0) LIMIT 30', user.id, q, q).map(publicUser) : []);
+    }
+    if (path === '/api/sessions' && req.method === 'GET') return json(all('SELECT id,agent,created,active FROM sessions WHERE user_id=? AND expires>?', user.id, now()).map(s => ({ ...s, current: s.id === user.session.id })));
+    if (path === '/api/sessions' && req.method === 'DELETE') {
+      const doomed = all('SELECT id FROM sessions WHERE user_id=? AND id!=? AND (?=\'all\' OR id=?)', user.id, user.session.id, b.id, b.id);
+      for (const s of doomed) { run('DELETE FROM sessions WHERE id=?', s.id); for (const stream of streams.get(user.id) || []) if (stream.sessionId === s.id) stream.end(); }
+      return json({ ok: true });
+    }
+    if (path === '/api/blocks' && req.method === 'GET') return json(all('SELECT u.* FROM blocks b JOIN users u ON b.target=u.id WHERE b.user_id=?', user.id).map(publicUser));
+    if (path === '/api/blocks' && ['POST','DELETE'].includes(req.method)) {
+      if (req.method === 'POST') run('INSERT OR IGNORE INTO blocks VALUES(?,?)', user.id, clean(b.target)); else run('DELETE FROM blocks WHERE user_id=? AND target=?', user.id, clean(b.target));
+      return json({ ok: true });
+    }
+    if (path === '/api/events' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+      if (!streams.has(user.id)) streams.set(user.id, new Set());
+      if (streams.get(user.id).size >= 6) { res.end(); return; }
+      res.sessionId = user.session.id; streams.get(user.id).add(res); res.write('event: ready\ndata: {}\n\n');
+      const heartbeat = setInterval(() => {
+        if (!one('SELECT id FROM sessions WHERE id=? AND expires>?', user.session.id, now())) { res.end(); return; }
+        res.write(': heartbeat\n\n');
+      }, 20_000);
+      req.on('close', () => { clearInterval(heartbeat); streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
+      return;
+    }
+    if (path === '/api/chats' && req.method === 'GET') return json(all("SELECT c.* FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).map(c => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created)));
+    if (path === '/api/chats' && req.method === 'POST') {
+      const kind = ['group','channel'].includes(b.kind) ? b.kind : 'direct';
+      const users = [...new Set([user.id, ...(Array.isArray(b.users) ? b.users : [])])];
+      if (users.length > 100 || (kind === 'direct' && users.length !== 2)) fail(400, 'Проверьте участников');
+      for (const target of users) {
+        if (!one('SELECT id FROM users WHERE id=?', target)) fail(400, 'Пользователь не найден');
+        if (one('SELECT * FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)', target, user.id, user.id, target)) fail(403, 'Общение с этим пользователем недоступно');
+      }
+      if (kind === 'direct') {
+        const existing = one("SELECT c.* FROM chats c JOIN members a ON a.chat_id=c.id JOIN members b ON b.chat_id=c.id WHERE c.kind='direct' AND a.user_id=? AND b.user_id=?", user.id, users.find(u => u !== user.id));
+        if (existing) return json(chatView(existing, user.id));
+      }
+      const chatId = id(); const perms = kind === 'channel' ? Object.fromEntries(memberPermissions.map(k => [k, false])) : defaults;
+      run('INSERT INTO chats(id,kind,title,permissions,created) VALUES(?,?,?,?,?)', chatId, kind, clean(b.title, 80) || (kind === 'channel' ? 'Новый канал' : 'Новая группа'), JSON.stringify(perms), now());
+      for (const u of users) run('INSERT INTO members(chat_id,user_id,role) VALUES(?,?,?)', chatId, u, u === user.id && kind !== 'direct' ? 'owner' : 'member');
+      broadcast(chatId, 'refresh', { chat: chatId }); return json(chatView(one('SELECT * FROM chats WHERE id=?', chatId), user.id), 201);
+    }
+    const chatMatch = /^\/api\/chats\/([^/]+)(?:\/(messages|read|typing|members|audit))?$/.exec(path);
+    if (chatMatch) {
+      const chatId = chatMatch[1], action = chatMatch[2]; const { chat, member } = membership(chatId, user.id);
+      if (!action && req.method === 'PATCH') {
+        requirePermission(chatId, user.id, 'info');
+        if (chat.kind === 'direct') fail(400, 'Это личный чат');
+        const avatar = b.avatar === undefined ? chat.avatar : clean(b.avatar, 200);
+        if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
+        run('UPDATE chats SET title=?,avatar=? WHERE id=?', clean(b.title ?? chat.title, 80), avatar, chatId); audit(chatId, user.id, 'info'); return json({ ok: true });
+      }
+      if (action === 'messages' && req.method === 'GET') {
+        const before = Number(url.searchParams.get('before')) || now() + 1;
+        const rows = all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC LIMIT 60', chatId, before).reverse();
+        const delivered = rows.at(-1)?.created || 0;
+        run('UPDATE members SET delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', delivered, chatId, user.id);
+        broadcast(chatId, 'receipt', { chat: chatId, user: user.id, delivered }); return json(rows.map(m => message(m, user.id)));
+      }
+      if (action === 'messages' && req.method === 'POST') {
+        rate('message:' + user.id, 90);
+        const kind = ['text','photo','video','file','voice','round','poll'].includes(b.kind) ? b.kind : 'text';
+        requirePermission(chatId, user.id, kind);
+        if (chat.kind === 'direct') for (const m of all('SELECT user_id FROM members WHERE chat_id=?', chatId)) if (one('SELECT * FROM blocks WHERE user_id=? AND target=?', m.user_id, user.id)) fail(403, 'Отправка недоступна');
+        let media = null, poll = null;
+        if (b.media) { media = one('SELECT * FROM media WHERE id=? AND user_id=?', b.media, user.id); if (!media) fail(400, 'Нет доступа к файлу'); }
+        if (['photo','video','file','voice','round'].includes(kind) && !media) fail(400, 'Добавьте файл');
+        if (kind === 'photo' && !media.type.startsWith('image/')) fail(400, 'Ожидается изображение');
+        if (['video','round'].includes(kind) && !media.type.startsWith('video/')) fail(400, 'Ожидается видео');
+        if (kind === 'voice' && !media.type.startsWith('audio/')) fail(400, 'Ожидается аудио');
+        if (kind === 'poll') {
+          const options = Array.isArray(b.poll?.options) ? b.poll.options.map(o => clean(o, 150)).filter(Boolean) : [];
+          if (options.length < 2 || options.length > 10 || !clean(b.body)) fail(400, 'Нужны вопрос и от 2 до 10 вариантов');
+          poll = { options, multiple: !!b.poll.multiple, anonymous: !!b.poll.anonymous, closed: false };
+        }
+        if (!clean(b.body) && !media && !poll) fail(400, 'Пустое сообщение');
+        if (b.reply && !one('SELECT id FROM messages WHERE id=? AND chat_id=?', b.reply, chatId)) fail(400, 'Ответ недоступен');
+        const messageId = id();
+        run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created) VALUES(?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, now());
+        broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
+      }
+      if (action === 'read' && req.method === 'POST') { const last = one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0; run('UPDATE members SET read_at=?,delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id); broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
+      if (action === 'typing' && req.method === 'POST') { requirePermission(chatId, user.id, 'text'); broadcast(chatId, 'typing', { chat: chatId, user: user.id, name: user.name }); return json({ ok: true }); }
+      if (action === 'audit' && req.method === 'GET') { if (!['owner','admin'].includes(member.role)) fail(403, 'Только для администраторов'); return json(all('SELECT a.*,u.name FROM audit a JOIN users u ON u.id=a.actor WHERE chat_id=? ORDER BY created DESC LIMIT 100', chatId)); }
+      if (action === 'members' && req.method === 'GET') {
+        if (!['owner','admin'].includes(member.role)) return json(chatView(chat,user.id).members);
+        return json(all('SELECT m.*,u.name,u.username,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', chatId));
+      }
+      if (action === 'members' && req.method === 'PATCH') {
+        if (chat.kind === 'direct') fail(400, 'Это личный чат');
+        if (b.action === 'defaults') {
+          requirePermission(chatId,user.id,'permissions');
+          const perms = Object.fromEntries(memberPermissions.map(k => [k, b.permissions?.[k] === true]));
+          run('UPDATE chats SET permissions=? WHERE id=?', JSON.stringify(perms), chatId); audit(chatId,user.id,'permissions'); return json({ ok:true });
+        }
+        const target = one('SELECT * FROM members WHERE chat_id=? AND user_id=?',chatId,b.user);
+        if (b.action === 'invite') {
+          requirePermission(chatId,user.id,'invite');
+          if (!one('SELECT id FROM users WHERE id=?',b.user)) fail(404,'Пользователь не найден');
+          if (target) fail(409,'Пользователь уже в группе или заблокирован');
+          run('INSERT INTO members(chat_id,user_id) VALUES(?,?)',chatId,b.user);
+        } else {
+          if (!target || target.user_id === user.id || target.role === 'owner' || (target.role === 'admin' && member.role !== 'owner')) fail(403,'Нельзя изменить этого участника');
+          const rules = JSON.parse(target.rules);
+          if (['admin','transfer'].includes(b.action)) {
+            if (member.role !== 'owner') fail(403,'Только владелец');
+            if (b.action === 'transfer') {
+              if (target.role === 'banned') fail(400,'Участник заблокирован');
+              db.exec('BEGIN'); try { run("UPDATE members SET role='member',rules='{}' WHERE chat_id=? AND user_id=?",chatId,user.id); run("UPDATE members SET role='owner',rules='{}' WHERE chat_id=? AND user_id=?",chatId,b.user); db.exec('COMMIT'); } catch(error) { db.exec('ROLLBACK'); throw error; }
+            } else { rules.admin = Object.fromEntries(adminPermissions.map(k => [k,b.permissions?.[k]===true])); run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?',b.enabled ? 'admin':'member',JSON.stringify(rules),chatId,b.user); }
+          } else if (b.action === 'restrict') {
+            requirePermission(chatId,user.id,'permissions');
+            rules.overrides = Object.fromEntries(memberPermissions.filter(k => typeof b.permissions?.[k] === 'boolean').map(k => [k,b.permissions[k]]));
+            rules.until = Number(b.until) > now() ? Number(b.until) : null;
+            run('UPDATE members SET rules=? WHERE chat_id=? AND user_id=?',JSON.stringify(rules),chatId,b.user);
+          } else if (b.action === 'tag') { requirePermission(chatId,user.id,'tags'); run('UPDATE members SET tag=? WHERE chat_id=? AND user_id=?',clean(b.tag,30),chatId,b.user); }
+          else if (['ban','unban','remove'].includes(b.action)) {
+            requirePermission(chatId,user.id,b.action==='remove'?'remove':'ban');
+            if (b.action === 'remove') run('DELETE FROM members WHERE chat_id=? AND user_id=?',chatId,b.user);
+            else run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?', b.action === 'ban' ? 'banned':'member', '{}',chatId,b.user);
+            emit(b.user,'refresh',{chat:chatId});
+            for (const call of liveCalls.values()) if(call.chat===chatId && call.participants.has(b.user)) { call.participants.delete(b.user); broadcast(chatId,'call',{...call,participants:[...call.participants],state:'active'}); emit(b.user,'call',{id:call.id,state:'removed'}); }
+          } else fail(400,'Неизвестное действие');
+        }
+        audit(chatId,user.id,b.action,b.user); return json({ok:true});
+      }
+    }
+    const msgMatch = /^\/api\/messages\/([^/]+)(?:\/(vote|forward|transcribe))?$/.exec(path);
+    if (msgMatch) {
+      const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
+      membership(m.chat_id,user.id); const action = msgMatch[2];
+      if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
+      else if (!action && req.method === 'PATCH') {
+        if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
+        else { if(m.user_id!==user.id || m.deleted || m.kind==='poll') fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
+      } else if (action==='vote' && req.method==='POST') {
+        if(!m.poll || m.deleted) fail(400,'Опрос недоступен'); const p=JSON.parse(m.poll);
+        if(p.closed) fail(400,'Опрос завершён');
+        const choices=[...new Set(Array.isArray(b.choices)?b.choices:[])];
+        if((!p.multiple && choices.length>1)||choices.some(c=>!Number.isInteger(c)||c<0||c>=p.options.length)) fail(400,'Некорректный выбор');
+        db.exec('BEGIN'); try { run('DELETE FROM votes WHERE message_id=? AND user_id=?',m.id,user.id); for(const c of choices) run('INSERT INTO votes VALUES(?,?,?)',m.id,user.id,c); db.exec('COMMIT'); } catch(error){db.exec('ROLLBACK');throw error;}
+      } else if(action==='forward' && req.method==='POST') {
+        if(m.deleted || m.kind==='poll') fail(400,'Пересылка недоступна');
+        const {chat:destination}=requirePermission(b.chat,user.id,m.kind);
+        if(destination.kind==='direct') for(const member of all('SELECT user_id FROM members WHERE chat_id=?',b.chat)) if(one('SELECT * FROM blocks WHERE user_id=? AND target=?',member.user_id,user.id)) fail(403,'Отправка недоступна');
+        const newId=id(); run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,forwarded,created) VALUES(?,?,?,?,?,?,?,?)',newId,b.chat,user.id,m.kind,m.body,m.media_id,m.author || one('SELECT name FROM users WHERE id=?',m.user_id).name,now()); broadcast(b.chat,'message',{chat:b.chat,id:newId}); return json({ok:true});
+      } else if(action==='transcribe' && req.method==='POST') {
+        if(!['voice','round'].includes(m.kind)||m.deleted) fail(400,'Нет записи для расшифровки');
+        if(!process.env.TRANSCRIPTION_KEY || !process.env.TRANSCRIPTION_URL) fail(503,'Администратор ещё не подключил сервис расшифровки');
+        rate('transcribe:'+user.id,6,60_000);
+        const media=one('SELECT * FROM media WHERE id=?',m.media_id); if(media.size>25*1024*1024) fail(413,'Запись превышает лимит расшифровки 25 МБ');
+        const form=new FormData();form.set('file',new Blob([await readFile(resolve(data,'media',media.id))],{type:media.type}),media.name);form.set('model',process.env.TRANSCRIPTION_MODEL || 'gpt-4o-transcribe');form.set('language','ru');
+        const response=await fetch(process.env.TRANSCRIPTION_URL,{method:'POST',headers:{Authorization:'Bearer '+process.env.TRANSCRIPTION_KEY},body:form,signal:AbortSignal.timeout(90_000)});
+        if(!response.ok) fail(502,'Сервис расшифровки временно недоступен');
+        const result=await response.json(); run('UPDATE messages SET transcript=? WHERE id=?',clean(result.text,30000),m.id);
+      } else fail(405,'Метод не поддерживается');
+      broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id}); return json({ok:true});
+    }
+    if(path==='/api/media' && req.method==='POST') {
+      rate('upload:'+user.id,30);
+      const bytes=await body(req,50*1024*1024);if(!bytes.length)fail(400,'Пустой файл');
+      const mediaId=id(); const type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
+      const name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
+      await writeFile(resolve(data,'media',mediaId),bytes,{flag:'wx'});
+      run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,bytes.length,now());return json({id:mediaId,name,type,size:bytes.length},201);
+    }
+    if(path.startsWith('/api/media/') && req.method==='GET') {
+      const mediaId=path.slice('/api/media/'.length);const media=one('SELECT * FROM media WHERE id=?',mediaId);if(!media)fail(404,'Файл не найден');
+      const visible=media.user_id===user.id || one("SELECT m.id FROM messages m JOIN members p ON p.chat_id=m.chat_id WHERE m.media_id=? AND m.deleted=0 AND p.user_id=? AND p.role!='banned'",mediaId,user.id) || one('SELECT id FROM users WHERE avatar=?',mediaId) || one("SELECT c.id FROM chats c JOIN members p ON p.chat_id=c.id WHERE c.avatar=? AND p.user_id=? AND p.role!='banned'",mediaId,user.id);
+      if(!visible)fail(403,'Нет доступа к файлу');
+      const safe=/^(image\/(png|jpeg|webp|gif)|audio\/(webm|ogg|mpeg|mp4|wav)|video\/(webm|mp4|ogg))$/.test(media.type);
+      const bytes=await readFile(resolve(data,'media',mediaId));
+      res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');
+      const range=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range||'');
+      if(range){const start=Number(range[1]),end=Math.min(range[2]?Number(range[2]):bytes.length-1,bytes.length-1);if(start>end || start>=bytes.length){res.writeHead(416,{'Content-Range':`bytes */${bytes.length}`});return res.end();}res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${bytes.length}`,'Content-Length':end-start+1});return res.end(bytes.subarray(start,end+1));}
+      res.setHeader('Content-Length',bytes.length);return res.end(bytes);
+    }
+    if(path==='/api/calls' && req.method==='GET') return json(all("SELECT c.*,h.title,h.kind,u.name FROM calls c JOIN members m ON m.chat_id=c.chat_id JOIN chats h ON h.id=c.chat_id JOIN users u ON u.id=c.user_id WHERE m.user_id=? AND m.role!='banned' ORDER BY c.created DESC LIMIT 100",user.id));
+    if(path==='/api/calls' && req.method==='POST') {
+      const {chat}=membership(b.chat,user.id);
+      if(chat.kind==='channel')fail(400,'Звонки доступны в личных и групповых чатах');
+      const members=all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",b.chat);
+      if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');
+      if([...liveCalls.values()].some(c=>c.chat===b.chat || members.some(m=>c.participants.has(m.user_id))))fail(409,'Участник занят другим звонком');
+      const call={id:id(),chat:b.chat,caller:user.id,name:user.name,video:!!b.video,participants:new Set([user.id]),created:now(),sharing:null};liveCalls.set(call.id,call);
+      run('INSERT INTO calls(id,chat_id,user_id,video,created,status) VALUES(?,?,?,?,?,?)',call.id,b.chat,user.id,b.video?1:0,now(),'ringing');
+      broadcast(b.chat,'call',{...call,participants:[...call.participants],state:'ringing'});return json({...call,participants:[...call.participants]});
+    }
+    if(path==='/api/call-action' && req.method==='POST') {
+      const call=liveCalls.get(b.id);if(!call)fail(404,'Звонок завершён');membership(call.chat,user.id);
+      if(b.action==='join') {if([...liveCalls.values()].some(c=>c.id!==call.id&&c.participants.has(user.id)))fail(409,'Вы уже в другом звонке');if(call.participants.size>=6&&!call.participants.has(user.id))fail(409,'В этом выпуске до 6 участников');call.participants.add(user.id);run("UPDATE calls SET status='active' WHERE id=?",call.id);}
+      else if(b.action==='leave') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');call.participants.delete(user.id);if(call.sharing===user.id)call.sharing=null;if(call.participants.size<2){endCall(call,'ended');return json({ok:true});}}
+      else if(b.action==='reject') {if(one('SELECT kind FROM chats WHERE id=?',call.chat).kind==='direct'){endCall(call,'declined');return json({ok:true});}return json({ok:true});}
+      else if(b.action==='share') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');if(b.enabled&&call.sharing&&call.sharing!==user.id)fail(409,'Другой участник уже демонстрирует экран');call.sharing=b.enabled?user.id:null;}
+      else if(b.action==='signal') {if(!call.participants.has(user.id)||!call.participants.has(b.target))fail(403,'Нет доступа к медиасигналам');if(JSON.stringify(b.signal).length>60_000)fail(400,'Сигнал слишком большой');emit(b.target,'signal',{call:call.id,from:user.id,signal:b.signal});return json({ok:true});}
+      else fail(400,'Неизвестное действие');
+      broadcast(call.chat,'call',{...call,participants:[...call.participants],state:'active'});return json({ok:true});
+    }
+    fail(404,'Не найдено');
+  } catch(error) { if(!error.status) console.error(error); if(!res.headersSent) json({error:error.status?error.message:'Ошибка сервера'},error.status||500); else res.end(); }
+});
+setInterval(()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
+const port=Number(process.env.PORT||3000);
+server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
+function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
+process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
