@@ -27,6 +27,12 @@ node --env-file=.env server/index.js
 
 Пароли от тестовых аккаунтов, ключи провайдеров и содержимое `data/` не входят в репозиторий. Восстановление забытого пароля пока не реализовано: не используйте этот выпуск как единственный канал критически важного общения.
 
+## Render
+
+В корне есть готовый `render.yaml`. В Render выберите **New → Blueprint**, подключите `OLIGARH111/Cipherion` и подтвердите план `starter`: файл создаёт web service `cipherion`, persistent disk 1 GB в `/app/data`, `COOKIE_SECURE=1` и health check `/health`.
+
+Render не сохраняет локальные файлы бесплатного сервиса после рестарта. SQLite и медиа Cipherion требуют persistent disk, который Render предоставляет только на платном web service; сервис с таким диском всегда однокопийный. Подробнее: [Render Blueprint docs](https://render.com/docs/blueprint-spec) и [Persistent Disks](https://render.com/docs/disks).
+
 ## Что работает
 
 - Регистрация, вход, сессии HttpOnly, профиль с именем, аватаром и bio, поиск по username / имени.

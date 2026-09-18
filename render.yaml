@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: cipherion
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: TRUST_PROXY
+        value: "1"
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: DATA_DIR
+        value: /app/data
+    disk:
+      name: cipherion-data
+      mountPath: /app/data
+      sizeGB: 1

@@ -93,6 +93,10 @@ const server = http.createServer(async (req, res) => {
   const json = (value, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); };
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
+    if (path === '/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: true }));
+    }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
       const file = resolve(root, 'public', path === '/' ? 'index.html' : '.' + decodeURIComponent(path));
@@ -101,7 +105,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
       return res.end(req.method === 'HEAD' ? undefined : content);
     }
-    const expectedOrigin = process.env.PUBLIC_ORIGIN || `http://${req.headers.host}`;
+    const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
+    const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
     if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
     rate(req.socket.remoteAddress, 600);
     const user = authenticate(req);
