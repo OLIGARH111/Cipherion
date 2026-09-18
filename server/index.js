@@ -85,6 +85,9 @@ function endCall(call, status = 'ended') {
   liveCalls.delete(call.id);
 }
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+// Render supplies its public HTTPS URL even for services created without a Blueprint.
+const configuredOrigin = process.env.PUBLIC_ORIGIN || process.env.RENDER_EXTERNAL_URL;
+const publicOrigin = configuredOrigin ? new URL(configuredOrigin).origin : null;
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -106,7 +109,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(req.method === 'HEAD' ? undefined : content);
     }
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
-    const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
+    const expectedOrigin = publicOrigin || `${protocol}://${req.headers.host}`;
     if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
     rate(req.socket.remoteAddress, 600);
     const user = authenticate(req);
