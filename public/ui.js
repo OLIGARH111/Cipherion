@@ -1,6 +1,7 @@
 export const $ = (q, root = document) => root.querySelector(q);
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const paths = {
+ ai:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM4 12h16M12 3c-6 5-6 13 0 18 6-5 6-13 0-18',edit:'m4 16 12-12 4 4L8 20H4v-4ZM14 6l4 4',
  chat:'M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0ZM7 9h9M7 13h6',
  people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 4a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87',
  phone:'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3l2 5-2 2a16 16 0 0 0 6 6l2-2Z',
@@ -27,7 +28,7 @@ export async function api(path, method='GET', data) {
   const result=await response.json();if(!response.ok)throw new Error(result.error || 'Ошибка запроса');return result;
 }
 export async function upload(file) {
-  if(file.size>50*1024*1024)throw new Error('Максимальный размер файла — 50 МБ');
+  const limit=(await api('/vip')).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
   const response=await fetch('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file});
   const result=await response.json();if(!response.ok)throw new Error(result.error);return result;
 }

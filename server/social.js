@@ -1,0 +1,27 @@
+export function createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast}){
+  db.exec(`CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id),user_id TEXT REFERENCES users(id),emoji TEXT,PRIMARY KEY(message_id,user_id));
+    CREATE TABLE IF NOT EXISTS scheduled(id TEXT PRIMARY KEY,chat_id TEXT REFERENCES chats(id),user_id TEXT REFERENCES users(id),body TEXT,due INTEGER,status TEXT);`);
+  const profile=u=>JSON.parse(one('SELECT data FROM profiles WHERE user_id=?',u)?.data||'{}');
+  const reactions=m=>all('SELECT emoji,COUNT(*) count FROM reactions WHERE message_id=? GROUP BY emoji',m);
+  async function route({path,req,b,user,json,url}){
+    if(path==='/api/profile'&&req.method==='GET'){const target=url.searchParams.get('user')||user.id;if(target!==user.id)family.contact(user.id,target);const u=one('SELECT id,name,username,bio,avatar FROM users WHERE id=?',target);if(!u)fail(404,'Профиль не найден');json({...u,vip:vip.active(target),profile:profile(target)});return true;}
+    if(path==='/api/profile'&&req.method==='PATCH'){
+      if(!vip.active(user.id))fail(403,'Включите бесплатный VIP');const p={};for(const key of ['cover','videoAvatar']){const value=String(b[key]||'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
+      for(const key of ['nameColor','badgeColor'])p[key]=/^#[0-9a-f]{6}$/i.test(b[key]||'')?b[key]:'';
+      p.description=String(b.description||'').slice(0,2000);p.status=String(b.status||'').slice(0,80);p.emoji=String(b.emoji||'').slice(0,8);
+      p.links=(Array.isArray(b.links)?b.links:[]).slice(0,5).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
+      run('INSERT INTO profiles VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',user.id,JSON.stringify(p));json(p);return true;
+    }
+    if(path==='/api/reactions'&&req.method==='POST'){const m=one('SELECT * FROM messages WHERE id=? AND deleted=0',b.message);if(!m)fail(404,'Сообщение не найдено');membership(m.chat_id,user.id);family.chatAccess(m.chat_id,user.id);const choices=['👍','❤️','🔥','😂','🙏','🎉','✨','💎','🚀','🌟'];if(b.emoji&&!choices.includes(b.emoji))fail(400,'Неизвестная реакция');if(!b.emoji)run('DELETE FROM reactions WHERE message_id=? AND user_id=?',m.id,user.id);else run('INSERT INTO reactions VALUES(?,?,?) ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji',m.id,user.id,b.emoji);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});json({ok:true});return true;}
+    if(path==='/api/scheduled'){
+      if(req.method==='GET')json(all('SELECT * FROM scheduled WHERE user_id=? ORDER BY due DESC LIMIT 100',user.id));
+      else if(req.method==='POST'){if(!vip.active(user.id))fail(403,'Включите бесплатный VIP');requirePermission(b.chat,user.id,'text');family.chatAccess(b.chat,user.id);const text=String(b.body||'').trim().slice(0,4000);family.content(b.chat,text,false);const due=Number(b.due);if(!text||!Number.isFinite(due)||due<now()+10000||due>now()+30*86400000)fail(400,'Выберите время от 10 секунд до 30 дней');if(one("SELECT COUNT(*) n FROM scheduled WHERE user_id=? AND status='pending'",user.id).n>=50)fail(409,'Лимит: 50 публикаций');const key=id();run("INSERT INTO scheduled VALUES(?,?,?,?,?,'pending')",key,b.chat,user.id,text,due);json({id:key});}
+      else if(req.method==='DELETE'){run("UPDATE scheduled SET status='cancelled' WHERE id=? AND user_id=? AND status='pending'",b.id,user.id);json({ok:true});}else fail(405,'Метод не поддерживается');return true;
+    }
+    if(path==='/api/statistics'&&req.method==='GET'){const chat=url.searchParams.get('chat');const {member}=membership(chat,user.id);if(!['owner','admin'].includes(member.role))fail(403,'Только администраторы');json({members:one("SELECT COUNT(*) n FROM members WHERE chat_id=? AND role!='banned'",chat).n,messages:one('SELECT COUNT(*) n FROM messages WHERE chat_id=? AND deleted=0',chat).n,days:all('SELECT date(created/1000,\'unixepoch\') day,COUNT(*) count FROM messages WHERE chat_id=? AND deleted=0 GROUP BY day ORDER BY day DESC LIMIT 30',chat)});return true;}
+    return false;
+  }
+  function tick(){for(const s of all("SELECT * FROM scheduled WHERE status='pending' AND due<=? LIMIT 20",now())){try{requirePermission(s.chat_id,s.user_id,'text');family.assertUse(s.user_id);family.chatAccess(s.chat_id,s.user_id);family.content(s.chat_id,s.body,false);const blocked=all('SELECT user_id FROM members WHERE chat_id=?',s.chat_id).some(m=>one('SELECT user_id FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)',m.user_id,s.user_id,s.user_id,m.user_id));if(blocked)throw new Error('Blocked');const key=id();db.exec('BEGIN');try{run("INSERT INTO messages(id,chat_id,user_id,kind,body,created) VALUES(?,?,?,'text',?,?)",key,s.chat_id,s.user_id,s.body,now());run("UPDATE scheduled SET status='sent' WHERE id=?",s.id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(s.chat_id,'message',{chat:s.chat_id,id:key});}catch{run("UPDATE scheduled SET status='failed' WHERE id=?",s.id);}}}
+  return{route,profile,reactions,tick};
+}
