@@ -1,6 +1,11 @@
 import http from 'node:http';
+import { rtcConfiguration } from './turn.js';
+import { createFamily } from './family.js';
+import { createVip } from './vip.js';
+import { createSocial } from './social.js';
+import { createAI } from './ai.js';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database } from './db.js';
@@ -19,6 +24,7 @@ const fail = (status, message) => { throw Object.assign(new Error(message), { st
 const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
 const publicUser = u => u && ({ id: u.id, username: u.username, name: u.name, bio: u.bio, avatar: u.avatar, online: streams.has(u.id) });
 const streams = new Map(), liveCalls = new Map(), limits = new Map();
+let uploadsInFlight=0;
 function rate(key, count, window = 60_000) {
   const entry = limits.get(key);
   if (!entry || entry.until < now()) { limits.set(key, { n: 1, until: now() + window }); return; }
@@ -48,7 +54,7 @@ function audit(chat, actor, action, target = '') {
 function message(row, viewer) {
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id));
   if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, deleted: true, author };
-  const result = { ...row, author, media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
+  const result = { ...row, author, reactions:social.reactions(row.id), media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
   if (row.poll) {
     result.poll = JSON.parse(row.poll);
     result.poll.counts = all('SELECT choice,COUNT(*) AS n FROM votes WHERE message_id=? GROUP BY choice', row.id);
@@ -85,6 +91,10 @@ function endCall(call, status = 'ended') {
   liveCalls.delete(call.id);
 }
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const family=createFamily({db,one,all,run,fail,now,emit});
+const vip=createVip({db,one,all,run,fail,now,id});
+const social=createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast});
+const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data});
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -119,12 +129,13 @@ const server = http.createServer(async (req, res) => {
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = clean(b.username, 32).toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
-      let account = one('SELECT * FROM users WHERE username=?', username);
+      let account = one('SELECT * FROM users WHERE username=?', username); let familyCode;
       if (b.register) {
         if (account) fail(409, 'Этот username уже занят');
         const salt = randomBytes(16).toString('hex'); const hash = scryptSync(password, salt, 64).toString('hex');
         run('INSERT INTO users(id,username,name,password,created) VALUES(?,?,?,?,?)', id(), username, clean(b.name, 80) || username, salt + ':' + hash, now());
         account = one('SELECT * FROM users WHERE username=?', username);
+        if(b.child){try{familyCode=family.register(account.id,b.birth);}catch(error){run('DELETE FROM users WHERE id=?',account.id);throw error;}}
       } else {
         const [salt, hash] = (account?.password || 'dummy:' + '0'.repeat(128)).split(':');
         const attempt = scryptSync(password, salt, 64);
@@ -133,26 +144,37 @@ const server = http.createServer(async (req, res) => {
       const token = randomBytes(32).toString('hex');
       run('INSERT INTO sessions VALUES(?,?,?,?,?,?)', createHash('sha256').update(token).digest('hex'), account.id, clean(req.headers['user-agent'], 200), now(), now(), now() + 30 * 86400_000);
       res.setHeader('Set-Cookie', `session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${process.env.COOKIE_SECURE === '1' ? '; Secure' : ''}`);
-      return json({ user: publicUser(account), settings: JSON.parse(account.settings) });
+      return json({ user: publicUser(account), settings: JSON.parse(account.settings), familyCode });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') return json({ user: publicUser(user), settings: JSON.parse(user.settings), transcription: !!process.env.TRANSCRIPTION_KEY, iceServers: JSON.parse(process.env.ICE_SERVERS || '[]') });
+    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), transcription: !!process.env.TRANSCRIPTION_KEY, ...rtcConfiguration(user.id) });
+    if(await family.route({path,req,b,user,json}))return;
+    if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
+    if(path==='/api/rtc-config'&&req.method==='GET')return json(rtcConfiguration(user.id));
+    if(path==='/api/activity'&&req.method==='POST')return json({ok:true});
+    if(await vip.route({path,req,b,user,json}))return;
+    if(await social.route({path,req,b,user,json,url}))return;
+    if(await ai.route({path,req,res,b,user,json}))return;
     if (path === '/api/logout' && req.method === 'POST') {
+      ai.abortUser(user.id);
       run('DELETE FROM sessions WHERE id=?', user.session.id);
       for (const stream of streams.get(user.id) || []) if (stream.sessionId === user.session.id) stream.end();
       res.setHeader('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ ok: true });
     }
     if (path === '/api/me' && req.method === 'PATCH') {
+      ai.abortUser(user.id);
       const avatar = b.avatar === undefined ? user.avatar : clean(b.avatar, 200);
       if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
       const settings = b.settings === undefined ? JSON.parse(user.settings) : b.settings;
       if (!settings || typeof settings !== 'object' || Array.isArray(settings) || JSON.stringify(settings).length > 80_000) fail(400, 'Некорректные настройки');
+      if(settings.ai){if(typeof settings.ai!=='object'||Array.isArray(settings.ai))fail(400,'Некорректные настройки AI');if(settings.ai.chatIds!==undefined&&(!Array.isArray(settings.ai.chatIds)||settings.ai.chatIds.length>100||settings.ai.chatIds.some(v=>typeof v!=='string')))fail(400,'Некорректные разрешения чатов');}
+      if(settings.folders!==undefined&&(!Array.isArray(settings.folders)||settings.folders.length>(vip.active(user.id)?20:5)))fail(400,'Превышен лимит папок');
       run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, clean(b.bio ?? user.bio, 300), avatar, JSON.stringify(settings), user.id);
       return json({ user: publicUser(one('SELECT * FROM users WHERE id=?', user.id)), settings });
     }
     if (path === '/api/users' && req.method === 'GET') {
       const q = clean(url.searchParams.get('q'), 80).toLowerCase();
-      return json(q ? all('SELECT * FROM users WHERE id!=? AND (instr(lower(username),?)>0 OR instr(lower(name),?)>0) LIMIT 30', user.id, q, q).map(publicUser) : []);
+      return json(q ? all('SELECT * FROM users WHERE id!=? AND (instr(lower(username),?)>0 OR instr(lower(name),?)>0) LIMIT 30', user.id, q, q).filter(u=>{try{family.contact(user.id,u.id);return true;}catch{return false;}}).map(publicUser) : []);
     }
     if (path === '/api/sessions' && req.method === 'GET') return json(all('SELECT id,agent,created,active FROM sessions WHERE user_id=? AND expires>?', user.id, now()).map(s => ({ ...s, current: s.id === user.session.id })));
     if (path === '/api/sessions' && req.method === 'DELETE') {
@@ -183,6 +205,8 @@ const server = http.createServer(async (req, res) => {
       const users = [...new Set([user.id, ...(Array.isArray(b.users) ? b.users : [])])];
       if (users.length > 100 || (kind === 'direct' && users.length !== 2)) fail(400, 'Проверьте участников');
       for (const target of users) {
+        if(target!==user.id)family.contact(user.id,target);
+        if(kind!=='direct'&&family.child(target))fail(403,'Детей можно добавить только в одобренное родителем сообщество');
         if (!one('SELECT id FROM users WHERE id=?', target)) fail(400, 'Пользователь не найден');
         if (one('SELECT * FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)', target, user.id, user.id, target)) fail(403, 'Общение с этим пользователем недоступно');
       }
@@ -197,7 +221,7 @@ const server = http.createServer(async (req, res) => {
     }
     const chatMatch = /^\/api\/chats\/([^/]+)(?:\/(messages|read|typing|members|audit))?$/.exec(path);
     if (chatMatch) {
-      const chatId = chatMatch[1], action = chatMatch[2]; const { chat, member } = membership(chatId, user.id);
+      const chatId = chatMatch[1], action = chatMatch[2]; const { chat, member } = membership(chatId, user.id); family.chatAccess(chatId,user.id);
       if (!action && req.method === 'PATCH') {
         requirePermission(chatId, user.id, 'info');
         if (chat.kind === 'direct') fail(400, 'Это личный чат');
@@ -213,7 +237,7 @@ const server = http.createServer(async (req, res) => {
         broadcast(chatId, 'receipt', { chat: chatId, user: user.id, delivered }); return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {
-        rate('message:' + user.id, 90);
+        rate('message:' + user.id, 90); family.content(chatId,clean(b.body)+' '+JSON.stringify(b.poll||{}),!!b.media);
         const kind = ['text','photo','video','file','voice','round','poll'].includes(b.kind) ? b.kind : 'text';
         requirePermission(chatId, user.id, kind);
         if (chat.kind === 'direct') for (const m of all('SELECT user_id FROM members WHERE chat_id=?', chatId)) if (one('SELECT * FROM blocks WHERE user_id=? AND target=?', m.user_id, user.id)) fail(403, 'Отправка недоступна');
@@ -250,6 +274,7 @@ const server = http.createServer(async (req, res) => {
         }
         const target = one('SELECT * FROM members WHERE chat_id=? AND user_id=?',chatId,b.user);
         if (b.action === 'invite') {
+          family.contact(user.id,b.user);family.group(b.user,chatId);
           requirePermission(chatId,user.id,'invite');
           if (!one('SELECT id FROM users WHERE id=?',b.user)) fail(404,'Пользователь не найден');
           if (target) fail(409,'Пользователь уже в группе или заблокирован');
@@ -283,11 +308,11 @@ const server = http.createServer(async (req, res) => {
     const msgMatch = /^\/api\/messages\/([^/]+)(?:\/(vote|forward|transcribe))?$/.exec(path);
     if (msgMatch) {
       const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
-      membership(m.chat_id,user.id); const action = msgMatch[2];
+      membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
       if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
-        else { if(m.user_id!==user.id || m.deleted || m.kind==='poll') fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
+        else { if(m.user_id!==user.id || m.deleted || m.kind==='poll') fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll || m.deleted) fail(400,'Опрос недоступен'); const p=JSON.parse(m.poll);
         if(p.closed) fail(400,'Опрос завершён');
@@ -296,10 +321,11 @@ const server = http.createServer(async (req, res) => {
         db.exec('BEGIN'); try { run('DELETE FROM votes WHERE message_id=? AND user_id=?',m.id,user.id); for(const c of choices) run('INSERT INTO votes VALUES(?,?,?)',m.id,user.id,c); db.exec('COMMIT'); } catch(error){db.exec('ROLLBACK');throw error;}
       } else if(action==='forward' && req.method==='POST') {
         if(m.deleted || m.kind==='poll') fail(400,'Пересылка недоступна');
-        const {chat:destination}=requirePermission(b.chat,user.id,m.kind);
+        const {chat:destination}=requirePermission(b.chat,user.id,m.kind); family.chatAccess(b.chat,user.id);family.content(b.chat,m.body,!!m.media_id);
         if(destination.kind==='direct') for(const member of all('SELECT user_id FROM members WHERE chat_id=?',b.chat)) if(one('SELECT * FROM blocks WHERE user_id=? AND target=?',member.user_id,user.id)) fail(403,'Отправка недоступна');
         const newId=id(); run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,forwarded,created) VALUES(?,?,?,?,?,?,?,?)',newId,b.chat,user.id,m.kind,m.body,m.media_id,m.author || one('SELECT name FROM users WHERE id=?',m.user_id).name,now()); broadcast(b.chat,'message',{chat:b.chat,id:newId}); return json({ok:true});
       } else if(action==='transcribe' && req.method==='POST') {
+        if(b.consent!==true||ai.settings(user.id).voice!==true)fail(403,'Разрешите AI доступ к голосовым сообщениям и подтвердите передачу записи');
         if(!['voice','round'].includes(m.kind)||m.deleted) fail(400,'Нет записи для расшифровки');
         if(!process.env.TRANSCRIPTION_KEY || !process.env.TRANSCRIPTION_URL) fail(503,'Администратор ещё не подключил сервис расшифровки');
         rate('transcribe:'+user.id,6,60_000);
@@ -313,16 +339,23 @@ const server = http.createServer(async (req, res) => {
     }
     if(path==='/api/media' && req.method==='POST') {
       rate('upload:'+user.id,30);
-      const bytes=await body(req,50*1024*1024);if(!bytes.length)fail(400,'Пустой файл');
+      if(family.child(user.id)&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Вложения отключены родителем');
       const mediaId=id(); const type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
       const name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
-      await writeFile(resolve(data,'media',mediaId),bytes,{flag:'wx'});
-      run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,bytes.length,now());return json({id:mediaId,name,type,size:bytes.length},201);
+      if(uploadsInFlight>=2)fail(429,'Сервер занят загрузками. Повторите немного позже.');
+      const maximum=(vip.active(user.id)?100:50)*1024*1024;
+      if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 1 ГБ');
+      uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
+      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
+      catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;}
+      return json({id:mediaId,name,type,size},201);
     }
     if(path.startsWith('/api/media/') && req.method==='GET') {
       const mediaId=path.slice('/api/media/'.length);const media=one('SELECT * FROM media WHERE id=?',mediaId);if(!media)fail(404,'Файл не найден');
       const visible=media.user_id===user.id || one("SELECT m.id FROM messages m JOIN members p ON p.chat_id=m.chat_id WHERE m.media_id=? AND m.deleted=0 AND p.user_id=? AND p.role!='banned'",mediaId,user.id) || one('SELECT id FROM users WHERE avatar=?',mediaId) || one("SELECT c.id FROM chats c JOIN members p ON p.chat_id=c.id WHERE c.avatar=? AND p.user_id=? AND p.role!='banned'",mediaId,user.id);
-      if(!visible)fail(403,'Нет доступа к файлу');
+      const profileVisible=all('SELECT user_id,data FROM profiles').some(p=>{const info=JSON.parse(p.data);if(info.cover!==mediaId&&info.videoAvatar!==mediaId)return false;try{family.contact(user.id,p.user_id);return true;}catch{return false;}});
+      if(!visible&&!profileVisible)fail(403,'Нет доступа к файлу');
+      if(family.child(user.id)&&media.user_id!==user.id&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Медиа ограничены семейными настройками');
       const safe=/^(image\/(png|jpeg|webp|gif)|audio\/(webm|ogg|mpeg|mp4|wav)|video\/(webm|mp4|ogg))$/.test(media.type);
       const bytes=await readFile(resolve(data,'media',mediaId));
       res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');
@@ -330,9 +363,10 @@ const server = http.createServer(async (req, res) => {
       if(range){const start=Number(range[1]),end=Math.min(range[2]?Number(range[2]):bytes.length-1,bytes.length-1);if(start>end || start>=bytes.length){res.writeHead(416,{'Content-Range':`bytes */${bytes.length}`});return res.end();}res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${bytes.length}`,'Content-Length':end-start+1});return res.end(bytes.subarray(start,end+1));}
       res.setHeader('Content-Length',bytes.length);return res.end(bytes);
     }
+    if(path==='/api/calls/active'&&req.method==='GET')return json([...liveCalls.values()].filter(c=>one("SELECT user_id FROM members WHERE chat_id=? AND user_id=? AND role!='banned'",c.chat,user.id)).map(c=>({...c,participants:[...c.participants],state:c.participants.size>1?'active':'ringing'})));
     if(path==='/api/calls' && req.method==='GET') return json(all("SELECT c.*,h.title,h.kind,u.name FROM calls c JOIN members m ON m.chat_id=c.chat_id JOIN chats h ON h.id=c.chat_id JOIN users u ON u.id=c.user_id WHERE m.user_id=? AND m.role!='banned' ORDER BY c.created DESC LIMIT 100",user.id));
     if(path==='/api/calls' && req.method==='POST') {
-      const {chat}=membership(b.chat,user.id);
+      const {chat}=membership(b.chat,user.id);family.chatAccess(b.chat,user.id,true);
       if(chat.kind==='channel')fail(400,'Звонки доступны в личных и групповых чатах');
       const members=all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",b.chat);
       if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');
@@ -342,19 +376,19 @@ const server = http.createServer(async (req, res) => {
       broadcast(b.chat,'call',{...call,participants:[...call.participants],state:'ringing'});return json({...call,participants:[...call.participants]});
     }
     if(path==='/api/call-action' && req.method==='POST') {
-      const call=liveCalls.get(b.id);if(!call)fail(404,'Звонок завершён');membership(call.chat,user.id);
+      const call=liveCalls.get(b.id);if(!call)fail(404,'Звонок завершён');membership(call.chat,user.id);if(!['leave','reject'].includes(b.action))family.chatAccess(call.chat,user.id,true);
       if(b.action==='join') {if([...liveCalls.values()].some(c=>c.id!==call.id&&c.participants.has(user.id)))fail(409,'Вы уже в другом звонке');if(call.participants.size>=6&&!call.participants.has(user.id))fail(409,'В этом выпуске до 6 участников');call.participants.add(user.id);run("UPDATE calls SET status='active' WHERE id=?",call.id);}
       else if(b.action==='leave') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');call.participants.delete(user.id);if(call.sharing===user.id)call.sharing=null;if(call.participants.size<2){endCall(call,'ended');return json({ok:true});}}
       else if(b.action==='reject') {if(one('SELECT kind FROM chats WHERE id=?',call.chat).kind==='direct'){endCall(call,'declined');return json({ok:true});}return json({ok:true});}
       else if(b.action==='share') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');if(b.enabled&&call.sharing&&call.sharing!==user.id)fail(409,'Другой участник уже демонстрирует экран');call.sharing=b.enabled?user.id:null;}
-      else if(b.action==='signal') {if(!call.participants.has(user.id)||!call.participants.has(b.target))fail(403,'Нет доступа к медиасигналам');if(JSON.stringify(b.signal).length>60_000)fail(400,'Сигнал слишком большой');emit(b.target,'signal',{call:call.id,from:user.id,signal:b.signal});return json({ok:true});}
+      else if(b.action==='signal') {if(!call.participants.has(user.id)||!call.participants.has(b.target))fail(403,'Нет доступа к медиасигналам');if(!b.signal||typeof b.signal!=='object')fail(400,'Некорректный сигнал');if(JSON.stringify(b.signal).length>60_000)fail(400,'Сигнал слишком большой');emit(b.target,'signal',{call:call.id,from:user.id,signal:b.signal});return json({ok:true});}
       else fail(400,'Неизвестное действие');
       broadcast(call.chat,'call',{...call,participants:[...call.participants],state:'active'});return json({ok:true});
     }
     fail(404,'Не найдено');
   } catch(error) { if(!error.status) console.error(error); if(!res.headersSent) json({error:error.status?error.message:'Ошибка сервера'},error.status||500); else res.end(); }
 });
-setInterval(()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
+setInterval(()=>{social.tick();for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
