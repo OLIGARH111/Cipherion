@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {scryptSync} from 'node:crypto';
+import {scryptSync,randomUUID,randomBytes,createHash} from 'node:crypto';
 import {database} from '../server/db.js';
 import {totp} from '../server/security.js';
 import {sanitizePNG} from '../server/stickers.js';
@@ -22,3 +22,34 @@ test('2FA prevents password-only login, recovery is single-use, remote sessions 
 test('VIP is privileged, expires, promos cannot be replayed, grants are audited',async()=>{const a=await account('vip_a');assert.equal((await request('/vip',a.cookie,'POST',{active:true})).status,403);assert.equal((await request('/admin/vip/grant',a.cookie,'POST',{user:a.data.user.id,days:30})).status,403);assert.equal((await request('/admin/vip/grant',admin,'POST',{user:a.data.user.id,days:30})).status,200);assert.equal((await request('/vip',a.cookie)).data.active,true);assert.equal((await request('/admin/vip/revoke',admin,'POST',{user:a.data.user.id})).status,200);assert.equal((await request('/vip',a.cookie)).data.active,false);await request('/admin/vip/promo',admin,'POST',{code:'TEST-PROMO',days:1,uses:2});assert.equal((await request('/vip/redeem',a.cookie,'POST',{code:'TEST-PROMO'})).status,200);assert.equal((await request('/vip/redeem',a.cookie,'POST',{code:'TEST-PROMO'})).status,400);const db=database(dir);db.prepare('UPDATE vip_grants SET expires=1 WHERE user_id=?').run(a.data.user.id);db.close();assert.equal((await request('/vip',a.cookie)).data.active,false);assert.ok((await request('/admin/vip',admin)).data.audit.length>=3);});
 test('sticker and inline emoji persist across accounts; file validation and ownership are enforced',async()=>{const a=await account('studio_a'),b=await account('studio_b');const pack=(await request('/packs',a.cookie,'POST',{title:'My stickers'})).data;const media=await png(a.cookie);const sticker=(await request('/packs/'+pack.id+'/items',a.cookie,'POST',{media,label:'смешно'})).data;assert.ok(sticker.id);assert.equal((await request('/packs/'+pack.id,b.cookie)).status,404);await request('/packs/'+pack.id,a.cookie,'PATCH',{visibility:'public'});assert.equal((await request('/packs/'+pack.id+'/install',b.cookie,'POST',{})).status,200);assert.equal((await request('/packs/'+pack.id,b.cookie,'PATCH',{title:'hijack'})).status,403);const chat=(await request('/chats',a.cookie,'POST',{users:[b.data.user.id]})).data;await request('/stickers/send',b.cookie,'POST',{chat:chat.id,sticker:sticker.id});assert.equal((await request('/chats/'+chat.id+'/messages',a.cookie)).data.at(-1).kind,'sticker');await request('/stickers/favorites',b.cookie,'POST',{id:sticker.id});const remote=await request('/auth',null,'POST',{username:'studio_b',password});assert.equal((await request('/stickers/favorites',remote.cookie)).data[0].id,sticker.id);assert.equal((await fetch(base+'/api/stickers/'+sticker.id+'/file',{headers:{Cookie:b.cookie}})).status,200);const emojiPack=(await request('/packs',a.cookie,'POST',{title:'Emoji',kind:'emoji'})).data;const emoji=(await request('/packs/'+emojiPack.id+'/items',a.cookie,'POST',{media})).data;await request('/packs/'+emojiPack.id,a.cookie,'PATCH',{visibility:'public'});const text='Hello :ce['+emoji.id+']';const message=await request('/chats/'+chat.id+'/messages',a.cookie,'POST',{body:text});assert.equal(message.status,201);assert.equal((await request('/reactions',b.cookie,'POST',{message:message.data.id,emoji:':ce['+emoji.id+']'})).status,200);assert.equal((await request('/chats/'+chat.id+'/messages',remote.cookie)).data.at(-1).body,text);assert.equal((await request('/chats/'+chat.id+'/messages',b.cookie,'POST',{body:':ce[missing]'})).status,404);assert.throws(()=>sanitizePNG(Buffer.from('<svg onload="evil()"/>')));const bytes=await readFile('public/apple-touch-icon.png');bytes[30]^=1;assert.throws(()=>sanitizePNG(bytes));});
 test('PWA icons and manifest are served with the right types and no stale mutable caching',async()=>{const r=await fetch(base+'/manifest.webmanifest');assert.match(r.headers.get('content-type'),/manifest/);const manifest=await r.json();assert.equal(manifest.display,'standalone');for(const icon of manifest.icons){const response=await fetch(base+icon.src);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');assert.match(response.headers.get('cache-control'),/immutable/);}const icon=await fetch(base+'/apple-touch-icon.png?v=test');assert.equal(icon.status,200);assert.equal(icon.headers.get('cache-control'),'no-cache');});
+
+async function reviewAccount(username){
+ const db=database(dir),uid=randomUUID(),token=randomBytes(32).toString('hex'),now=Date.now();try{db.prepare('INSERT INTO users(id,username,name,password,created) VALUES(?,?,?,?,?)').run(uid,username,username,'salt:'+scryptSync(password,'salt',64).toString('hex'),now);db.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run(createHash('sha256').update(token).digest('hex'),uid,'Review fixture',now,now,now+3600000);}finally{db.close();}return {data:{user:{id:uid}},cookie:'session='+token};
+}
+
+test('profile updates keep VIP state and do not truncate an existing bio after expiry',async()=>{
+ const a=await reviewAccount('review_profile');await request('/admin/vip/grant',admin,'POST',{user:a.data.user.id,days:30});
+ const bio='A'.repeat(450);const saved=await request('/me',a.cookie,'PATCH',{bio});assert.equal(saved.data.user.vip,true);assert.equal(saved.data.user.bio,bio);
+ await request('/admin/vip/revoke',admin,'POST',{user:a.data.user.id});const renamed=await request('/me',a.cookie,'PATCH',{name:'New name'});assert.equal(renamed.data.user.vip,false);assert.equal(renamed.data.user.bio,bio);
+});
+
+test('invalid sticker pack edits do not publish or partially update the pack',async()=>{
+ const a=await reviewAccount('review_pack'),b=await reviewAccount('review_reader');const p=(await request('/packs',a.cookie,'POST',{title:'Private original'})).data;
+ const bad=await request('/packs/'+p.id,a.cookie,'PATCH',{title:'Should not save',visibility:'public',order:['missing']});assert.equal(bad.status,400);
+ const unchanged=(await request('/packs/'+p.id,a.cookie)).data;assert.equal(unchanged.title,'Private original');assert.equal(unchanged.visibility,'private');assert.equal((await request('/packs/'+p.id,b.cookie)).status,404);
+ assert.equal((await request('/packs/'+p.id,a.cookie,'PATCH',{visibility:'invalid'})).status,400);
+});
+
+test('family media restrictions cover stickers, forwards, inline emoji, reactions and file access',async()=>{
+ const parent=await reviewAccount('review_parent');const child=await request('/auth',null,'POST',{register:true,username:'review_child',password,child:true,birth:'2014-01-01'});
+ await request('/family/link',parent.cookie,'POST',{code:child.data.familyCode,consent:true});await request('/family/rules',parent.cookie,'PATCH',{child:child.data.user.id,nightStart:0,nightEnd:0,media:false});
+ const chat=(await request('/chats',parent.cookie,'POST',{users:[child.data.user.id]})).data;
+ assert.equal((await request('/stickers/send',parent.cookie,'POST',{chat:chat.id,sticker:'builtin-0-0'})).status,403);
+ const pack=(await request('/packs',parent.cookie,'POST',{title:'Restricted emoji',kind:'emoji'})).data;const media=await png(parent.cookie);const emoji=(await request('/packs/'+pack.id+'/items',parent.cookie,'POST',{media})).data;
+ assert.equal((await request('/chats/'+chat.id+'/messages',parent.cookie,'POST',{body:':ce['+emoji.id+']'})).status,403);
+ const message=(await request('/chats/'+chat.id+'/messages',parent.cookie,'POST',{body:'Hello'})).data;
+ assert.equal((await request('/reactions',parent.cookie,'POST',{message:message.id,emoji:':ce['+emoji.id+']'})).status,403);
+ const other=await reviewAccount('review_other');const source=(await request('/chats',parent.cookie,'POST',{users:[other.data.user.id]})).data;const sticker=(await request('/stickers/send',parent.cookie,'POST',{chat:source.id,sticker:'builtin-0-0'})).data;
+ assert.equal((await request('/messages/'+sticker.id+'/forward',parent.cookie,'POST',{chat:chat.id})).status,403);
+ assert.equal((await fetch(base+'/api/stickers/builtin-0-0/file',{headers:{Cookie:child.cookie}})).status,403);
+});

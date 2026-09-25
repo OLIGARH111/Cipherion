@@ -37,3 +37,7 @@ Before deployment, back up the existing SQLite database and media directory; use
 On iOS, an existing home-screen icon may remain cached by the OS. Remove the old home-screen shortcut and add Cipherion again via Safari → Share → Add to Home Screen after the release is deployed. Do not delete the Cipherion account.
 
 Browser CSS startup animation runs after the web document starts. The operating system's earlier static launch screen is separate and is not animated by website CSS.
+
+## Review fixes (2026-09-25)
+
+Review found and fixed a mobile CSS rule hiding the emoji/sticker entry point, profile PATCH losing the VIP flag, unrelated profile edits truncating a previously saved VIP bio after expiry, and invalid pack ordering partially updating/publishing a private pack. Pack metadata/order validation now completes before an atomic transaction. Family media restrictions now also cover inline custom emoji, custom reactions, sticker forwarding and authenticated sticker file retrieval. The authentication view can scroll on short screens. The expanded suite passes 21 tests; device/browser visual verification remains outstanding.

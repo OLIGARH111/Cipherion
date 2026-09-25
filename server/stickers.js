@@ -1,7 +1,6 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {inflateSync,deflateSync} from 'node:zlib';
-import {createHash} from 'node:crypto';
 // Decode the complete bounded raster; discard metadata and re-encode PNG chunks.
 function crc32(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
 function chunk(type,data){const name=Buffer.from(type),out=Buffer.alloc(12+data.length);out.writeUInt32BE(data.length);name.copy(out,4);data.copy(out,8);out.writeUInt32BE(crc32(Buffer.concat([name,data])),8+data.length);return out;}
@@ -37,7 +36,12 @@ export function createStickers({db,one,all,run,fail,now,id,data,rate,membership,
  const match=/^\/api\/packs\/([^/]+)(?:\/(install|items|report|hide))?$/.exec(path);
  if(match){const key=match[1],action=match[2],p=pack(key,user.id);
   if(!action&&req.method==='GET')json({...p,items:all('SELECT * FROM stickers WHERE pack_id=? AND deleted=0 ORDER BY position',key).map(view)});
-  else if(!action&&req.method==='PATCH'){manage(key,user.id);const title=String(b.title??p.title).trim().slice(0,80);if(!title)fail(400,'Введите название');run('UPDATE sticker_packs SET title=?,description=?,visibility=?,updated=? WHERE id=?',title,String(b.description??p.description).slice(0,500),b.visibility==='public'?'public':b.visibility==='private'?'private':p.visibility,now(),key);if(b.order){if(!Array.isArray(b.order)||b.order.length>200||b.order.some(v=>!one('SELECT id FROM stickers WHERE id=? AND pack_id=?',v,key)))fail(400,'Некорректный порядок');b.order.forEach((v,i)=>run('UPDATE stickers SET position=? WHERE id=?',i,v));}json({ok:true});}
+  else if(!action&&req.method==='PATCH'){
+    manage(key,user.id);const title=String(b.title??p.title).trim().slice(0,80);if(!title)fail(400,'Введите название');
+    if(b.visibility!==undefined&&!['public','private'].includes(b.visibility))fail(400,'Некорректная видимость');
+    if(b.order!==undefined&&(!Array.isArray(b.order)||b.order.length>200||new Set(b.order).size!==b.order.length||b.order.some(v=>typeof v!=='string'||!one('SELECT id FROM stickers WHERE id=? AND pack_id=? AND deleted=0',v,key))))fail(400,'Некорректный порядок');
+    db.exec('BEGIN');try{run('UPDATE sticker_packs SET title=?,description=?,visibility=?,updated=? WHERE id=?',title,String(b.description??p.description).slice(0,500),b.visibility??p.visibility,now(),key);b.order?.forEach((v,i)=>run('UPDATE stickers SET position=? WHERE id=?',i,v));db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}json({ok:true});}
+
   else if(!action&&req.method==='DELETE'){manage(key,user.id);run('UPDATE sticker_packs SET blocked=1 WHERE id=?',key);json({ok:true});}
   else if(action==='install'&&['POST','DELETE'].includes(req.method)){if(req.method==='POST')run('INSERT OR IGNORE INTO user_packs VALUES(?,?)',user.id,key);else run('DELETE FROM user_packs WHERE user_id=? AND pack_id=?',user.id,key);json({ok:true});}
   else if(action==='items'&&req.method==='POST'){manage(key,user.id);rate('sticker-upload:'+user.id,30);if(one('SELECT COUNT(*) n FROM stickers WHERE pack_id=? AND deleted=0',key).n>=200)fail(409,'До 200 элементов в наборе');const m=one('SELECT * FROM media WHERE id=? AND user_id=?',b.media,user.id);if(!m||m.size>2*1024*1024)fail(400,'Нужен PNG до 2 МБ');let bytes;try{bytes=sanitizePNG(await readFile(resolve(data,'media',m.id)));}catch(e){fail(400,e.message);}const sid=id();await mkdir(resolve(data,'stickers'),{recursive:true});await writeFile(resolve(data,'stickers',sid),bytes);run('INSERT INTO stickers VALUES(?,?,?,?,?,NULL,0)',sid,key,String(b.label||'Стикер').slice(0,80),String(b.emoji||'').slice(0,16),one('SELECT COUNT(*) n FROM stickers WHERE pack_id=?',key).n);run('UPDATE sticker_packs SET updated=? WHERE id=?',now(),key);json({id:sid});}
@@ -46,7 +50,7 @@ export function createStickers({db,one,all,run,fail,now,id,data,rate,membership,
   else fail(405,'Метод не поддерживается');return true;
  }
  const file=/^\/api\/stickers\/([^/]+)\/file$/.exec(path);
- if(file&&req.method==='GET'){if(!attachment(file[1],user.id))fail(404,'Стикер недоступен');const s=one('SELECT * FROM stickers WHERE id=?',file[1]);if(s.source){res.writeHead(302,{Location:s.source,'Cache-Control':'private, no-store'});res.end();}else{const bytes=await readFile(resolve(data,'stickers',file[1]));res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'private, no-store','Content-Length':bytes.length});res.end(bytes);}return true;}
+ if(file&&req.method==='GET'){const child=family.child(user.id);if(child&&!JSON.parse(child.rules).media)fail(403,'Вложения ограничены семейными настройками');if(!attachment(file[1],user.id))fail(404,'Стикер недоступен');const s=one('SELECT * FROM stickers WHERE id=?',file[1]);if(s.source){res.writeHead(302,{Location:s.source,'Cache-Control':'private, no-store'});res.end();}else{const bytes=await readFile(resolve(data,'stickers',file[1]));res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'private, no-store','Content-Length':bytes.length});res.end(bytes);}return true;}
  if(path==='/api/stickers/favorites'||path==='/api/stickers/recent'){
  const favorite=path.endsWith('favorites'),table=favorite?'sticker_favorites':'sticker_recent';if(req.method==='GET')json(all(`SELECT s.* FROM ${table} f JOIN stickers s ON s.id=f.sticker_id WHERE f.user_id=? ORDER BY ${favorite?'s.label':'f.used DESC'} LIMIT 200`,user.id).filter(s=>attachment(s.id,user.id)).map(view));else if(req.method==='DELETE'){run(`DELETE FROM ${table} WHERE user_id=? AND sticker_id=?`,user.id,b.id);json({ok:true});}else if(favorite&&req.method==='POST'){if(!attachment(b.id,user.id))fail(404,'Стикер недоступен');run('INSERT OR IGNORE INTO sticker_favorites VALUES(?,?)',user.id,b.id);json({ok:true});}else fail(405,'Метод не поддерживается');return true;
  }

@@ -183,9 +183,9 @@ const server = http.createServer(async (req, res) => {
       if(settings.folders!==undefined&&(!Array.isArray(settings.folders)||settings.folders.length>Math.max(vip.active(user.id)?50:10,JSON.parse(user.settings).folders?.length||0)))fail(400,'Превышен лимит папок');
       if(settings.pins!==undefined&&(!Array.isArray(settings.pins)||settings.pins.length>Math.max(vip.active(user.id)?20:5,JSON.parse(user.settings).pins?.length||0)))fail(400,'Превышен лимит закреплённых чатов');
       const oldSettings=JSON.parse(user.settings);if(settings.theme!==oldSettings.theme&&['Emerald VIP','Diamond Glass','Golden Glass','Aurora VIP','Cosmic'].includes(settings.theme)&&!vip.active(user.id))fail(403,'Эта тема доступна с VIP');for(const k of ['vipGlow','vipBadge','presets'])if(JSON.stringify(settings[k])!==JSON.stringify(oldSettings[k])&&settings[k]&&!vip.active(user.id))fail(403,'Требуется VIP');
-      run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, clean(b.bio ?? user.bio, vip.active(user.id)?500:300), avatar, JSON.stringify(settings), user.id);
+      run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, b.bio===undefined?user.bio:clean(b.bio, vip.active(user.id)?500:300), avatar, JSON.stringify(settings), user.id);
       emit(user.id,'settings',{});
-      return json({ user: publicUser(one('SELECT * FROM users WHERE id=?', user.id),user.id), settings });
+      return json({ user: {...publicUser(one('SELECT * FROM users WHERE id=?', user.id),user.id),vip:vip.active(user.id)}, settings });
     }
     if (path === '/api/users' && req.method === 'GET') {
       const q = clean(url.searchParams.get('q'), 80).toLowerCase();
@@ -269,7 +269,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (!clean(b.body) && !media && !poll) fail(400, 'Пустое сообщение');
         if (b.reply && !one('SELECT id FROM messages WHERE id=? AND chat_id=?', b.reply, chatId)) fail(400, 'Ответ недоступен');
-        const emojiKeys=stickers.tokens(clean(b.body),user.id);
+        const emojiKeys=stickers.tokens(clean(b.body),user.id);if(emojiKeys.length)family.content(chatId,'',true);
         const messageId = id();
         run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created) VALUES(?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, now());
         stickers.bind(messageId,emojiKeys);broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
@@ -328,7 +328,7 @@ const server = http.createServer(async (req, res) => {
       if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
-        else { if(m.user_id!==user.id || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
+        else { if(m.user_id!==user.id || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll || m.deleted) fail(400,'Опрос недоступен'); const p=JSON.parse(m.poll);
         if(p.closed) fail(400,'Опрос завершён');
@@ -337,7 +337,7 @@ const server = http.createServer(async (req, res) => {
         db.exec('BEGIN'); try { run('DELETE FROM votes WHERE message_id=? AND user_id=?',m.id,user.id); for(const c of choices) run('INSERT INTO votes VALUES(?,?,?)',m.id,user.id,c); db.exec('COMMIT'); } catch(error){db.exec('ROLLBACK');throw error;}
       } else if(action==='forward' && req.method==='POST') {
         if(m.deleted || m.kind==='poll') fail(400,'Пересылка недоступна');
-        const {chat:destination}=requirePermission(b.chat,user.id,m.kind==='sticker'?'photo':m.kind); family.chatAccess(b.chat,user.id);family.content(b.chat,m.body,!!m.media_id);
+        const {chat:destination}=requirePermission(b.chat,user.id,m.kind==='sticker'?'photo':m.kind); family.chatAccess(b.chat,user.id);family.content(b.chat,m.body,!!m.media_id||m.kind==='sticker'||!!one('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id));
         if(destination.kind==='direct')for(const member of all('SELECT user_id FROM members WHERE chat_id=?',b.chat))if(member.user_id!==user.id)privacy.assertContact(user.id,member.user_id,'messages');
         const newId=id(); run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,forwarded,created) VALUES(?,?,?,?,?,?,?,?)',newId,b.chat,user.id,m.kind,m.body,m.media_id,m.author || one('SELECT name FROM users WHERE id=?',m.user_id).name,now()); stickers.bind(newId,all('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id).map(s=>s.sticker_id));broadcast(b.chat,'message',{chat:b.chat,id:newId}); return json({ok:true});
       } else if(action==='transcribe' && req.method==='POST') {
