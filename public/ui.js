@@ -25,7 +25,7 @@ export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',mi
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
 export async function api(path, method='GET', data) {
   const response=await fetch('/api'+path,{method,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
-  const result=await response.json();if(!response.ok)throw new Error(result.error || 'Ошибка запроса');return result;
+  const result=await response.json();if(!response.ok)throw Object.assign(new Error(result.error || 'Ошибка запроса'),{status:response.status});return result;
 }
 export async function upload(file) {
   const limit=(await api('/vip')).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
@@ -37,3 +37,4 @@ export function modal(title, content, wide=false) {
   $('#modal-close').onclick=()=>el.close();if(!el.open)el.showModal();return el;
 }
 export function guard(fn) { return async (...args)=>{try{await fn(...args);}catch(error){toast(error.message);}}; }
+

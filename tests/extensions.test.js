@@ -48,7 +48,7 @@ test('child cannot communicate before linking, forge parent rules, expose discov
   await req('/family/contact',parent.cookie,'POST',{child:child.data.user.id,target:stranger.data.user.id,status:'blocked'});
   assert.equal((await req(`/chats/${chat.id}/messages`,stranger.cookie,'POST',{body:'after revoke'})).status,403);
 });
-test('AI permissions, account isolation, streaming, memory, revocation and free VIP Cloud',async()=>{
+test('AI permissions, account isolation, streaming, memory, revocation and server-issued VIP Cloud',async()=>{
   const a=await account('ai_alice'),b=await account('ai_bob'),c=await account('ai_outsider');
   const chat=(await req('/chats',a.cookie,'POST',{users:[b.data.user.id]})).data;
   await req(`/chats/${chat.id}/messages`,a.cookie,'POST',{body:'Meeting at 10:00'});
@@ -61,7 +61,7 @@ test('AI permissions, account isolation, streaming, memory, revocation and free 
   const r=await fetch(base+'/api/ai/chat',{method:'POST',headers:{Cookie:a.cookie,'Content-Type':'application/json'},body:JSON.stringify({text:'Summarize',chat:chat.id})});const events=await r.text();assert.match(events,/event: delta/);assert.match(events,/event: done/);assert.ok(received.at(-1).input.some(i=>JSON.stringify(i).includes('Meeting at 10:00')));assert.match(received.at(-1).instructions,/Use Russian/);assert.equal(received.at(-1).store,false);
   assert.equal((await req('/ai/history',a.cookie)).data.length,2);assert.equal((await req('/ai/history',b.cookie)).data.length,0);assert.equal((await req('/ai/memory',b.cookie)).data.length,0);
   settings.ai.chatIds=[];await req('/me',a.cookie,'PATCH',{settings});assert.equal((await req('/ai/search',a.cookie,'POST',{chat:chat.id})).status,403);
-  assert.equal((await req('/cloud',a.cookie)).status,403);assert.equal((await req('/vip',a.cookie,'POST',{})).data.price,0);await req('/cloud',a.cookie,'POST',{body:'private cloud note'});await req('/vip',b.cookie,'POST',{});assert.equal((await req('/cloud',b.cookie)).data.length,0);assert.equal((await req('/cloud',a.cookie)).data.length,1);
+  assert.equal((await req('/cloud',a.cookie)).status,403);assert.equal((await req('/vip',a.cookie,'POST',{})).status,403);const fixtures=database(dir);for(const u of [a,b])fixtures.prepare("INSERT INTO vip_grants VALUES(?,?,'test',?,NULL,0)").run('fixture-'+u.data.user.id,u.data.user.id,Date.now());fixtures.close();await req('/cloud',a.cookie,'POST',{body:'private cloud note'});assert.equal((await req('/cloud',b.cookie)).data.length,0);assert.equal((await req('/cloud',a.cookie)).data.length,1);
   assert.equal((await req('/profile',a.cookie,'PATCH',{description:'Extended profile',links:['javascript:alert(1)']})).status,400);
   assert.equal((await req('/profile',a.cookie,'PATCH',{description:'Extended profile',links:['https://example.org']})).status,200);
   assert.equal((await req('/profile?user='+a.data.user.id,b.cookie)).data.profile.description,'Extended profile');
@@ -74,3 +74,4 @@ test('AI permissions, account isolation, streaming, memory, revocation and free 
   await req('/scheduled',a.cookie,'DELETE',{id:scheduled.data.id});assert.equal((await req('/scheduled',a.cookie)).data[0].status,'cancelled');
   await req('/ai/data',a.cookie,'DELETE',{});assert.equal((await req('/ai/memory',a.cookie)).data.length,0);assert.equal((await req('/ai/history',a.cookie)).data.length,0);
 });
+
