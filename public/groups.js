@@ -20,7 +20,7 @@ export async function groupPanel(chat,state,refresh){
     }));
   }catch(error){toast(error.message);}
 }
-function person(m,manage=false){return `<div class="person">${avatar(m.name,m.avatar)}<div>${esc(m.name)}${m.tag?`<span class="tag">${esc(m.tag)}</span>`:''}<small>@${esc(m.username)} · ${{owner:'Владелец',admin:'Администратор',member:'Участник',banned:'Заблокирован'}[m.role]}</small></div>${manage?button('more','Управление участником',`data-member="${m.user_id}"`):''}</div>`;}
+function person(m,manage=false){return `<div class="person"><button class="profile-name" data-open-profile="${m.user_id}">${avatar(m.name,m.avatar)}</button><div><button class="profile-name" data-open-profile="${m.user_id}">${esc(m.name)}</button>${m.tag?`<span class="tag">${esc(m.tag)}</span>`:''}<small>@${esc(m.username)} · ${{owner:'Владелец',admin:'Администратор',member:'Участник',banned:'Заблокирован'}[m.role]}</small></div>${manage?button('more','Управление участником',`data-member="${m.user_id}"`):''}</div>`;}
 function memberPanel(chat,target,mine,refresh){
   const change=async(action,extra={})=>{await api(`/chats/${chat.id}/members`,'PATCH',{action,user:target.user_id,...extra});await refresh();$('#modal').close();toast('Изменения сохранены');};
   modal(target.name,`${person(target)}<button class="secondary" id="set-tag">Назначить тег</button><button class="secondary" id="restrict">Настроить ограничения</button><button class="secondary" id="clear-restrict">Снять ограничения</button>${mine.role==='owner'?'<button class="secondary" id="set-admin">Права администратора</button><button class="secondary danger" id="transfer-owner">Передать владение</button>':''}<button class="secondary danger" id="ban-member">${target.role==='banned'?'Разблокировать':'Заблокировать'}</button><button class="secondary danger" id="remove-member">Удалить из группы</button>`);
@@ -31,3 +31,4 @@ function memberPanel(chat,target,mine,refresh){
   if($('#transfer-owner'))$('#transfer-owner').onclick=guard(async()=>{if(confirm(`Передать владение ${target.name}? Вы потеряете права владельца.`))await change('transfer');});
   $('#ban-member').onclick=guard(async()=>{if(confirm(target.role==='banned'?'Разблокировать участника?':'Заблокировать участника и закрыть доступ к группе?'))await change(target.role==='banned'?'unban':'ban');});$('#remove-member').onclick=guard(async()=>{if(confirm('Удалить участника из группы?'))await change('remove');});
 }
+

@@ -34,7 +34,9 @@ export async function upload(file) {
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
-  $('#modal-close').onclick=()=>el.close();if(!el.open)el.showModal();return el;
+  $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
 export function guard(fn) { return async (...args)=>{try{await fn(...args);}catch(error){toast(error.message);}}; }
+
+
 

@@ -1,3 +1,7 @@
+import {createAdmin} from './admin.js';
+import {createProfiles} from './profiles.js';
+import {createPolls} from './polls.js';
+import {createStories} from './stories.js';
 import {createStickers} from './stickers.js';
 import {createReadStream} from 'node:fs';
 import { createPrivacy } from './privacy.js';
@@ -59,12 +63,8 @@ function message(row, viewer) {
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id), viewer);
   if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, deleted: true, author };
   const result = { ...row, author, reactions:social.reactions(row.id), media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
-  if (row.poll) {
-    result.poll = JSON.parse(row.poll);
-    result.poll.counts = all('SELECT choice,COUNT(*) AS n FROM votes WHERE message_id=? GROUP BY choice', row.id);
-    result.poll.mine = all('SELECT choice FROM votes WHERE message_id=? AND user_id=?', row.id, viewer).map(v => v.choice);
-    result.poll.total = one('SELECT COUNT(DISTINCT user_id) AS n FROM votes WHERE message_id=?', row.id).n;
-  }
+  if(row.poll)result.poll=polls.project(row,viewer);
+  result.story=stories.replyPreview(row.id,viewer);
   return result;
 }
 function chatView(c, user) {
@@ -95,13 +95,17 @@ function endCall(call, status = 'ended') {
   liveCalls.delete(call.id);
 }
 const mime = { '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
-const vip=createVip({db,one,all,run,fail,now,id});
-const stickers=createStickers({db,one,all,run,fail,now,id,data,rate,membership,requirePermission,privacy,family,broadcast});
+const vip=createVip({db,one,all,run,fail,now,id,rate,isAdmin:adminAccess.isAdmin});
+const stickers=createStickers({db,one,all,run,fail,now,id,data,rate,membership,requirePermission,privacy,family,broadcast,isAdmin:adminAccess.isAdmin});
 const social=createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers});
+const profiles=createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,social,isAdmin:adminAccess.isAdmin});
 const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data});
+const polls=createPolls({db,one,all,run,fail,now,id,rate,membership,requirePermission,family,privacy,broadcast,emit});
+const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data});
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -163,8 +167,12 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/activity'&&req.method==='POST')return json({ok:true});
     if(await privacy.route({path,req,b,user,json}))return;
     if(await security.route({path,req,b,user,json}))return;
+    if(await stories.route({path,req,b,user,json,url}))return;
+    if(await polls.route({path,req,b,user,json,url}))return;
+    if(await adminAccess.route({path,req,b,user,json}))return;
     if(await vip.route({path,req,b,user,json}))return;
     if(await stickers.route({path,req,res,b,user,json,url}))return;
+    if(await profiles.route({path,req,b,user,json,url}))return;
     if(await social.route({path,req,b,user,json,url}))return;
     if(await ai.route({path,req,res,b,user,json}))return;
     if (path === '/api/logout' && req.method === 'POST') {
@@ -264,8 +272,8 @@ const server = http.createServer(async (req, res) => {
         if (kind === 'voice' && !media.type.startsWith('audio/')) fail(400, 'Ожидается аудио');
         if (kind === 'poll') {
           const options = Array.isArray(b.poll?.options) ? b.poll.options.map(o => clean(o, 150)).filter(Boolean) : [];
-          if (options.length < 2 || options.length > 10 || !clean(b.body)) fail(400, 'Нужны вопрос и от 2 до 10 вариантов');
-          poll = { options, multiple: !!b.poll.multiple, anonymous: !!b.poll.anonymous, closed: false };
+          if (options.length < 2 || options.length > 20 || !clean(b.body)) fail(400, 'Нужны вопрос и от 2 до 20 вариантов');
+          poll = polls.normalize(b.poll,chatId);
         }
         if (!clean(b.body) && !media && !poll) fail(400, 'Пустое сообщение');
         if (b.reply && !one('SELECT id FROM messages WHERE id=? AND chat_id=?', b.reply, chatId)) fail(400, 'Ответ недоступен');
@@ -330,11 +338,7 @@ const server = http.createServer(async (req, res) => {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
         else { if(m.user_id!==user.id || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
       } else if (action==='vote' && req.method==='POST') {
-        if(!m.poll || m.deleted) fail(400,'Опрос недоступен'); const p=JSON.parse(m.poll);
-        if(p.closed) fail(400,'Опрос завершён');
-        const choices=[...new Set(Array.isArray(b.choices)?b.choices:[])];
-        if((!p.multiple && choices.length>1)||choices.some(c=>!Number.isInteger(c)||c<0||c>=p.options.length)) fail(400,'Некорректный выбор');
-        db.exec('BEGIN'); try { run('DELETE FROM votes WHERE message_id=? AND user_id=?',m.id,user.id); for(const c of choices) run('INSERT INTO votes VALUES(?,?,?)',m.id,user.id,c); db.exec('COMMIT'); } catch(error){db.exec('ROLLBACK');throw error;}
+        if(!m.poll||m.deleted)fail(400,'Опрос недоступен');polls.vote(m,user.id,b.choices);
       } else if(action==='forward' && req.method==='POST') {
         if(m.deleted || m.kind==='poll') fail(400,'Пересылка недоступна');
         const {chat:destination}=requirePermission(b.chat,user.id,m.kind==='sticker'?'photo':m.kind); family.chatAccess(b.chat,user.id);family.content(b.chat,m.body,!!m.media_id||m.kind==='sticker'||!!one('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id));
@@ -369,8 +373,8 @@ const server = http.createServer(async (req, res) => {
     if(path.startsWith('/api/media/') && req.method==='GET') {
       const mediaId=path.slice('/api/media/'.length);const media=one('SELECT * FROM media WHERE id=?',mediaId);if(!media)fail(404,'Файл не найден');
       const visible=media.user_id===user.id || one("SELECT m.id FROM messages m JOIN members p ON p.chat_id=m.chat_id WHERE m.media_id=? AND m.deleted=0 AND p.user_id=? AND p.role!='banned'",mediaId,user.id) || all('SELECT id FROM users WHERE avatar=?',mediaId).some(u=>privacy.permits(u.id,user.id,'avatar')) || one('SELECT user_id FROM private_profiles WHERE public_avatar=?',mediaId) || one("SELECT c.id FROM chats c JOIN members p ON p.chat_id=c.id WHERE c.avatar=? AND p.user_id=? AND p.role!='banned'",mediaId,user.id);
-      const profileVisible=all('SELECT user_id,data FROM profiles').some(p=>{const info=JSON.parse(p.data);if(info.cover!==mediaId&&info.videoAvatar!==mediaId)return false;try{family.contact(user.id,p.user_id);return privacy.permits(p.user_id,user.id,'avatar');}catch{return false;}});
-      if(!visible&&!profileVisible)fail(403,'Нет доступа к файлу');
+      const profileVisible=all('SELECT user_id,data FROM profiles').some(p=>{const info=JSON.parse(p.data);if(info.cover!==mediaId&&info.videoAvatar!==mediaId&&info.backgroundImage!==mediaId&&!(info.gallery||[]).includes(mediaId))return false;try{family.contact(user.id,p.user_id);return privacy.permits(p.user_id,user.id,'avatar');}catch{return false;}});
+      if(!visible&&!profileVisible&&!stories.mediaVisible(mediaId,user.id))fail(403,'Нет доступа к файлу');
       if(family.child(user.id)&&media.user_id!==user.id&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Медиа ограничены семейными настройками');
       const safe=/^(image\/(png|jpeg|webp|gif)|audio\/(webm|ogg|mpeg|mp4|wav)|video\/(webm|mp4|ogg))$/.test(media.type);
       const mediaPath=resolve(data,'media',mediaId);const byteLength=media.size;
@@ -406,7 +410,7 @@ const server = http.createServer(async (req, res) => {
     fail(404,'Не найдено');
   } catch(error) { if(!error.status) console.error(error); if(!res.headersSent) json({error:error.status?error.message:'Ошибка сервера'},error.status||500); else res.end(); }
 });
-setInterval(()=>{social.tick();for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
+setInterval(()=>{social.tick();polls.tick();for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
