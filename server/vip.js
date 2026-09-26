@@ -1,4 +1,5 @@
-export function createVip({db,one,all,run,fail,now,id}){
+import {createPromos} from './promos.js';
+export function createVip({db,one,all,run,fail,now,id,rate,isAdmin}){
   db.exec(`CREATE TABLE IF NOT EXISTS vip(user_id TEXT PRIMARY KEY REFERENCES users(id),active INTEGER DEFAULT 0,created INTEGER);
     CREATE TABLE IF NOT EXISTS cloud(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),title TEXT,body TEXT,media_id TEXT,created INTEGER);`);
   db.exec(`CREATE TABLE IF NOT EXISTS vip_grants(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),source TEXT NOT NULL,starts INTEGER NOT NULL,expires INTEGER,revoked INTEGER DEFAULT 0);
@@ -9,11 +10,13 @@ export function createVip({db,one,all,run,fail,now,id}){
   // Preserve pre-existing free VIP entitlements exactly once; future activation is privileged.
   if(!one("SELECT name FROM vip_migrations WHERE name='legacy-grants'")){db.exec("BEGIN; INSERT INTO vip_grants SELECT 'legacy-'||user_id,user_id,'legacy',created,NULL,0 FROM vip WHERE active=1; INSERT INTO vip_migrations VALUES('legacy-grants'); COMMIT;");}
   const active=u=>!!one('SELECT id FROM vip_grants WHERE user_id=? AND revoked=0 AND starts<=? AND (expires IS NULL OR expires>?)',u,(now||Date.now)(),(now||Date.now)());
-  const admin=u=>(process.env.ADMIN_USER_IDS||'').split(',').map(s=>s.trim()).includes(u);
+  const admin=isAdmin|| (u=>(process.env.ADMIN_USER_IDS||'').split(',').map(s=>s.trim()).includes(u));
   const audit=(actor,action,target)=>run('INSERT INTO vip_audit VALUES(?,?,?,?,?)',id(),actor,action,target,now());
   function grant(actor,target,days,source='gift'){if(!one('SELECT id FROM users WHERE id=?',target))fail(404,'Пользователь не найден');if(days!==null&&(!Number.isInteger(days)||days<1||days>36500))fail(400,'Срок: 1–36500 дней');const latest=one('SELECT MAX(expires) n FROM vip_grants WHERE user_id=? AND revoked=0',target)?.n||now();const expires=days===null?null:Math.max(now(),latest)+days*86400000;run('INSERT INTO vip_grants VALUES(?,?,?,?,?,0)',id(),target,source,now(),expires);audit(actor,'grant',target);return expires;}
 
+  const promos=createPromos({db,one,all,run,fail,now,id,rate,grant,admin,audit});
   async function route({path,req,b,user,json}){
+    if(await promos.route({path,req,b,user,json}))return true;
     if(path==='/api/vip'&&req.method==='GET'){const grants=all('SELECT source,starts,expires,revoked FROM vip_grants WHERE user_id=? ORDER BY starts DESC',user.id);const enabled=active(user.id),valid=grants.filter(g=>!g.revoked&&(!g.expires||g.expires>now()));json({active:enabled,status:enabled?(valid.some(g=>g.source==='gift'||g.source==='promo')?'VIP Gifted':'VIP Active'):grants.length?'VIP Expired':'Free',renewal:valid.some(g=>g.expires===null)?null:Math.max(0,...valid.map(g=>g.expires)),autoRenew:false,billingConfigured:false,admin:admin(user.id),grants,uploadMB:enabled?4096:2048,aiDaily:enabled?100:20});return true;}
     if(path==='/api/vip'&&req.method==='POST')fail(403,'VIP активируется после оплаты, подарка или выдачи администратором');
     if(path==='/api/vip/redeem'&&req.method==='POST'){const code=String(b.code||'').trim().toUpperCase();const promo=one('SELECT * FROM vip_promos WHERE code=? AND remaining>0',code);if(!promo||one('SELECT code FROM vip_redemptions WHERE code=? AND user_id=?',code,user.id))fail(400,'Промокод недоступен');db.exec('BEGIN');try{grant(user.id,user.id,promo.days,'promo');run('UPDATE vip_promos SET remaining=remaining-1 WHERE code=?',code);run('INSERT INTO vip_redemptions VALUES(?,?)',code,user.id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}json({ok:true});return true;}
@@ -30,4 +33,5 @@ export function createVip({db,one,all,run,fail,now,id}){
     }return false;
   }return{active,route};
 }
+
 
