@@ -1,21 +1,28 @@
+import {normalizeAppearance} from './capabilities.js';
 export function createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers}){
-  db.exec(`CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL);
+  db.exec(`CREATE TABLE IF NOT EXISTS profile_presets(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,title TEXT NOT NULL,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id),user_id TEXT REFERENCES users(id),emoji TEXT,PRIMARY KEY(message_id,user_id));
     CREATE TABLE IF NOT EXISTS scheduled(id TEXT PRIMARY KEY,chat_id TEXT REFERENCES chats(id),user_id TEXT REFERENCES users(id),body TEXT,due INTEGER,status TEXT);`);
   const profile=u=>JSON.parse(one('SELECT data FROM profiles WHERE user_id=?',u)?.data||'{}');
   const reactions=m=>all('SELECT emoji,COUNT(*) count FROM reactions WHERE message_id=? GROUP BY emoji',m);
   async function route({path,req,b,user,json,url}){
+    if(path==='/api/profile-presets'){
+      if(req.method==='GET')json(all('SELECT id,title,data FROM profile_presets WHERE user_id=?',user.id).map(p=>({...p,data:JSON.parse(p.data)})));
+      else if(req.method==='POST'){if(!vip.capabilities(user.id).PROFILE_PRESETS)fail(403,'Требуется VIP');if(!b.data||typeof b.data!=='object'||Array.isArray(b.data)||JSON.stringify(b.data).length>20000)fail(400,'Некорректный пресет');normalizeAppearance(b.data,{},vip.capabilities(user.id),fail);if(one('SELECT COUNT(*) n FROM profile_presets WHERE user_id=?',user.id).n>=20)fail(409,'До 20 пресетов');const key=id();run('INSERT INTO profile_presets VALUES(?,?,?,?)',key,user.id,String(b.title||'Мой стиль').slice(0,80),JSON.stringify(b.data));json({id:key});}
+      else if(req.method==='DELETE'){run('DELETE FROM profile_presets WHERE id=? AND user_id=?',String(b.id),user.id);json({ok:true});}else fail(405,'Метод не поддерживается');return true;
+    }
     if(path==='/api/profile'&&req.method==='GET'){const target=url.searchParams.get('user')||user.id;if(target!==user.id)family.contact(user.id,target);const u=one('SELECT * FROM users WHERE id=?',target);if(!u)fail(404,'Профиль не найден');json({...privacy.project(u,user.id),vip:vip.active(target),profile:privacy.profile(profile(target),target,user.id)});return true;}
     if(path==='/api/profile'&&req.method==='PATCH'){
-      const old=profile(user.id),p={...old};for(const key of ['cover','videoAvatar','backgroundImage']){const value=String(b[key]??old[key]??'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
+      const old=profile(user.id),p={...old,...normalizeAppearance(b,old,vip.capabilities(user.id),fail)};for(const e of p.patternEmoji)if(e.startsWith(':ce['))stickers.tokens(e,user.id);for(const key of ['cover','videoAvatar','backgroundImage']){const value=String(b[key]??old[key]??'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
       for(const key of ['nameColor','badgeColor'])p[key]=/^#[0-9a-f]{6}$/i.test(b[key]??old[key]??'')?(b[key]??old[key]):'';
       for(const key of ['theme','gradient','cardStyle','buttonStyle','bioStyle','linkStyle','badge'])p[key]=String(b[key]??old[key]??'').slice(0,40);
       p.opacity=Math.max(.25,Math.min(1,Number(b.opacity??old.opacity??.8)));p.blur=Math.max(0,Math.min(40,Number(b.blur??old.blur??20)));if(!Number.isFinite(p.opacity)||!Number.isFinite(p.blur))fail(400,'Проверьте оформление');
       p.accent=/^#[0-9a-f]{6}$/i.test(b.accent||'')?b.accent:old.accent||'#83d9b5';
       p.gallery=Array.isArray(b.gallery)?b.gallery:old.gallery||[];if(p.gallery.length>(vip.active(user.id)?10:2)||p.gallery.some(v=>!one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')",v,user.id)))fail(400,'Проверьте фотографии профиля');
       if(!vip.active(user.id)&&(p.videoAvatar!==old.videoAvatar&&p.videoAvatar||p.badge!==old.badge&&p.badge&&p.badge!=='✦'))fail(403,'Это оформление доступно с VIP');
-      p.description=String(b.description||'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status||'').slice(0,80);p.emoji=String(b.emoji||'').slice(0,8);
-      p.links=(Array.isArray(b.links)?b.links:[]).slice(0,vip.active(user.id)?10:3).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
+      p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);p.emoji=String(b.emoji??old.emoji??'').slice(0,8);
+      p.links=(Array.isArray(b.links)?b.links:old.links||[]).slice(0,vip.active(user.id)?10:3).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
       run('INSERT INTO profiles VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',user.id,JSON.stringify(p));json(p);return true;
     }
     if(path==='/api/reactions'&&req.method==='POST'){const m=one('SELECT * FROM messages WHERE id=? AND deleted=0',b.message);if(!m)fail(404,'Сообщение не найдено');membership(m.chat_id,user.id);family.chatAccess(m.chat_id,user.id);const choices=['👍','❤️','🔥','😂','🙏','🎉','✨','💎','🚀','🌟'];if(b.emoji&&!choices.includes(b.emoji)){const keys=stickers.tokens(b.emoji,user.id);if(keys.length!==1||b.emoji!==':ce['+keys[0]+']')fail(400,'Неизвестная реакция');family.content(m.chat_id,'',true);stickers.bind(m.id,keys);}if(!b.emoji)run('DELETE FROM reactions WHERE message_id=? AND user_id=?',m.id,user.id);else run('INSERT INTO reactions VALUES(?,?,?) ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji',m.id,user.id,b.emoji);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});json({ok:true});return true;}
@@ -30,5 +37,6 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
   function tick(){for(const s of all("SELECT * FROM scheduled WHERE status='pending' AND due<=? LIMIT 20",now())){try{if(!vip.active(s.user_id))throw new Error('VIP expired');const {chat}=requirePermission(s.chat_id,s.user_id,'text');if(chat.kind==='direct')for(const m of all('SELECT user_id FROM members WHERE chat_id=?',s.chat_id))if(m.user_id!==s.user_id)privacy.assertContact(s.user_id,m.user_id,'messages');family.assertUse(s.user_id);family.chatAccess(s.chat_id,s.user_id);family.content(s.chat_id,s.body,false);const blocked=all('SELECT user_id FROM members WHERE chat_id=?',s.chat_id).some(m=>one('SELECT user_id FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)',m.user_id,s.user_id,s.user_id,m.user_id));if(blocked)throw new Error('Blocked');const key=id();db.exec('BEGIN');try{run("INSERT INTO messages(id,chat_id,user_id,kind,body,created) VALUES(?,?,?,'text',?,?)",key,s.chat_id,s.user_id,s.body,now());run("UPDATE scheduled SET status='sent' WHERE id=?",s.id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(s.chat_id,'message',{chat:s.chat_id,id:key});}catch{run("UPDATE scheduled SET status='failed' WHERE id=?",s.id);}}}
   return{route,profile,reactions,tick};
 }
+
 
 

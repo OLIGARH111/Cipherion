@@ -1,3 +1,4 @@
+import {createDelivery} from './delivery.js';
 import {createAdmin} from './admin.js';
 import {createProfiles} from './profiles.js';
 import {createPolls} from './polls.js';
@@ -64,6 +65,7 @@ function message(row, viewer) {
   if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, deleted: true, author };
   const result = { ...row, author, reactions:social.reactions(row.id), media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
   if(row.poll)result.poll=polls.project(row,viewer);
+  if(row.kind==='sticker')result.sticker=stickers.asset(row.body);
   result.story=stories.replyPreview(row.id,viewer);
   return result;
 }
@@ -94,7 +96,7 @@ function endCall(call, status = 'ended') {
   broadcast(call.chat, 'call', { ...call, participants: [...call.participants], state: status });
   liveCalls.delete(call.id);
 }
-const mime = { '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
@@ -106,6 +108,8 @@ const profiles=createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vi
 const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data});
 const polls=createPolls({db,one,all,run,fail,now,id,rate,membership,requirePermission,family,privacy,broadcast,emit});
 const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data});
+const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
+setInterval(()=>delivery.tick().catch(e=>console.error('Push worker:',e.message)),3000).unref();
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -163,6 +167,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), transcription: !!process.env.TRANSCRIPTION_KEY, ...rtcConfiguration(user.id) });
     if(await family.route({path,req,b,user,json}))return;
     if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
+    if(await delivery.route({path,req,b,user,json,url}))return;
     if(path==='/api/rtc-config'&&req.method==='GET')return json(rtcConfiguration(user.id));
     if(path==='/api/activity'&&req.method==='POST')return json({ok:true});
     if(await privacy.route({path,req,b,user,json}))return;
@@ -255,11 +260,11 @@ const server = http.createServer(async (req, res) => {
       if (action === 'messages' && req.method === 'GET') {
         const before = Number(url.searchParams.get('before')) || now() + 1;
         const rows = all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC LIMIT 60', chatId, before).reverse();
-        const delivered = rows.at(-1)?.created || 0;
-        run('UPDATE members SET delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', delivered, chatId, user.id);
-        broadcast(chatId, 'receipt', { chat: chatId, user: user.id, delivered }); return json(rows.map(m => message(m, user.id)));
+        return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {
+        const clientId=b.clientId==null?null:String(b.clientId);if(clientId&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
+        if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){if(existing.chat_id!==chatId)fail(409,'ID уже использован');return json(message(existing,user.id));}}
         rate('message:' + user.id, 90); family.content(chatId,clean(b.body)+' '+JSON.stringify(b.poll||{}),!!b.media);
         const kind = ['text','photo','video','file','voice','round','poll'].includes(b.kind) ? b.kind : 'text';
         requirePermission(chatId, user.id, kind);
@@ -279,10 +284,10 @@ const server = http.createServer(async (req, res) => {
         if (b.reply && !one('SELECT id FROM messages WHERE id=? AND chat_id=?', b.reply, chatId)) fail(400, 'Ответ недоступен');
         const emojiKeys=stickers.tokens(clean(b.body),user.id);if(emojiKeys.length)family.content(chatId,'',true);
         const messageId = id();
-        run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created) VALUES(?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, now());
-        stickers.bind(messageId,emojiKeys);broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
+        db.exec('BEGIN');try{run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created,client_id) VALUES(?,?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, Math.max(now(),(one('SELECT MAX(created) n FROM messages WHERE chat_id=?',chatId)?.n||0)+1),clientId);
+        stickers.bind(messageId,emojiKeys);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
       }
-      if (action === 'read' && req.method === 'POST') { const last = one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0; run('UPDATE members SET read_at=?,delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id); if(privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
+      if (action === 'read' && req.method === 'POST') { const last = b.message ? one('SELECT created n FROM messages WHERE id=? AND chat_id=?',String(b.message),chatId)?.n : one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0;if(last===undefined)fail(400,'Сообщение не найдено'); run('UPDATE members SET read_at=MAX(read_at,?),delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id);emit(user.id,'receipt',{chat:chatId,user:user.id,read:last,delivered:last}); if(privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
       if (action === 'typing' && req.method === 'POST') { requirePermission(chatId, user.id, 'text'); broadcast(chatId, 'typing', { chat: chatId, user: user.id, name: user.name }); return json({ ok: true }); }
       if (action === 'audit' && req.method === 'GET') { if (!['owner','admin'].includes(member.role)) fail(403, 'Только для администраторов'); return json(all('SELECT a.*,u.name FROM audit a JOIN users u ON u.id=a.actor WHERE chat_id=? ORDER BY created DESC LIMIT 100', chatId)); }
       if (action === 'members' && req.method === 'GET') {
@@ -333,6 +338,7 @@ const server = http.createServer(async (req, res) => {
     if (msgMatch) {
       const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
       membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
+      if (!action && req.method === 'GET') return json(message(m,user.id));
       if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
@@ -363,7 +369,7 @@ const server = http.createServer(async (req, res) => {
       const mediaId=id(); const type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
       const name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
       if(uploadsInFlight>=2)fail(429,'Сервер занят загрузками. Повторите немного позже.');
-      const maximum=(vip.active(user.id)?4096:2048)*1024*1024;
+      const maximum=vip.uploadMB(user.id)*1024*1024;
       if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>20*1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 20 ГБ');
       uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
       try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
@@ -415,4 +421,5 @@ const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+
 

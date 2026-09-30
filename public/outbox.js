@@ -1,0 +1,10 @@
+import {api,upload} from './ui.js';
+let connection;
+function database(){return connection ||= new Promise((resolve,reject)=>{const r=indexedDB.open('cipherion-outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('messages',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+async function transaction(mode,action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('messages',mode);const r=action(tx.objectStore('messages'));tx.oncomplete=()=>resolve(r?.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
+export function createOutbox(user,onChange){let busy=false;
+ const list=async()=>(await transaction('readonly',s=>s.getAll())).filter(m=>m.user===user).sort((a,b)=>a.created-b.created);
+ async function flush(){if(busy||!navigator.onLine)return;busy=true;try{for(const item of await list()){if(item.error)continue;try{if(item.file){const media=await upload(item.file);item.payload.media=media.id;delete item.file;await transaction('readwrite',s=>s.put(item));}await api(item.payload.sticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{...item.payload,...(item.payload.sticker?{chat:item.chat}:{}),clientId:item.id});await transaction('readwrite',s=>s.delete(item.id));}catch(e){if(e.status>=400&&e.status<500&&e.status!==429){item.error=e.message;await transaction('readwrite',s=>s.put(item));}else break;}}}finally{busy=false;await onChange();}}
+ const online=()=>flush().catch(()=>{});window.addEventListener('online',online);const timer=setInterval(online,15000);
+ return {list,flush,dispose:()=>{clearInterval(timer);window.removeEventListener('online',online);},retry:async(id)=>{const item=(await list()).find(m=>m.id===id);if(item){delete item.error;await transaction('readwrite',s=>s.put(item));await flush();}},enqueue:async(chat,payload,file)=>{await transaction('readwrite',s=>s.put({id:crypto.randomUUID(),user,chat,payload,...(file?{file}:{}),created:Date.now()}));await onChange();void flush();},remove:async(id)=>{const item=(await list()).find(m=>m.id===id);if(item)await transaction('readwrite',s=>s.delete(id));await onChange();}};
+}

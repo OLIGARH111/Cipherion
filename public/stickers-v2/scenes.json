@@ -1,0 +1,34 @@
+[
+  {
+    "name": "typing",
+    "label": "Код опять сломался"
+  },
+  {
+    "name": "deploy",
+    "label": "Deploy ракета"
+  },
+  {
+    "name": "bug",
+    "label": "Нашёл баг"
+  },
+  {
+    "name": "merge",
+    "label": "Merge успешно"
+  },
+  {
+    "name": "coffee",
+    "label": "Кофе и код"
+  },
+  {
+    "name": "gg",
+    "label": "GG победа"
+  },
+  {
+    "name": "server",
+    "label": "Сервер упал"
+  },
+  {
+    "name": "gift",
+    "label": "Сюрприз праздник"
+  }
+]
