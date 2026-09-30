@@ -1,0 +1,48 @@
+/* One viewport owner. Scroll chat history/pages, never the entire app shell. */
+html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+#app {
+  position: fixed;
+  top: var(--viewport-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--viewport-height, 100dvh);
+  overflow: hidden;
+}
+#app > .shell { height: 100%; min-height: 0; }
+.conversation { min-height: 0; overflow: hidden; }
+.conversation-header, .composer-wrap, .side-header { flex-shrink: 0; }
+.messages, .chat-list { overscroll-behavior: contain; }
+#app:has(> .auth) { height: var(--viewport-height, 100dvh); overflow-y: auto; }
+#app > .auth { height: auto; min-height: 100%; }
+
+@media (max-width: 700px), (hover: none) and (pointer: coarse) {
+  #app > .shell {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  #app > .auth {
+    padding-top: calc(35px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  }
+  .auth-theme { top: calc(12px + env(safe-area-inset-top, 0px)); }
+  /* Prevent Safari's automatic input zoom, without disabling user zoom. */
+  input:not([type=checkbox]):not([type=range]):not([type=color]), textarea, select,
+  .search input { font-size: 16px; }
+  dialog:not(.story-viewer) {
+    max-height: calc(var(--viewport-height, 100dvh) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
+  }
+  .incoming { top: calc(12px + env(safe-area-inset-top, 0px)); }
+}
+@media (max-width: 700px) {
+  #app > .shell { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  #app > .shell.show-chat { padding-bottom: 0; }
+  .rail {
+    position: absolute;
+    bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+    left: calc(15px + env(safe-area-inset-left, 0px));
+    right: calc(15px + env(safe-area-inset-right, 0px));
+  }
+  .keyboard-open .composer-wrap { padding-bottom: 8px; }
+  .conversation-header { min-height: 64px; }
+}
