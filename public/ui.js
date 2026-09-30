@@ -6,7 +6,8 @@ const paths = {
  people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 4a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87',
  phone:'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3l2 5-2 2a16 16 0 0 0 6 6l2-2Z',
  video:'m16 8 6-4v16l-6-4M3 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z',
- settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM9 2h6l1 3 3 1 3 4-2 3 1 3-4 4-3-1-3 2-4-3v-3l-3-2 1-5 3-1Z',
+ settings:'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915~M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+ sparkles:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 2v4M18 4h4',
  channel:'m3 10 17-7v18L3 14v-4ZM7 15v6h4v-5',
  search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
  plus:'M12 5v14M5 12h14', arrow:'m5 12 14 0m-6-6 6 6-6 6', back:'m15 5-7 7 7 7', close:'m6 6 12 12M6 18 18 6',
@@ -37,6 +38,7 @@ export function modal(title, content, wide=false) {
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
 export function guard(fn) { return async (...args)=>{try{await fn(...args);}catch(error){toast(error.message);}}; }
+
 
 
 
