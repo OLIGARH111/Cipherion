@@ -58,7 +58,7 @@ export function createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,
     rate('ai:'+user.id,6);const day=new Date(now()).toISOString().slice(0,10),quota=vip.active(user.id)?100:20;
     if((one('SELECT n FROM ai_usage WHERE user_id=? AND day=?',user.id,day)?.n||0)>=quota)fail(429,'Дневной лимит AI исчерпан');
     const globalQuota=Math.max(1,Number(process.env.AI_DAILY_REQUEST_BUDGET)||1000);if((one('SELECT SUM(n) n FROM ai_usage WHERE day=?',day)?.n||0)>=globalQuota)fail(429,'Общий бюджет AI на сегодня исчерпан');
-    const text=String(b.text||'').trim().slice(0,8000);if(!text)fail(400,'Введите вопрос');
+    const text=String(b.text||'').trim();if(!text||text.length>8000)fail(400,'Вопрос должен содержать 1–8000 символов');
     const model=models().includes(s.model)&&(vip.active(user.id)||s.model===models()[0])?s.model:models()[0];
     const chats=(Array.isArray(s.chatIds)?s.chatIds:[]).slice(0,100).flatMap(key=>{try{const c=permitted(user.id,key);return[{id:c.id,title:c.title,kind:c.kind}];}catch{return[];}});
     const scope=JSON.stringify({chats:chats.map(c=>c.id).sort(),permissions:s});
@@ -94,6 +94,7 @@ export function createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,
     }catch(error){send('error',{error:error.status?error.message:'AI временно недоступен. Проверьте подключение и повторите запрос.'});}finally{clearTimeout(timeout);active.get(user.id)?.delete(controller);if(!active.get(user.id)?.size)active.delete(user.id);res.end();}return true;
   }return{route,settings,abortUser};
 }
+
 
 
 

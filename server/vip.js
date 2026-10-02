@@ -1,3 +1,4 @@
+import {vipState} from './release.js';
 import {capabilities} from './capabilities.js';
 import {createPromos} from './promos.js';
 export function createVip({db,one,all,run,fail,now,id,rate,isAdmin}){
@@ -18,7 +19,7 @@ export function createVip({db,one,all,run,fail,now,id,rate,isAdmin}){
   const promos=createPromos({db,one,all,run,fail,now,id,rate,grant,admin,audit});
   async function route({path,req,b,user,json}){
     if(await promos.route({path,req,b,user,json}))return true;
-    if(path==='/api/vip'&&req.method==='GET'){const grants=all('SELECT source,starts,expires,revoked FROM vip_grants WHERE user_id=? ORDER BY starts DESC',user.id);const enabled=active(user.id),valid=grants.filter(g=>!g.revoked&&(!g.expires||g.expires>now()));json({active:enabled,status:enabled?(valid.some(g=>g.source==='gift'||g.source==='promo')?'VIP Gifted':'VIP Active'):grants.length?'VIP Expired':'Free',renewal:valid.some(g=>g.expires===null)?null:Math.max(0,...valid.map(g=>g.expires)),autoRenew:false,billingConfigured:false,admin:admin(user.id),grants,capabilities:capabilities(enabled),uploadMB:uploadMB(user.id),aiDaily:enabled?100:20});return true;}
+    if(path==='/api/vip'&&req.method==='GET'){const grants=all('SELECT source,starts,expires,revoked FROM vip_grants WHERE user_id=? ORDER BY starts DESC',user.id);const state=vipState(grants,now()),enabled=state.active;json({...state,autoRenew:false,billingConfigured:false,admin:admin(user.id),grants,capabilities:capabilities(enabled),uploadMB:uploadMB(user.id),aiDaily:enabled?100:20});return true;}
     if(path==='/api/vip'&&req.method==='POST')fail(403,'VIP активируется после оплаты, подарка или выдачи администратором');
     if(path==='/api/vip/redeem'&&req.method==='POST'){const code=String(b.code||'').trim().toUpperCase();const promo=one('SELECT * FROM vip_promos WHERE code=? AND remaining>0',code);if(!promo||one('SELECT code FROM vip_redemptions WHERE code=? AND user_id=?',code,user.id))fail(400,'Промокод недоступен');db.exec('BEGIN');try{grant(user.id,user.id,promo.days,'promo');run('UPDATE vip_promos SET remaining=remaining-1 WHERE code=?',code);run('INSERT INTO vip_redemptions VALUES(?,?)',code,user.id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}json({ok:true});return true;}
     if(path.startsWith('/api/admin/vip')){if(!admin(user.id))fail(403,'Только администратор');
@@ -34,6 +35,7 @@ export function createVip({db,one,all,run,fail,now,id,rate,isAdmin}){
     }return false;
   }const uploadMB=u=>Math.max(1,Math.min(active(u)?4096:2048,Number(process.env.MAX_UPLOAD_MB)||64));return{active,route,uploadMB,capabilities:u=>capabilities(active(u))};
 }
+
 
 
 
