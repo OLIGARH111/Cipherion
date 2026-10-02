@@ -74,7 +74,7 @@ function message(row, viewer) {
 }
 function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
-  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC LIMIT 1', c.id);
+  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC,id DESC LIMIT 1', c.id);
   const mine = members.find(m => m.user_id === user);
   return { ...c, title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
     members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
@@ -266,7 +266,11 @@ const server = http.createServer(async (req, res) => {
       if (action === 'messages' && req.method === 'GET') {
         const before = url.searchParams.has('before')?Number(url.searchParams.get('before')):Number.MAX_SAFE_INTEGER;
         if(!Number.isSafeInteger(before)||before<0)fail(400,'Некорректный курсор');
-        const rows = all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC LIMIT 60', chatId, before).reverse();
+        const beforeId=url.searchParams.get('beforeId');
+        if(beforeId!==null&&(!url.searchParams.has('before')||!beforeId||beforeId.length>100))fail(400,'Некорректный курсор');
+        const rows = (beforeId===null
+          ? all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC,id DESC LIMIT 60',chatId,before)
+          : all('SELECT * FROM messages WHERE chat_id=? AND (created<? OR (created=? AND id<?)) ORDER BY created DESC,id DESC LIMIT 60',chatId,before,before,beforeId)).reverse();
         return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {

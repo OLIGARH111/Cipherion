@@ -68,6 +68,21 @@ test('release API regressions: concurrent retry, conflict, multi-device receipts
     assert.equal((await request(path,alice.cookie,'POST',{body:'empty key',clientId:''})).status,400);
     assert.equal((await request(path+'?before=nope',bob.cookie)).status,400);
     assert.equal((await request(path,eve.cookie)).status,403);
+    assert.equal((await request(path+'?beforeId=missing-time',bob.cookie)).status,400);
+    const history=(await request('/chats',alice.cookie,'POST',{kind:'group',title:'Cursor regression',users:[bob.data.user.id]})).data;
+    const seed=new DatabaseSync(join(dir,'cipherion.sqlite'));
+    try {
+      const insert=seed.prepare('INSERT INTO messages(id,chat_id,user_id,body,kind,created) VALUES(?,?,?,?,?,?)');
+      for(let i=0;i<125;i++)insert.run('cursor-'+String(i).padStart(4,'0'),history.id,alice.data.user.id,'same timestamp','text',1000);
+    }finally{seed.close();}
+    let cursor='',ids=[];
+    for(let page=0;page<4;page++){
+      const result=await request('/chats/'+history.id+'/messages'+cursor,bob.cookie);assert.equal(result.status,200);
+      if(!result.data.length)break;
+      ids.push(...result.data.map(m=>m.id));const first=result.data[0];cursor='?before='+first.created+'&beforeId='+encodeURIComponent(first.id);
+    }
+    assert.equal(ids.length,125);assert.equal(new Set(ids).size,125);
+
     assert.equal((await request('/receipts',bob2.cookie,'POST',{chat:chat.id,message:mid})).status,200);
     assert.equal((await request('/chats/'+chat.id+'/read',bob.cookie,'POST',{message:mid})).status,200);
     const peers=(await request('/chats',bob2.cookie)).data[0].members;assert.ok(peers.find(m=>m.user_id===bob.data.user.id).read_at>0);
