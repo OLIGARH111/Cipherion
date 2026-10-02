@@ -24,20 +24,26 @@ export const button = (name, title, attrs = '') => `<button class="icon-button" 
 export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}">${media ? `<img src="/api/media/${encodeURIComponent(media)}" alt="">` : esc((name || '?').slice(0, 2).toUpperCase())}</span>`;
 export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
+async function requestJSON(url,options) {
+  let response;
+  try{response=await fetch(url,options);}catch{throw new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');}
+  let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502});}
+  if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status});}
+  return result;
+}
 export async function api(path, method='GET', data) {
-  const response=await fetch('/api'+path,{method,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
-  const result=await response.json();if(!response.ok)throw Object.assign(new Error(result.error || 'Ошибка запроса'),{status:response.status});return result;
+  return requestJSON('/api'+path,{method,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
 }
 export async function upload(file) {
   const limit=(await api('/vip')).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
-  const response=await fetch('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file});
-  const result=await response.json();if(!response.ok)throw new Error(result.error);return result;
+  return requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file});
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
 export function guard(fn) { return async (...args)=>{try{await fn(...args);}catch(error){toast(error.message);}}; }
+
 
 
 

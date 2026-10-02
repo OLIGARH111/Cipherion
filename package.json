@@ -13,6 +13,7 @@
     "check": "node scripts/check.js"
   },
   "dependencies": {
+    "libsql": "0.5.29",
     "web-push": "3.6.7"
   },
   "devDependencies": {

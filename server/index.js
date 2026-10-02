@@ -1,3 +1,5 @@
+import {health, logFailure, messageFingerprint} from './release.js';
+import {backupBeforeMigration, migrate} from './migrations.js';
 import {createDelivery} from './delivery.js';
 import {createAdmin} from './admin.js';
 import {createProfiles} from './profiles.js';
@@ -17,12 +19,13 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { readFile, open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { database } from './db.js';
+import { database, databaseConfig } from './db.js';
 import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = resolve(process.env.DATA_DIR || resolve(root, 'data'));
 await mkdir(resolve(data, 'media'), { recursive: true });
+if(!databaseConfig().remote)await backupBeforeMigration(data);
 const db = database(data);
 const all = (sql, ...p) => db.prepare(sql).all(...p);
 const one = (sql, ...p) => db.prepare(sql).get(...p);
@@ -71,7 +74,7 @@ function message(row, viewer) {
 }
 function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
-  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC LIMIT 1', c.id);
+  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC,id DESC LIMIT 1', c.id);
   const mine = members.find(m => m.user_id === user);
   return { ...c, title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
     members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
@@ -109,7 +112,8 @@ const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data});
 const polls=createPolls({db,one,all,run,fail,now,id,rate,membership,requirePermission,family,privacy,broadcast,emit});
 const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data});
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
-setInterval(()=>delivery.tick().catch(e=>console.error('Push worker:',e.message)),3000).unref();
+migrate(db);
+setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -119,8 +123,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      return res.end(JSON.stringify({ ok: true }));
+      const result=health(db);return json(result.body,result.status);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
@@ -140,10 +143,12 @@ const server = http.createServer(async (req, res) => {
       if (!(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'Ожидается JSON');
       try { b = JSON.parse((await body(req)).toString() || '{}'); } catch (error) { if (error.status) throw error; fail(400, 'Некорректный JSON'); }
     }
+    if (!b || typeof b !== 'object' || Array.isArray(b)) fail(400, 'Ожидается JSON-объект');
     if (path === '/api/auth' && req.method === 'POST') {
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = clean(b.username, 32).toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
+      rate('auth-account:'+createHash('sha256').update(username).digest('hex'),10,900_000);
       let account = one('SELECT * FROM users WHERE username=?', username); let familyCode;
       if (b.register) {
         if (account) fail(409, 'Этот username уже занят');
@@ -182,6 +187,7 @@ const server = http.createServer(async (req, res) => {
     if(await ai.route({path,req,res,b,user,json}))return;
     if (path === '/api/logout' && req.method === 'POST') {
       ai.abortUser(user.id);
+      run('DELETE FROM push_devices WHERE session_id=?',user.session.id);
       run('DELETE FROM sessions WHERE id=?', user.session.id);
       for (const stream of streams.get(user.id) || []) if (stream.sessionId === user.session.id) stream.end();
       res.setHeader('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ ok: true });
@@ -207,7 +213,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/sessions' && req.method === 'GET') return json(all('SELECT id,agent,created,active FROM sessions WHERE user_id=? AND expires>?', user.id, now()).map(s => ({ ...s, current: s.id === user.session.id })));
     if (path === '/api/sessions' && req.method === 'DELETE') {
       const doomed = all('SELECT id FROM sessions WHERE user_id=? AND id!=? AND (?=\'all\' OR id=?)', user.id, user.session.id, b.id, b.id);
-      for (const s of doomed) { run('DELETE FROM sessions WHERE id=?', s.id); for (const stream of streams.get(user.id) || []) if (stream.sessionId === s.id) stream.end(); }
+      for (const s of doomed) { run('DELETE FROM push_devices WHERE session_id=?',s.id); run('DELETE FROM sessions WHERE id=?', s.id); for (const stream of streams.get(user.id) || []) if (stream.sessionId === s.id) stream.end(); }
       return json({ ok: true });
     }
     if (path === '/api/blocks' && req.method === 'GET') return json(all('SELECT u.* FROM blocks b JOIN users u ON b.target=u.id WHERE b.user_id=?', user.id).map(u=>publicUser(u,user.id)));
@@ -258,13 +264,18 @@ const server = http.createServer(async (req, res) => {
         run('UPDATE chats SET title=?,avatar=? WHERE id=?', clean(b.title ?? chat.title, 80), avatar, chatId); audit(chatId, user.id, 'info'); return json({ ok: true });
       }
       if (action === 'messages' && req.method === 'GET') {
-        const before = Number(url.searchParams.get('before')) || now() + 1;
-        const rows = all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC LIMIT 60', chatId, before).reverse();
+        const before = url.searchParams.has('before')?Number(url.searchParams.get('before')):Number.MAX_SAFE_INTEGER;
+        if(!Number.isSafeInteger(before)||before<0)fail(400,'Некорректный курсор');
+        const beforeId=url.searchParams.get('beforeId');
+        if(beforeId!==null&&(!url.searchParams.has('before')||!beforeId||beforeId.length>100))fail(400,'Некорректный курсор');
+        const rows = (beforeId===null
+          ? all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC,id DESC LIMIT 60',chatId,before)
+          : all('SELECT * FROM messages WHERE chat_id=? AND (created<? OR (created=? AND id<?)) ORDER BY created DESC,id DESC LIMIT 60',chatId,before,before,beforeId)).reverse();
         return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {
-        const clientId=b.clientId==null?null:String(b.clientId);if(clientId&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
-        if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){if(existing.chat_id!==chatId)fail(409,'ID уже использован');return json(message(existing,user.id));}}
+        const clientId=b.clientId==null?null:String(b.clientId);if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
+        if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){const request=one('SELECT fingerprint FROM message_requests WHERE user_id=? AND client_id=?',user.id,clientId);if(existing.chat_id!==chatId || request&&request.fingerprint!==messageFingerprint(chatId,b))fail(409,'ID сообщения уже использован для другого запроса');return json(message(existing,user.id));}}
         rate('message:' + user.id, 90); family.content(chatId,clean(b.body)+' '+JSON.stringify(b.poll||{}),!!b.media);
         const kind = ['text','photo','video','file','voice','round','poll'].includes(b.kind) ? b.kind : 'text';
         requirePermission(chatId, user.id, kind);
@@ -285,6 +296,7 @@ const server = http.createServer(async (req, res) => {
         const emojiKeys=stickers.tokens(clean(b.body),user.id);if(emojiKeys.length)family.content(chatId,'',true);
         const messageId = id();
         db.exec('BEGIN');try{run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created,client_id) VALUES(?,?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, Math.max(now(),(one('SELECT MAX(created) n FROM messages WHERE chat_id=?',chatId)?.n||0)+1),clientId);
+        if(clientId)run('INSERT INTO message_requests VALUES(?,?,?,?)',user.id,clientId,messageId,messageFingerprint(chatId,b));
         stickers.bind(messageId,emojiKeys);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
       }
       if (action === 'read' && req.method === 'POST') { const last = b.message ? one('SELECT created n FROM messages WHERE id=? AND chat_id=?',String(b.message),chatId)?.n : one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0;if(last===undefined)fail(400,'Сообщение не найдено'); run('UPDATE members SET read_at=MAX(read_at,?),delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id);emit(user.id,'receipt',{chat:chatId,user:user.id,read:last,delivered:last}); if(privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
@@ -414,12 +426,13 @@ const server = http.createServer(async (req, res) => {
       broadcast(call.chat,'call',{...call,participants:[...call.participants],state:'active'});return json({ok:true});
     }
     fail(404,'Не найдено');
-  } catch(error) { if(!error.status) console.error(error); if(!res.headersSent) json({error:error.status?error.message:'Ошибка сервера'},error.status||500); else res.end(); }
+  } catch(error) { const requestId=!error.status?logFailure('request_failed',error):undefined; if(!res.headersSent) json({error:error.status?error.message:'Не удалось выполнить действие. Попробуйте позже.',...(requestId?{requestId}:{})},error.status||500); else res.end(); }
 });
 setInterval(()=>{social.tick();polls.tick();for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+
 
 
