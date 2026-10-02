@@ -1,10 +1,34 @@
 import { DatabaseSync } from 'node:sqlite';
+import Libsql from 'libsql';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+export function databaseConfig(env=process.env) {
+  const url=env.TURSO_DATABASE_URL?.trim(),token=env.TURSO_AUTH_TOKEN?.trim();
+  if(Boolean(url)!==Boolean(token))throw new Error('Both TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required');
+  if(url){
+    let parsed;try{parsed=new URL(url);}catch{throw new Error('Invalid TURSO_DATABASE_URL');}
+    if(parsed.protocol!=='libsql:'||!parsed.hostname.endsWith('.turso.io')||parsed.username||parsed.password||parsed.search||parsed.hash||parsed.port||!['','/'].includes(parsed.pathname))throw new Error('Expected a secure Turso libsql URL');
+    return {remote:true,url,token};
+  }
+  return {remote:false};
+}
 export function database(directory) {
   mkdirSync(directory, { recursive: true });
-  const db = new DatabaseSync(resolve(directory, 'cipherion.sqlite'));
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+  const config=databaseConfig();
+  const db = config.remote ? new Libsql(config.url,{authToken:config.token})
+    : process.env.CIPHERION_TEST_LIBSQL==='1' ? new Libsql(resolve(directory,'cipherion.sqlite')) : new DatabaseSync(resolve(directory, 'cipherion.sqlite'));
+  // Remote errors must propagate; never fall back to an ephemeral local database.
+  if(!config.remote)db.exec('PRAGMA journal_mode=WAL');
+  db.exec('PRAGMA foreign_keys=ON');
+  if(config.remote){
+    const registry=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();
+    const version=registry?db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version:0;
+    if(version>1)throw new Error('Database schema is newer than this application');
+    const existing=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+    if(existing.length&&version!==1)throw new Error('Remote database requires a verified migration before startup');
+    if(!existing.length&&process.env.TURSO_ALLOW_EMPTY_INIT!=='1')throw new Error('Empty Turso database: import existing data first, or explicitly enable empty initialization');
+  }
+  db.exec(`
     CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, password TEXT NOT NULL, bio TEXT DEFAULT '', avatar TEXT DEFAULT '', settings TEXT DEFAULT '{}', created INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), agent TEXT, created INTEGER, active INTEGER, expires INTEGER);
     CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT, avatar TEXT DEFAULT '', permissions TEXT DEFAULT '{}', created INTEGER);
@@ -19,3 +43,4 @@ export function database(directory) {
   `);
   return db;
 }
+

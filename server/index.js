@@ -19,13 +19,13 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { readFile, open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { database } from './db.js';
+import { database, databaseConfig } from './db.js';
 import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = resolve(process.env.DATA_DIR || resolve(root, 'data'));
 await mkdir(resolve(data, 'media'), { recursive: true });
-await backupBeforeMigration(data);
+if(!databaseConfig().remote)await backupBeforeMigration(data);
 const db = database(data);
 const all = (sql, ...p) => db.prepare(sql).all(...p);
 const one = (sql, ...p) => db.prepare(sql).get(...p);
