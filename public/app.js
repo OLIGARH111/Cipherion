@@ -3,7 +3,7 @@ import {bindStickerEffects} from './sticker-effects.js';
 import {createSync} from './sync.js';
 import './motion.js';
 import {createOutbox} from './outbox.js';
-import {preparePush,muteChat} from './notifications.js';
+import {preparePush,muteChat,promptNotifications} from './notifications.js';
 import {setupComposerAI} from './composer-ai.js';
 import {initStories,refreshStories,showStories} from './stories.js';
 import {configureProfiles,extendedProfile} from './profiles.js';
@@ -148,7 +148,28 @@ function connectEvents(){state.events?.close();const events=new EventSource('/ap
   events.addEventListener('typing',e=>{const d=JSON.parse(e.data);if(d.chat!==state.chat||d.user===state.user.id)return;const target=$('#chat-status');if(!target)return;target.textContent=d.name+' печатает…';clearTimeout(target.timer);target.timer=setTimeout(()=>{target.textContent=selected()?.kind==='direct'?'личный разговор':`${selected()?.members.length||0} участников`;},3000);});
   events.addEventListener('call',e=>calls.event(JSON.parse(e.data)));events.addEventListener('signal',e=>calls.signal(JSON.parse(e.data)));
 }
-async function boot(){const result=await api('/me');state.user=result.user;state.settings=result.settings;state.family=result.family;applyTheme(state.settings);if(result.family&&!result.family.linked){app.innerHTML='<main class="auth"><section class="auth-card glass"><h1>Привяжите родителя</h1><p>Детский аккаунт создан. До привязки обычные функции закрыты.</p><button class="primary" id="pending-family">Получить код для родителя</button><button class="secondary" id="pending-refresh">Проверить привязку</button><button class="secondary" id="pending-logout">Выйти</button></section></main>';$('#pending-family').onclick=guard(()=>familyPage(state));$('#pending-refresh').onclick=()=>location.reload();$('#pending-logout').onclick=guard(async()=>{await api('/logout','POST',{});location.reload();});return;}try{await refresh();}catch(e){if(!result.family)throw e;toast(e.message);}shell();synchronizer=createSync(state.user.id);outbox=createOutbox(state.user.id,async()=>{await renderPending();if(navigator.onLine){await refresh().catch(()=>{});if(state.chat)await loadMessages(false).catch(()=>{});}});state.sendSticker=async(sticker)=>outbox.enqueue(state.chat,{sticker});preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>calls.start(chat,video)});initStories(state,openChat,refresh);const link=new URLSearchParams(location.hash.slice(1));if(link.get('chat'))openChat(link.get('chat')).then(async()=>{const key=link.get('message');if(key&&!state.messages.some(m=>m.id===key)){const m=await api('/messages/'+encodeURIComponent(key));if(m.chat_id===state.chat){state.messages=[m,...state.messages];renderMessages(false);}}const target=document.querySelector('[data-id="'+CSS.escape(key||'')+'"]');if(target){const box=$('.messages');if(box)box.scrollTop+=target.getBoundingClientRect().top-box.getBoundingClientRect().top-(box.clientHeight-target.clientHeight)/2;}}).catch(e=>toast(e.message));if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
+async function openNotificationLink(href){
+ const url=new URL(href,location.origin);if(url.origin!==location.origin)return;
+ const link=new URLSearchParams(url.hash.slice(1));
+ if(link.get('account')&&link.get('account')!==state.user.id){toast('Это уведомление для другого аккаунта. Войдите в нужный аккаунт.');return;}
+ const chat=link.get('chat');if(!chat)return;
+ await refresh();if(state.tab!=='chat')await navigate('chat');await openChat(chat);
+ if(link.get('call')){
+  const active=await api('/calls/active');const call=active.find(c=>c.id===link.get('call'));
+  if(call)await calls.event(call);else toast('Этот звонок уже завершён');
+  return;
+ }
+ const key=link.get('message');if(!key)return;
+ if(!state.messages.some(m=>m.id===key)){const m=await api('/messages/'+encodeURIComponent(key));if(m.chat_id===state.chat){state.messages=[m,...state.messages];renderMessages(false);}}
+ const target=document.querySelector('[data-id="'+CSS.escape(key)+'"]');target?.scrollIntoView({block:'center'});
+}
+function setupNotificationLinks(){
+ if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
+  if(e.data?.type==='notification-open')openNotificationLink(e.data.url).catch(err=>toast(err.message));
+ });
+ window.addEventListener('hashchange',()=>openNotificationLink(location.href).catch(err=>toast(err.message)));
+}
+async function boot(){const result=await api('/me');state.user=result.user;state.settings=result.settings;state.family=result.family;applyTheme(state.settings);if(result.family&&!result.family.linked){app.innerHTML='<main class="auth"><section class="auth-card glass"><h1>Привяжите родителя</h1><p>Детский аккаунт создан. До привязки обычные функции закрыты.</p><button class="primary" id="pending-family">Получить код для родителя</button><button class="secondary" id="pending-refresh">Проверить привязку</button><button class="secondary" id="pending-logout">Выйти</button></section></main>';$('#pending-family').onclick=guard(()=>familyPage(state));$('#pending-refresh').onclick=()=>location.reload();$('#pending-logout').onclick=guard(async()=>{await api('/logout','POST',{});location.reload();});return;}try{await refresh();}catch(e){if(!result.family)throw e;toast(e.message);}shell();synchronizer=createSync(state.user.id);outbox=createOutbox(state.user.id,async()=>{await renderPending();if(navigator.onLine){await refresh().catch(()=>{});if(state.chat)await loadMessages(false).catch(()=>{});}});state.sendSticker=async(sticker)=>outbox.enqueue(state.chat,{sticker});preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>calls.start(chat,video)});initStories(state,openChat,refresh);setupNotificationLinks();const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.chat)loadMessages(false).catch(()=>{});});
 window.addEventListener('beforeunload',()=>{state.recording?.stream.getTracks().forEach(t=>t.stop());});
 boot().catch(error=>{if(error.status===401)auth();else{app.innerHTML='<main class="auth"><section class="auth-card glass"><img src="/brand/icon-192-99e4c7990351.png" width="100" alt="Cipherion"><h2>Не удалось подключиться</h2><p>Проверьте соединение и повторите попытку.</p><button class="primary" id="retry-boot">Повторить</button></section></main>';$('#retry-boot').onclick=()=>location.reload();}}).finally(()=>document.getElementById('launch')?.remove());
@@ -160,4 +181,5 @@ document.addEventListener('click',guard(async e=>{const btn=e.target.closest('[d
 document.addEventListener('click',guard(async e=>{const el=e.target.closest('[data-open-profile]');if(el){e.preventDefault();e.stopPropagation();await extendedProfile(el.dataset.openProfile);}}));
 setInterval(()=>{if(!document.hidden&&state.user)refreshStories().catch(()=>{});},30000);
 async function newContact(){modal('Новый контакт','<form id="find-contact" class="row"><input name="q" required placeholder="Username"><button class="primary">Найти</button></form><div id="new-contact-results"></div>');$('#find-contact').onsubmit=guard(async e=>{e.preventDefault();const users=await api('/users?q='+encodeURIComponent(new FormData(e.currentTarget).get('q')));$('#new-contact-results').innerHTML=users.map(u=>`<div class="person"><button class="profile-name" data-open-profile="${u.id}">${esc(u.name)} @${esc(u.username)}</button><button class="chip" data-save-contact="${u.id}">Добавить</button></div>`).join('')||'<p>Пользователь не найден</p>';document.querySelectorAll('[data-save-contact]').forEach(b=>b.onclick=guard(async()=>{await api('/contacts','POST',{target:b.dataset.saveContact});toast('Контакт добавлен');b.disabled=true;}));});}
+
 

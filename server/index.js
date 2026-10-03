@@ -123,7 +123,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
-      const result=health(db);return json(result.body,result.status);
+      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured()},result.status);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
@@ -413,7 +413,7 @@ const server = http.createServer(async (req, res) => {
       const relayOnly=members.some(a=>members.some(b=>a.user_id!==b.user_id&&!privacy.permits(a.user_id,b.user_id,'p2p')));if(relayOnly&&!rtcConfiguration(user.id).relayConfigured)fail(503,'Для приватного звонка требуется настроенный TURN');
       const call={relayOnly,id:id(),chat:b.chat,caller:user.id,name:user.name,video:!!b.video,participants:new Set([user.id]),created:now(),sharing:null};liveCalls.set(call.id,call);
       run('INSERT INTO calls(id,chat_id,user_id,video,created,status) VALUES(?,?,?,?,?,?)',call.id,b.chat,user.id,b.video?1:0,now(),'ringing');
-      broadcast(b.chat,'call',{...call,participants:[...call.participants],state:'ringing'});return json({...call,participants:[...call.participants]});
+      broadcast(b.chat,'call',{...call,participants:[...call.participants],state:'ringing'});delivery.tick().catch(e=>logFailure('push_worker_failed',e));return json({...call,participants:[...call.participants]});
     }
     if(path==='/api/call-action' && req.method==='POST') {
       const call=liveCalls.get(b.id);if(!call)fail(404,'Звонок завершён');membership(call.chat,user.id);if(!['leave','reject'].includes(b.action))family.chatAccess(call.chat,user.id,true);
@@ -433,6 +433,7 @@ const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+
 
 
 
