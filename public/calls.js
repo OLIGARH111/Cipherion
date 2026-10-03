@@ -59,13 +59,13 @@ export function createCalls(state,iceServers){
   function stop(){generation++;starting=false;clearInterval(timer);local?.getTracks().forEach(t=>t.stop());screen?.getTracks().forEach(t=>t.stop());for(const p of peers.values()){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();}peers.clear();current=null;local=null;screen=null;incoming=null;root.querySelectorAll('[data-remote]').forEach(el=>el.rtcMedia?.dispose());root.innerHTML='';minimized=false;}
   function status(text){const el=$('#call-state');if(el)el.textContent=text;}
   function render(){
-    root.innerHTML=`<section class="call-overlay ${minimized?'minimized':''}"><header class="call-head"><div><h3>${esc(state.chats.find(c=>c.id===current.chat)?.title||current.name)}</h3><p class="call-state" id="call-state">Соединение…</p></div><div class="row"><small id="call-timer">00:00</small>${button('back','Свернуть / развернуть','id="minimize-call"')}</div></header><div class="video-grid" id="video-grid"><div class="video-tile" id="local-tile"><video id="local-video" autoplay playsinline muted></video><label>Вы</label></div></div><div class="call-controls">${button('mic','Выключить / включить микрофон','id="toggle-mic"')}${button('video','Выключить / включить камеру','id="toggle-camera"')}${button('video','Переключить переднюю / заднюю камеру','id="flip-camera"')}${button('screen','Демонстрация экрана','id="share-screen"')}${button('settings','Устройства звонка','id="call-devices"')}${button('phone','Завершить звонок','id="hangup" class="icon-button hangup"')}</div></section>`;
+    root.innerHTML=`<section class="call-overlay ${minimized?'minimized':''}"><header class="call-head"><div><h3>${esc(state.chats.find(c=>c.id===current.chat)?.title||current.name)}</h3><p class="call-state" id="call-state">Соединение…</p></div><div class="row"><small id="call-timer">00:00</small>${button('back','Свернуть / развернуть','id="minimize-call"')}</div></header><div class="video-grid" id="video-grid"><div class="video-tile" id="local-tile"><video id="local-video" autoplay playsinline muted></video><label>Вы</label></div></div><div class="call-controls">${button('mic','Выключить / включить микрофон','id="toggle-mic"')}${button('video','Выключить / включить камеру','id="toggle-camera"')}${button('video','Переключить переднюю / заднюю камеру','id="flip-camera"')}${button('screen','Демонстрация экрана','id="share-screen"')}<button class="secondary" id="call-check">Проверить связь</button>${button('settings','Устройства звонка','id="call-devices"')}${button('phone','Завершить звонок','id="hangup" class="icon-button hangup"')}</div></section>`;
     $('#hangup').classList.add('hangup');$('#local-video').srcObject=local;
     $('#minimize-call').onclick=()=>{minimized=!minimized;$('.call-overlay').classList.toggle('minimized',minimized);};
     $('#toggle-mic').onclick=()=>{local.getAudioTracks().forEach(t=>t.enabled=!t.enabled);$('#toggle-mic').classList.toggle('off',!local.getAudioTracks()[0]?.enabled);};
     $('#toggle-camera').onclick=guard(async()=>{const track=local.getVideoTracks()[0];if(track){track.enabled=!track.enabled;$('#toggle-camera').classList.toggle('off',!track.enabled);}else{const stream=await navigator.mediaDevices.getUserMedia({video:true});const track=stream.getVideoTracks()[0];local.addTrack(track);for(const p of peers.values())p.pc.addTrack(track,local);$('#local-video').srcObject=local;$('#toggle-camera').classList.remove('off');}});
     $('#flip-camera').onclick=guard(async()=>{const old=local.getVideoTracks()[0];if(!old)throw new Error('Сначала включите камеру');const facing=old.getSettings().facingMode==='environment'?'user':'environment';const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});const track=stream.getVideoTracks()[0];try{for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}local.removeTrack(old);old.stop();local.addTrack(track);$('#local-video').srcObject=local;}catch(e){track.stop();throw e;}});
-    $('#share-screen').onclick=guard(toggleScreen);$('#call-devices').onclick=guard(devices);$('#hangup').onclick=guard(async()=>{try{await action('leave');}finally{stop();}});
+    $('#call-check').onclick=guard(checkConnection);$('#share-screen').onclick=guard(toggleScreen);$('#call-devices').onclick=guard(devices);$('#hangup').onclick=guard(async()=>{try{await action('leave');}finally{stop();}});
     $('#toggle-camera').classList.toggle('off',!local.getVideoTracks().length);
     started=Date.now();clearInterval(timer);timer=setInterval(()=>{if(!current)return;const seconds=Math.floor((Date.now()-started)/1000);if($('#call-timer'))$('#call-timer').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;},1000);
     
@@ -94,7 +94,7 @@ export function createCalls(state,iceServers){
       if(pc.connectionState==='connected'){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.restarts=0;status([...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':'Соединение…');diagnostic().catch(()=>{});}
       else if(['failed','disconnected'].includes(pc.connectionState)){status('Восстанавливаем соединение…');if(p.restarts++<2)pc.restartIce();clearTimeout(p.disconnect);p.disconnect=setTimeout(expire,20000);}
     };
-    pc.onnegotiationneeded=async()=>{try{p.makingOffer=true;await pc.setLocalDescription();await action('signal',{target:remote,signal:{description:pc.localDescription}});}catch(error){toast(error.message);}finally{p.makingOffer=false;}};
+    pc.onnegotiationneeded=async()=>{try{p.makingOffer=true;await pc.setLocalDescription();await action('signal',{target:remote,signal:{description:pc.localDescription}});}catch(error){p.lastError=error.message;toast(error.message);}finally{p.makingOffer=false;}};
     for(const track of local.getTracks())pc.addTrack(track,local);
     if(screen)p.screenSender=pc.addTrack(screen.getVideoTracks()[0],screen);
     return p;
@@ -102,11 +102,48 @@ export function createCalls(state,iceServers){
   async function signal(data){if(!current||data.call!==current.id)return;try{const p=peer(data.from),pc=p.pc;const {description,candidate}=data.signal;
     if(description){const ready=!p.makingOffer&&(pc.signalingState==='stable'||p.isSettingRemoteAnswerPending);const collision=description.type==='offer'&&!ready;p.ignoreOffer=!p.polite&&collision;if(p.ignoreOffer)return;p.isSettingRemoteAnswerPending=description.type==='answer';try{await pc.setRemoteDescription(description);}finally{p.isSettingRemoteAnswerPending=false;}for(const c of p.candidates)await pc.addIceCandidate(c);p.candidates=[];if(description.type==='offer'){await pc.setLocalDescription();await action('signal',{target:data.from,signal:{description:pc.localDescription}});}}
     else if(candidate){if(p.ignoreOffer)return;if(pc.remoteDescription)await pc.addIceCandidate(candidate).catch(e=>{if(!p.ignoreOffer)throw e;});else p.candidates.push(candidate);}
-  }catch(error){toast('Не удалось согласовать соединение: '+error.message);}}
+  }catch(error){const p=peers.get(data.from);if(p)p.lastError=error.message;toast('Не удалось согласовать соединение: '+error.message);}}
   async function event(data){
     if(['ended','declined','missed','removed'].includes(data.state)){if(current?.id===data.id || incoming?.id===data.id){stop();toast(data.state==='missed'?'Пропущенный звонок':data.state==='declined'?'Звонок отклонён':'Звонок завершён');}return;}
     if(data.state==='ringing'&&data.caller!==state.user.id&&!current&&!incoming){incoming=data;root.innerHTML=`<section class="incoming"><span class="eyebrow">ВХОДЯЩИЙ ${data.video?'ВИДЕО':'АУДИО'}ЗВОНОК</span><h3>${esc(data.name)}</h3><p class="muted">Хочет поговорить с вами</p><div class="row"><button class="primary" id="accept-call">${icon('phone')}Принять</button><button class="secondary danger" id="reject-call">Отклонить</button></div></section>`;$('#accept-call').onclick=guard(async()=>{if(starting)return;starting=true;const ticket=generation;let acquired;try{iceServers=(await api('/rtc-config')).iceServers;acquired=await media(data.video);if(ticket!==generation){acquired.getTracks().forEach(t=>t.stop());return;}local=acquired;current=data;incoming=null;render();await action('join');for(const remote of data.participants)if(remote!==state.user.id)peer(remote);}catch(error){acquired?.getTracks().forEach(t=>t.stop());stop();throw error;}finally{starting=false;}});$('#reject-call').onclick=guard(async()=>{await api('/call-action','POST',{id:data.id,action:'reject'});incoming=null;root.innerHTML='';});navigator.vibrate?.([150,80,150]);return;}
     if(current?.id===data.id){current={...current,...data};for(const remote of data.participants)if(remote!==state.user.id)peer(remote);for(const [remote,p]of peers)if(!data.participants.includes(remote)){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();peers.delete(remote);document.querySelectorAll(`[data-remote="${remote}"]`).forEach(el=>{el.rtcMedia?.dispose();el.remove();});}if(data.sharing)status(data.sharing===state.user.id?'Вы демонстрируете экран':nameOf(data.sharing)+' демонстрирует экран');else status(peers.size>0&&[...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':data.participants.length>1?'Соединение…':'Звоним…');}
+  }
+  async function checkConnection(){
+    if(!current)return;
+    const callId=current.id;
+    const dialog=modal('Проверка связи','<p id="rtc-check">Проверяем передачу звука и видео…</p><button class="primary" id="rtc-play">Включить звук и видео</button><p class="note">Если связи нет, пришлите снимок этой проверки с обоих устройств.</p>');
+    $('#rtc-play').onclick=async()=>{
+      const elements=[...root.querySelectorAll('[data-remote] audio,[data-remote] video')].filter(el=>el.srcObject);
+      const results=await Promise.allSettled(elements.map(el=>el.play()));
+      toast(!elements.length?'Дорожки собеседника пока не получены':results.some(r=>r.status==='rejected')?'Браузер не запустил воспроизведение. Проверьте разрешения сайта.':'Воспроизведение запущено');
+    };
+    const kinds={audio:'Звук',video:'Видео'};
+    const describe=track=>!track?'нет':track.readyState==='ended'?'завершена':!track.enabled?'выключена':track.muted?'нет данных':'работает';
+    const take=async pc=>{const totals={};(await pc.getStats()).forEach(r=>{const kind=r.kind||r.mediaType;if(!kinds[kind]||r.isRemote)return;if(r.type==='inbound-rtp'||r.type==='outbound-rtp'){const key=(r.type==='inbound-rtp'?'in':'out')+kind;const t=totals[key]||={bytes:0,frames:0};t.bytes+=Number(r.bytesReceived??r.bytesSent??0);t.frames+=Number(r.framesDecoded??0);}});return totals;};
+    const snapshot=[...peers].map(([id,p])=>({id,p}));
+    await Promise.all(snapshot.map(async x=>{try{x.before=await take(x.p.pc);}catch{x.before={};}}));
+    await new Promise(resolve=>setTimeout(resolve,2000));
+    if(current?.id!==callId||!dialog.open)return;
+    const lines=['Проверка звонка · версия 2',...['audio','video'].map(kind=>kinds[kind]+' у вас: '+describe(local?.getTracks().find(t=>t.kind===kind)))];
+    for(const x of snapshot){
+      const pc=x.p.pc;let after;try{after=await take(pc);}catch{lines.push('Соединение уже закрыто');continue;}
+      lines.push('',nameOf(x.id), 'Соединение: '+pc.connectionState+' / '+pc.iceConnectionState, 'Согласование: '+pc.signalingState);
+      for(const kind of ['audio','video']){
+        const incoming=after['in'+kind],outgoing=after['out'+kind];
+        const delta=key=>Math.max(0,(after[key]?.bytes||0)-(x.before[key]?.bytes||0));
+        lines.push(kinds[kind]+': отправлено '+delta('out'+kind)+' Б / получено '+delta('in'+kind)+' Б за 2 с');
+        if(kind==='video')lines.push('Раскодировано кадров: '+(incoming?.frames||0));
+        const receivers=pc.getReceivers().map(r=>r.track).filter(t=>t.kind===kind);
+        lines.push('Дорожка собеседника: '+(receivers.map(describe).join(', ')||'нет'));
+        if(!incoming&&!outgoing)lines.push('Обмен ещё не начался');
+      }
+      for(const el of root.querySelectorAll('[data-remote]'))if(el.dataset.remote===x.id){
+        for(const media of el.querySelectorAll('audio,video'))if(media.srcObject)lines.push((media.tagName==='AUDIO'?'Динамик':'Экран')+': '+(media.paused?'пауза':'воспроизведение')+'; готовность '+media.readyState);
+      }
+      if(x.p.lastError)lines.push('Ошибка: '+x.p.lastError);
+    }
+    if(!snapshot.length)lines.push('Собеседник ещё не подключён');
+    const target=$('#rtc-check');if(target){target.style.whiteSpace='pre-wrap';target.style.fontSize='13px';target.textContent=lines.join('\n');}
   }
   async function toggleScreen(){
     if(screen){await action('share',{enabled:false});for(const p of peers.values())if(p.screenSender){p.pc.removeTrack(p.screenSender);p.screenSender=null;}screen.getTracks().forEach(t=>t.stop());screen=null;$('#share-screen')?.classList.remove('off');status('Демонстрация завершена');return;}
