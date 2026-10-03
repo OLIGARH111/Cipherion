@@ -1,4 +1,54 @@
 import {$,esc,icon,button,avatar,api,modal,guard,toast} from './ui.js';
+
+// Keep audio independent of video readiness, and retry playback as tracks arrive.
+export function bindRemoteMedia(tile, stream){
+  const video=tile.querySelector('video'),audio=document.createElement('audio');
+  audio.autoplay=true;tile.append(audio);video.muted=true;video.playsInline=true;
+  const audioStream=new MediaStream(),videoStream=new MediaStream();
+  const watched=new Map();let disposed=false,attempt=0,retry=null;
+  function showRetry(){
+    if(disposed||retry)return;
+    retry=document.createElement('button');retry.className='secondary';
+    retry.textContent='Включить звук и видео';retry.onclick=play;tile.append(retry);
+  }
+  async function play(){
+    if(disposed)return;
+    const ticket=++attempt;
+    const elements=[audio,video].filter(el=>el.srcObject?.getTracks().some(t=>t.readyState!=='ended'));
+    const results=await Promise.allSettled(elements.map(el=>{try{return el.play();}catch(error){return Promise.reject(error);}}));
+    if(disposed||ticket!==attempt)return;
+    if(results.some(r=>r.status==='rejected'))showRetry();
+    else{retry?.remove();retry=null;}
+  }
+  function sync(){
+    if(disposed)return;
+    const tracks=stream.getTracks().filter(t=>t.readyState!=='ended');
+    for(const [track,cleanup]of watched)if(!tracks.includes(track)){cleanup();watched.delete(track);}
+    for(const track of tracks)if(!watched.has(track)){
+      track.addEventListener('unmute',play);track.addEventListener('ended',sync);
+      watched.set(track,()=>{track.removeEventListener('unmute',play);track.removeEventListener('ended',sync);});
+    }
+    for(const [element,target,kind]of [[audio,audioStream,'audio'],[video,videoStream,'video']]){
+      for(const track of target.getTracks())if(!tracks.includes(track))target.removeTrack(track);
+      for(const track of tracks)if(track.kind===kind&&!target.getTracks().includes(track))target.addTrack(track);
+      if(target.getTracks().length){if(element.srcObject!==target)element.srcObject=target;}
+      else if(element.srcObject){element.pause();element.srcObject=null;}
+    }
+    if(!tracks.length){dispose();tile.remove();return;}
+    play();
+  }
+  function dispose(){
+    if(disposed)return;disposed=true;attempt++;
+    stream.removeEventListener('addtrack',sync);stream.removeEventListener('removetrack',sync);
+    for(const cleanup of watched.values())cleanup();watched.clear();
+    for(const element of [audio,video]){element.removeEventListener('loadedmetadata',play);element.pause();element.srcObject=null;}
+    retry?.remove();audio.remove();
+  }
+  stream.addEventListener('addtrack',sync);stream.addEventListener('removetrack',sync);
+  audio.addEventListener('loadedmetadata',play);video.addEventListener('loadedmetadata',play);
+  sync();return{sync,dispose};
+}
+
 export function createCalls(state,iceServers){
   let signalQueue=Promise.resolve(),generation=0,starting=false,confirming=false;
   let current=null,local=null,screen=null,peers=new Map(),timer=null,incoming=null,started=0,minimized=false;
@@ -6,7 +56,7 @@ export function createCalls(state,iceServers){
   const action=(name,data={})=>api('/call-action','POST',{id:current?.id,action:name,...data});
   const nameOf=id=>state.chats.find(c=>c.id===current?.chat)?.members.find(m=>m.user_id===id)?.name || 'Участник';
   async function media(video){if(!navigator.mediaDevices?.getUserMedia)throw new Error('Для звонков нужен HTTPS и доступ к микрофону');return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:video?{width:{ideal:960},height:{ideal:540},facingMode:'user'}:false});}
-  function stop(){generation++;starting=false;clearInterval(timer);local?.getTracks().forEach(t=>t.stop());screen?.getTracks().forEach(t=>t.stop());for(const p of peers.values()){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();}peers.clear();current=null;local=null;screen=null;incoming=null;root.innerHTML='';minimized=false;}
+  function stop(){generation++;starting=false;clearInterval(timer);local?.getTracks().forEach(t=>t.stop());screen?.getTracks().forEach(t=>t.stop());for(const p of peers.values()){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();}peers.clear();current=null;local=null;screen=null;incoming=null;root.querySelectorAll('[data-remote]').forEach(el=>el.rtcMedia?.dispose());root.innerHTML='';minimized=false;}
   function status(text){const el=$('#call-state');if(el)el.textContent=text;}
   function render(){
     root.innerHTML=`<section class="call-overlay ${minimized?'minimized':''}"><header class="call-head"><div><h3>${esc(state.chats.find(c=>c.id===current.chat)?.title||current.name)}</h3><p class="call-state" id="call-state">Соединение…</p></div><div class="row"><small id="call-timer">00:00</small>${button('back','Свернуть / развернуть','id="minimize-call"')}</div></header><div class="video-grid" id="video-grid"><div class="video-tile" id="local-tile"><video id="local-video" autoplay playsinline muted></video><label>Вы</label></div></div><div class="call-controls">${button('mic','Выключить / включить микрофон','id="toggle-mic"')}${button('video','Выключить / включить камеру','id="toggle-camera"')}${button('video','Переключить переднюю / заднюю камеру','id="flip-camera"')}${button('screen','Демонстрация экрана','id="share-screen"')}${button('settings','Устройства звонка','id="call-devices"')}${button('phone','Завершить звонок','id="hangup" class="icon-button hangup"')}</div></section>`;
@@ -29,9 +79,16 @@ export function createCalls(state,iceServers){
     pc.onicecandidateerror=e=>console.warn('Cipherion ICE',{code:e.errorCode});
     pc.onicecandidate=({candidate})=>{if(candidate&&current)action('signal',{target:remote,signal:{candidate}}).catch(()=>status('Сигнальная связь прервана. Переподключение…'));};
     pc.ontrack=({track,streams})=>{
-      const stream=streams[0] || new MediaStream([track]);const key='remote-'+remote+'-'+stream.id;let tile=document.getElementById(key);
-      if(!tile){tile=document.createElement('div');tile.className='video-tile';tile.id=key;tile.dataset.remote=remote;tile.innerHTML=`<video autoplay playsinline></video><label>${esc(nameOf(remote))}</label>`;$('#video-grid')?.append(tile);const video=$('video',tile);video.srcObject=stream;video.play().catch(()=>{tile.insertAdjacentHTML('beforeend','<button class="secondary">Включить звук</button>');$('button',tile).onclick=()=>{video.play();$('button',tile).remove();};});tile.ondblclick=()=>tile.requestFullscreen?.();}
-      track.onended=()=>{if(stream.getTracks().every(t=>t.readyState==='ended'))tile.remove();};
+      if(pc.connectionState==='closed'||!current)return;
+      const stream=streams[0] || (p.streamless ||= new MediaStream());
+      if(!stream.getTracks().includes(track))stream.addTrack(track);
+      const key='remote-'+remote+'-'+stream.id;let tile=document.getElementById(key);
+      if(!tile){
+        tile=document.createElement('div');tile.className='video-tile';tile.id=key;tile.dataset.remote=remote;
+        tile.innerHTML=`<video autoplay playsinline muted></video><label>${esc(nameOf(remote))}</label>`;
+        $('#video-grid')?.append(tile);tile.rtcMedia=bindRemoteMedia(tile,stream);
+        tile.ondblclick=()=>tile.requestFullscreen?.();
+      }else tile.rtcMedia.sync();
     };
     pc.onconnectionstatechange=()=>{
       if(pc.connectionState==='connected'){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.restarts=0;status([...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':'Соединение…');diagnostic().catch(()=>{});}
@@ -49,7 +106,7 @@ export function createCalls(state,iceServers){
   async function event(data){
     if(['ended','declined','missed','removed'].includes(data.state)){if(current?.id===data.id || incoming?.id===data.id){stop();toast(data.state==='missed'?'Пропущенный звонок':data.state==='declined'?'Звонок отклонён':'Звонок завершён');}return;}
     if(data.state==='ringing'&&data.caller!==state.user.id&&!current&&!incoming){incoming=data;root.innerHTML=`<section class="incoming"><span class="eyebrow">ВХОДЯЩИЙ ${data.video?'ВИДЕО':'АУДИО'}ЗВОНОК</span><h3>${esc(data.name)}</h3><p class="muted">Хочет поговорить с вами</p><div class="row"><button class="primary" id="accept-call">${icon('phone')}Принять</button><button class="secondary danger" id="reject-call">Отклонить</button></div></section>`;$('#accept-call').onclick=guard(async()=>{if(starting)return;starting=true;const ticket=generation;let acquired;try{iceServers=(await api('/rtc-config')).iceServers;acquired=await media(data.video);if(ticket!==generation){acquired.getTracks().forEach(t=>t.stop());return;}local=acquired;current=data;incoming=null;render();await action('join');for(const remote of data.participants)if(remote!==state.user.id)peer(remote);}catch(error){acquired?.getTracks().forEach(t=>t.stop());stop();throw error;}finally{starting=false;}});$('#reject-call').onclick=guard(async()=>{await api('/call-action','POST',{id:data.id,action:'reject'});incoming=null;root.innerHTML='';});navigator.vibrate?.([150,80,150]);return;}
-    if(current?.id===data.id){current={...current,...data};for(const remote of data.participants)if(remote!==state.user.id)peer(remote);for(const [remote,p]of peers)if(!data.participants.includes(remote)){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();peers.delete(remote);document.querySelectorAll(`[data-remote="${remote}"]`).forEach(el=>el.remove());}if(data.sharing)status(data.sharing===state.user.id?'Вы демонстрируете экран':nameOf(data.sharing)+' демонстрирует экран');else status(peers.size>0&&[...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':data.participants.length>1?'Соединение…':'Звоним…');}
+    if(current?.id===data.id){current={...current,...data};for(const remote of data.participants)if(remote!==state.user.id)peer(remote);for(const [remote,p]of peers)if(!data.participants.includes(remote)){clearTimeout(p.deadline);clearTimeout(p.disconnect);p.pc.close();peers.delete(remote);document.querySelectorAll(`[data-remote="${remote}"]`).forEach(el=>{el.rtcMedia?.dispose();el.remove();});}if(data.sharing)status(data.sharing===state.user.id?'Вы демонстрируете экран':nameOf(data.sharing)+' демонстрирует экран');else status(peers.size>0&&[...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':data.participants.length>1?'Соединение…':'Звоним…');}
   }
   async function toggleScreen(){
     if(screen){await action('share',{enabled:false});for(const p of peers.values())if(p.screenSender){p.pc.removeTrack(p.screenSender);p.screenSender=null;}screen.getTracks().forEach(t=>t.stop());screen=null;$('#share-screen')?.classList.remove('off');status('Демонстрация завершена');return;}
@@ -57,9 +114,10 @@ export function createCalls(state,iceServers){
     const display=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false});try{await action('share',{enabled:true});}catch(error){display.getTracks().forEach(t=>t.stop());throw error;}
     screen=display;for(const p of peers.values())p.screenSender=p.pc.addTrack(display.getVideoTracks()[0],display);display.getVideoTracks()[0].onended=()=>{if(screen)guard(toggleScreen)();};$('#share-screen')?.classList.add('off');status('Вы демонстрируете экран');
   }
-  async function devices(){const devices=await navigator.mediaDevices.enumerateDevices();const options=kind=>devices.filter(d=>d.kind===kind).map(d=>`<option value="${esc(d.deviceId)}">${esc(d.label||'Устройство')}</option>`).join('');modal('Устройства звонка',`<label class="field">Микрофон<select id="audio-device">${options('audioinput')}</select></label><label class="field">Камера<select id="video-device">${options('videoinput')}</select></label><label class="field">Вывод звука<select id="output-device">${options('audiooutput')}</select></label><button class="primary" id="apply-devices">Применить</button><p class="note">На телефоне динамик и Bluetooth могут переключаться системными средствами. Выбор аудиовыхода поддерживается не во всех браузерах.</p>`);$('#apply-devices').onclick=guard(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:$('#audio-device').value}},video:local.getVideoTracks().length?{deviceId:{exact:$('#video-device').value}}:false});for(const track of stream.getTracks()){const old=local.getTracks().find(t=>t.kind===track.kind);for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}if(old){local.removeTrack(old);old.stop();}local.addTrack(track);}$('#local-video').srcObject=local;const output=$('#output-device').value;for(const video of root.querySelectorAll('video'))if(!video.muted&&video.setSinkId&&output)await video.setSinkId(output);$('#modal').close();});}
+  async function devices(){const devices=await navigator.mediaDevices.enumerateDevices();const options=kind=>devices.filter(d=>d.kind===kind).map(d=>`<option value="${esc(d.deviceId)}">${esc(d.label||'Устройство')}</option>`).join('');modal('Устройства звонка',`<label class="field">Микрофон<select id="audio-device">${options('audioinput')}</select></label><label class="field">Камера<select id="video-device">${options('videoinput')}</select></label><label class="field">Вывод звука<select id="output-device">${options('audiooutput')}</select></label><button class="primary" id="apply-devices">Применить</button><p class="note">На телефоне динамик и Bluetooth могут переключаться системными средствами. Выбор аудиовыхода поддерживается не во всех браузерах.</p>`);$('#apply-devices').onclick=guard(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:$('#audio-device').value}},video:local.getVideoTracks().length?{deviceId:{exact:$('#video-device').value}}:false});for(const track of stream.getTracks()){const old=local.getTracks().find(t=>t.kind===track.kind);for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}if(old){local.removeTrack(old);old.stop();}local.addTrack(track);}$('#local-video').srcObject=local;const output=$('#output-device').value;for(const video of root.querySelectorAll('video,audio'))if(!video.muted&&video.setSinkId&&output)await video.setSinkId(output);$('#modal').close();});}
   return{event,signal:data=>{signalQueue=signalQueue.then(()=>signal(data)).catch(e=>toast(e.message));return signalQueue;},reconnect:async()=>{const active=await api('/calls/active');if(current){if(!active.some(c=>c.id===current.id)){stop();return;}for(const p of peers.values())p.pc.restartIce();}else for(const c of active)if(c.state==='ringing')await event(c);},start:async(chat,video)=>{if(current||incoming||starting||confirming)return;if(!chat)throw new Error('Чат недоступен');confirming=true;const peer=chat.members?.find(m=>m.user_id!==state.user.id),group=chat.kind!=='direct';const confirmed=await new Promise(resolve=>{const dialog=modal(group?'Начать звонок в «'+chat.title+'»?':(video?'Видеозвонок: ':'Позвонить: ')+chat.title+'?',`<div class="call-confirm">${avatar(chat.title,chat.avatar||peer?.avatar,'large')}<p>${group?'Участники группы смогут присоединиться к звонку.':'Вы действительно хотите начать '+(video?'видеозвонок':'аудиозвонок')+' пользователю '+esc(chat.title)+'?'}</p><div class="row"><button class="secondary" id="cancel-dial">Отмена</button><button class="primary" id="confirm-dial">${icon(video?'video':'phone')}${group?'Начать звонок':'Позвонить'}</button></div></div>`);let settled=false;function finish(value){if(settled)return;settled=true;dialog.removeEventListener('close',cancel);dialog.close();resolve(value);}const cancel=()=>finish(false);dialog.addEventListener('close',cancel,{once:true});$('#cancel-dial').onclick=cancel;$('#confirm-dial').onclick=()=>finish(true);});confirming=false;if(!confirmed||current||incoming||starting)return;starting=true;try{const config=await api('/rtc-config');iceServers=config.iceServers;local=await media(video);current=await api('/calls','POST',{chat:chat.id,video});render();status('Звоним…');if(!config.relayConfigured)toast('Прямые звонки включены. Для сложных сетей администратору нужен TURN.');}catch(error){stop();throw error;}finally{starting=false;}}};
 }
+
 
 
 
