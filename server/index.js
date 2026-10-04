@@ -146,8 +146,9 @@ const server = http.createServer(async (req, res) => {
     if (!b || typeof b !== 'object' || Array.isArray(b)) fail(400, 'Ожидается JSON-объект');
     if (path === '/api/auth' && req.method === 'POST') {
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
-      const username = clean(b.username, 32).toLowerCase(); const password = String(b.password || '');
+      const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
+      if (b.register && username.length < 4) fail(400, 'Username: от 4 до 32 латинских букв, цифр или _');
       rate('auth-account:'+createHash('sha256').update(username).digest('hex'),10,900_000);
       let account = one('SELECT * FROM users WHERE username=?', username); let familyCode;
       if (b.register) {
