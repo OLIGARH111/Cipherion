@@ -34,7 +34,7 @@ const id = () => randomUUID();
 const now = () => Date.now();
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
-const publicUser = (u, viewer) => privacy.project(u, viewer, streams.has(u?.id));
+const publicUser = (u, viewer) => ({...privacy.project(u, viewer, streams.has(u?.id)),...(u?.id===viewer?{isAdmin:adminAccess.isAdmin(u.id)}:{})});
 const streams = new Map(), liveCalls = new Map(), limits = new Map();
 let uploadsInFlight=0;
 function rate(key, count, window = 60_000) {
