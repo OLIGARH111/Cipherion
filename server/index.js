@@ -148,7 +148,7 @@ const server = http.createServer(async (req, res) => {
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
-      if (b.register && username.length < 5) fail(400, 'Username: от 5 до 32 латинских букв, цифр или _');
+      if (b.register && username.length < 3) fail(400, 'Username: от 3 до 32 латинских букв, цифр или _');
       rate('auth-account:'+createHash('sha256').update(username).digest('hex'),10,900_000);
       let account = one('SELECT * FROM users WHERE username=?', username); let familyCode;
       if (b.register) {
