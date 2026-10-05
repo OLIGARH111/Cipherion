@@ -1,0 +1,29 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+const dom=new JSDOM('<div id="toast"></div><dialog id="modal"></dialog><main id="auth"></main>',{url:'https://cipherion.example'});
+for(const k of ['window','document','navigator','Event','FormData','HTMLElement','localStorage','sessionStorage','location'])Object.defineProperty(globalThis,k,{configurable:true,value:dom.window[k]});
+dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
+after(()=>dom.window.close());const tick=()=>new Promise(r=>setTimeout(r,0));
+const {saveAction,modal,peopleCount,api}=await import('../public/ui.js');const {setActiveAccount,accountURL,draftKey}=await import('../public/account-context.js');
+test('shared save waits, rejects duplicate submits, retains input on failure and closes only on success',async()=>{
+ modal('Edit','<form><input value="retained"><button>Сохранить</button></form>');let resolve,calls=0;const button=document.querySelector('button:not(#modal-close)'),form=document.querySelector('form');const event={currentTarget:form,preventDefault(){}};const handler=saveAction(()=>{calls++;return new Promise(r=>resolve=r);});const pending=handler(event);await handler(event);assert.equal(calls,1);assert.equal(button.disabled,true);assert.equal(document.querySelector('dialog').open,true);resolve();await pending;assert.equal(document.querySelector('dialog').open,false);
+ modal('Edit','<form><input value="retained"><button>Сохранить</button></form>');const failed=saveAction(async()=>{throw Error('Server unavailable');});await failed({currentTarget:document.querySelector('form'),preventDefault(){}});assert.equal(document.querySelector('dialog').open,true);assert.equal(document.querySelector('input').value,'retained');assert.match(document.querySelector('[role=alert]').textContent,/Server unavailable/);assert.equal(document.querySelector('form button').disabled,false);
+});
+test('late responses and save completions cannot repaint another account; media and drafts are scoped',async()=>{
+ setActiveAccount('a');let finish;globalThis.fetch=async()=>new Promise(r=>finish=r);const pending=api('/me');setActiveAccount('b');finish({ok:true,json:async()=>({user:{id:'a'}})});await assert.rejects(pending,{name:'AbortError'});assert.equal(accountURL('/api/media/id'),'/api/media/id?account=b');assert.equal(draftKey('chat'),'accounts/b/draft:chat');
+ modal('A','<button id="save">Сохранить</button>');let saved;const save=saveAction(()=>new Promise(r=>saved=r));const saving=save({currentTarget:document.querySelector('#save'),preventDefault(){}});setActiveAccount('c');modal('B','<input value="other-account">');saved();await saving;assert.equal(document.querySelector('dialog').open,true);assert.equal(document.querySelector('input').value,'other-account');setActiveAccount(null);
+});
+test('email UI preserves name/email when going back and automatically completes registration',async()=>{
+ const {emailAuthView}=await import('../public/email-auth.js');let completed=null,posts=[];globalThis.fetch=async(url,options)=>{posts.push({url,data:JSON.parse(options.body)});return {ok:true,json:async()=>url.endsWith('/start')?{challengeId:'challenge',email:'s•••••@example.test',retryAfter:60}:{user:{id:'new',username:null}}};};
+ emailAuthView(document.querySelector('#auth'),{complete:r=>completed=r});document.querySelector('[data-mode=register]').click();let form=document.querySelector('#email-form');form.elements.firstName.value='Серафим';form.elements.lastName.value='Миронов';form.dispatchEvent(new Event('submit',{cancelable:true}));await tick();form=document.querySelector('#email-form');form.elements.email.value='serafim@example.test';document.querySelector('#email-back').click();assert.equal(document.querySelector('[name=firstName]').value,'Серафим');document.querySelector('#email-form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();assert.equal(document.querySelector('[name=email]').value,'serafim@example.test');document.querySelector('#email-form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();assert.equal(document.querySelector('[name=username]'),null);document.querySelector('[name=code]').value='123456';document.querySelector('#email-form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();assert.equal(completed.user.id,'new');assert.equal(posts[0].data.firstName,'Серафим');assert.equal(posts[0].data.lastName,'Миронов');assert.equal(posts[1].data.challengeId,'challenge');
+});
+test('subscriber count uses Russian plural rules',()=>{assert.deepEqual([1,2,5,11,21,22,25,111].map(n=>peopleCount(n,true)),['1 подписчик','2 подписчика','5 подписчиков','11 подписчиков','21 подписчик','22 подписчика','25 подписчиков','111 подписчиков']);});
+
+test('push subscription is independently registered for every authorized account',async()=>{
+ setActiveAccount('push-a');const calls=[];globalThis.fetch=async(path,options)=>{calls.push({path,account:options.headers['X-Cipherion-Account']});return {ok:true,json:async()=>path==='/api/accounts'?[{user:{id:'push-a'}},{user:{id:'push-b'}}]:{ok:true}};};
+ const {registerDevicePush}=await import('../public/notifications.js');await registerDevicePush({endpoint:'test'});assert.deepEqual(calls.filter(c=>c.path==='/api/push/subscriptions').map(c=>c.account),['push-a','push-b']);
+});
+test('callbacks retained by an old file picker cannot act as the new account',async()=>{
+ const {guard}=await import('../public/ui.js');setActiveAccount('picker-a');let calls=0;const callback=guard(()=>calls++);setActiveAccount('picker-b');await callback();assert.equal(calls,0);
+});

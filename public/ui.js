@@ -1,3 +1,4 @@
+import {activeAccount,accountFetch,accountURL,accountEpoch} from './account-context.js';
 export const $ = (q, root = document) => root.querySelector(q);
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const paths = {
@@ -21,31 +22,52 @@ const paths = {
 };
 export const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(paths[name] || paths.chat).split('~').map(d=>`<path d="${d}"/>`).join('')}</svg>`;
 export const button = (name, title, attrs = '') => `<button class="icon-button" title="${esc(title)}" aria-label="${esc(title)}" ${attrs}>${icon(name)}</button>`;
-export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}">${media ? `<img src="/api/media/${encodeURIComponent(media)}" alt="">` : esc((name || '?').slice(0, 2).toUpperCase())}</span>`;
+export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc((name || '?').slice(0, 2).toUpperCase())}</span>`;
 export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
-async function requestJSON(url,options) {
+async function requestJSON(url,options,account=activeAccount()) {
+  const ticket=accountEpoch();
   let response;
-  try{response=await fetch(url,options);}catch{throw new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');}
+  try{response=await accountFetch(url,options,account);}catch(error){if(error.name==='AbortError')throw error;throw new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');}
   let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502});}
   if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status});}
-  return result;
+  if(ticket!==accountEpoch())throw new DOMException('Аккаунт переключён','AbortError');return result;
 }
-export async function api(path, method='GET', data, signal) {
-  return requestJSON('/api'+path,{method,signal,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
+export async function api(path, method='GET', data, signal, account=activeAccount()) {
+  return requestJSON('/api'+path,{method,signal,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)},account);
 }
-export async function upload(file) {
-  const limit=(await api('/vip')).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
-  return requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file});
+export async function upload(file,account=activeAccount()) {
+  const limit=(await api('/vip','GET',undefined,undefined,account)).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
+  return requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file},account);
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
-export function guard(fn) { return async (...args)=>{try{await fn(...args);}catch(error){toast(error.message);}}; }
+export function guard(fn) { const ticket=accountEpoch();return async (...args)=>{if(ticket!==accountEpoch())return;try{await fn(...args);}catch(error){if(ticket===accountEpoch()&&error.name!=='AbortError')toast(error.message);}}; }
 
 
 
 
 
 
+
+
+// Explicit shared save contract: duplicate protection, retained form on error,
+// and close only after the operation and local-state update have succeeded.
+export function saveAction(fn) {
+ let pending=false;const boundEpoch=accountEpoch();
+ return async function(event,...args) {
+  event?.preventDefault?.();if(pending||boundEpoch!==accountEpoch())return;pending=true;
+  const ticket=accountEpoch();const source=event?.currentTarget,dialog=source?.closest?.('dialog')||$('#modal');
+  const controls=source?.tagName==='FORM'?[...source.querySelectorAll('button[type="submit"],button:not([type])')]:source?[source]:[];
+  const old=controls.map(c=>c.disabled);controls.forEach(c=>{c.disabled=true;c.setAttribute('aria-busy','true');});
+  const errorBox=dialog?.querySelector('[data-save-error]');errorBox?.remove();
+  try{await fn(event,...args);if(ticket===accountEpoch()&&dialog?.open)dialog.close();}
+  catch(error){if(ticket!==accountEpoch()||error.name==='AbortError')return;if(dialog?.open){const box=document.createElement('p');box.dataset.saveError='';box.setAttribute('role','alert');box.textContent=error.message;dialog.querySelector('.modal-body')?.append(box);}toast(error.message);}
+  finally{pending=false;controls.forEach((c,i)=>{c.disabled=old[i];c.removeAttribute('aria-busy');});}
+ };
+}
+export function peopleCount(n,channel=false){const forms=channel?['подписчик','подписчика','подписчиков']:['участник','участника','участников'];const a=n%10,b=n%100;return `${n} ${forms[b>=11&&b<=14?2:a===1?0:a>=2&&a<=4?1:2]}`;}
+// Lost legacy uploads remain a recoverable UI state, not a broken image.
+if(typeof document!=='undefined')document.addEventListener('error',event=>{const el=event.target;if(!el?.matches?.('img,video,audio')||!el.getAttribute('src')?.startsWith('/api/media/'))return;if(el.parentElement?.classList.contains('avatar')){el.replaceWith(document.createTextNode('?'));return;}const placeholder=document.createElement('span');placeholder.className='media-unavailable';placeholder.textContent='Медиа недоступно';el.replaceWith(placeholder);},true);

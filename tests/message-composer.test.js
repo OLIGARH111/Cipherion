@@ -4,18 +4,21 @@ import {JSDOM} from 'jsdom';
 import {indexedDB} from 'fake-indexeddb';
 const dom=new JSDOM('<main id="app"></main><div id="toast"></div><dialog id="modal"></dialog><div id="call-root"></div>',{url:'https://cipherion.example',pretendToBeVisual:true});
 for(const key of ['window','document','navigator','Event','FormData','HTMLElement','MutationObserver','localStorage','sessionStorage','location'])Object.defineProperty(globalThis,key,{configurable:true,value:dom.window[key]});
+dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
 Object.defineProperty(globalThis,'indexedDB',{value:indexedDB});Object.defineProperty(navigator,'onLine',{configurable:true,value:true,writable:true});
 globalThis.matchMedia=()=>({matches:false,addEventListener(){}});globalThis.IntersectionObserver=class{observe(){}unobserve(){}};globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);
 const timers=[];const originalInterval=globalThis.setInterval;globalThis.setInterval=(...args)=>{const timer=originalInterval(...args);timers.push(timer);return timer;};
 class Events extends dom.window.EventTarget{constructor(){super();Events.current=this;}close(){}emit(type,payload){this.dispatchEvent(new dom.window.MessageEvent(type,{data:JSON.stringify(payload)}));}}
 globalThis.EventSource=Events;
 const chat={id:'chat',kind:'direct',title:'Bob',members:[{user_id:'alice',name:'Alice'},{user_id:'bob',name:'Bob'}],unread:0};
-const pending=[],requests=[];let history=[],historyWait=null,app;
+const pending=[],requests=[];let history=[],historyWait=null,app,accounts=[{user:{id:'alice',name:'Alice'},unread:0}],aliceChats=[chat],bobWait=null;
 const response=data=>({ok:true,json:async()=>structuredClone(data)});
 globalThis.fetch=async(url,options={})=>{
  requests.push({url,method:options.method});
- if(url==='/api/me')return response({user:{id:'alice',name:'Alice'},settings:{},iceServers:[]});
- if(url==='/api/chats')return response([chat]);
+ if(url==='/api/accounts')return response(accounts);
+ if(url==='/api/me'){const user=options.headers?.['X-Cipherion-Account']||'alice';if(user==='bob'&&bobWait)return bobWait;return response({user:{id:user,name:user==='bob'?'Bob':'Alice'},settings:{},iceServers:[]});}
+ if(url==='/api/chats')return response(options.headers?.['X-Cipherion-Account']==='bob'?[{...chat,id:'bob-chat',title:'Only Bob'}]:aliceChats);
+ if(url==='/api/chats/channel/messages')return response([]);
  if(url==='/api/chats/chat/messages'&&options.method==='POST')return new Promise((resolve,reject)=>pending.push({payload:JSON.parse(options.body),resolve,reject}));
  if(url==='/api/chats/chat/messages')return historyWait?historyWait:response(history);
  if(url==='/api/sync?after=0')return response({events:[],cursor:0,hasMore:false});
@@ -52,4 +55,14 @@ test('actual composer: immediate clear, button/Enter, 10 rapid sends, delayed AC
  navigator.onLine=false;send('offline');const offline=[...document.querySelectorAll('article')].at(-1);assert.match(offline.textContent,/Не отправлено/);await tick();assert.equal(pending.length,11);
  navigator.onLine=true;window.dispatchEvent(new Event('online'));await until(()=>pending.length===12);const key=pending[11].payload.clientMessageId;pending[11].reject(new Error('lost response'));await until(()=>offline.querySelector('.retry-send'));offline.querySelector('.retry-send').click();await until(()=>pending.length===13);assert.equal(pending[12].payload.clientMessageId,key);
  const m={id:'server-offline',client_id:key,chat_id:'chat',user_id:'alice',body:'offline',kind:'text',created:Date.now()+200};history.push(m);pending[12].resolve(response(m));await until(()=>!app.state.messages.at(-1).pending);assert.equal(document.querySelector('[data-id="server-offline"]'),offline);assert.equal(document.querySelectorAll('article').length,12);
+});
+
+
+test('actual channel removes the whole composer; account switches clear the old UI before loading',async()=>{
+ const channel={id:'channel',kind:'channel',title:'Broadcast',canPost:false,muted:false,members:[{user_id:'alice',name:'Alice',role:'subscriber'}],unread:0};aliceChats.push(channel);app.state.chats.push(channel);await app.openChat('channel');
+ assert.equal(document.querySelector('.composer-wrap'),null);assert.equal(document.querySelector('#draft'),null);assert.equal(document.querySelector('#attach'),null);assert.equal(document.querySelector('#channel-mute').textContent,'Выключить звук');
+ accounts.push({user:{id:'bob',name:'Bob'},unread:7});let resolve;bobWait=new Promise(r=>resolve=r);const switching=app.state.accounts.switchTo('bob');await until(()=>app.state.user===null);
+ assert.equal(document.querySelector('#app').textContent,'');assert.deepEqual(app.state.messages,[]);assert.deepEqual(app.state.chats,[]);
+ resolve(response({user:{id:'bob',name:'Bob'},settings:{},iceServers:[]}));await switching;bobWait=null;assert.equal(app.state.user.id,'bob');assert.deepEqual(app.state.chats.map(c=>c.id),['bob-chat']);assert.doesNotMatch(document.querySelector('#app').textContent,/Broadcast/);
+ await app.state.accounts.switchTo('alice');assert.equal(app.state.user.id,'alice');assert.ok(app.state.chats.some(c=>c.id==='chat'));await app.openChat('chat');assert.ok(document.querySelector('#composer'));assert.equal(document.querySelectorAll('article.message').length,12);
 });

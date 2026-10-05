@@ -29,7 +29,7 @@ export function database(directory) {
     if(!existing.length&&process.env.TURSO_ALLOW_EMPTY_INIT!=='1')throw new Error('Empty Turso database: import existing data first, or explicitly enable empty initialization');
   }
   db.exec(`
-    CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, password TEXT NOT NULL, bio TEXT DEFAULT '', avatar TEXT DEFAULT '', settings TEXT DEFAULT '{}', created INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE, name TEXT NOT NULL, password TEXT NOT NULL, bio TEXT DEFAULT '', avatar TEXT DEFAULT '', settings TEXT DEFAULT '{}', created INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), agent TEXT, created INTEGER, active INTEGER, expires INTEGER);
     CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT, avatar TEXT DEFAULT '', permissions TEXT DEFAULT '{}', created INTEGER);
     CREATE TABLE IF NOT EXISTS members(chat_id TEXT REFERENCES chats(id), user_id TEXT REFERENCES users(id), role TEXT DEFAULT 'member', rules TEXT DEFAULT '{}', tag TEXT DEFAULT '', read_at INTEGER DEFAULT 0, delivered_at INTEGER DEFAULT 0, PRIMARY KEY(chat_id,user_id));
@@ -43,4 +43,5 @@ export function database(directory) {
   `);
   return db;
 }
+
 
