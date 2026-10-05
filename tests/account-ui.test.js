@@ -27,3 +27,10 @@ test('push subscription is independently registered for every authorized account
 test('callbacks retained by an old file picker cannot act as the new account',async()=>{
  const {guard}=await import('../public/ui.js');setActiveAccount('picker-a');let calls=0;const callback=guard(()=>calls++);setActiveAccount('picker-b');await callback();assert.equal(calls,0);
 });
+
+test('email security approval uses the verified address and completes without creating a session',async()=>{
+ setActiveAccount('security-ui');const {emailAuthView}=await import('../public/email-auth.js');const target=document.querySelector('#auth');let completed;
+ globalThis.fetch=async(path,options)=>({ok:true,json:async()=>path.endsWith('/start')?{challengeId:'security',email:'s•••••@example.test',retryAfter:60}:{approvalToken:'proof'}});
+ emailAuthView(target,{purpose:'security',email:'security@example.test',complete:r=>completed=r});const email=target.querySelector('[name=email]');assert.equal(email.readOnly,true);assert.equal(email.value,'security@example.test');
+ target.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();assert.equal(target.querySelector('[name=password]'),null);target.querySelector('[name=code]').value='123456';target.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();assert.deepEqual(completed,{approvalToken:'proof'});
+});

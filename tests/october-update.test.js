@@ -73,3 +73,21 @@ test('object storage verifies upload, survives local deletion/restart, ranges an
  db.exec("CREATE TABLE messages(id TEXT PRIMARY KEY,media_id TEXT);INSERT INTO messages VALUES('original','photo');INSERT INTO messages VALUES('forward','photo');");assert.equal(mediaReferenced(db,'photo'),true);db.exec("DELETE FROM messages WHERE id='original'");assert.equal(mediaReferenced(db,'photo'),true);db.exec('DELETE FROM messages');assert.equal(mediaReferenced(db,'photo'),false);await storage.remove('media','photo');assert.equal(objects.size,0);assert.throws(()=>validateUpload(Buffer.from('not a png'),'image/png','photo.png'),{status:400});assert.throws(()=>validateUpload(Buffer.from('MZfake'),'application/octet-stream','safe.txt'),{status:400});
  }finally{db.close();await rm(tmp,{recursive:true,force:true});await rm(tmp+'-backup',{recursive:true,force:true});}
 });
+
+test('passwordless 2FA requires a fresh session-bound email approval and protects later login',async()=>{
+ await stop();await start();const p=await register('security@example.test');sql(db=>db.prepare("UPDATE email_cooldowns SET last_sent=0 WHERE email='security@example.test'").run());
+ const begin=await request('/auth/email/start',p.d,'POST',{purpose:'security',email:'ignored@example.test'});assert.equal(begin.status,200);assert.equal(mailbox.at(-1).to,'security@example.test');const code=mailbox.at(-1).code;
+ assert.equal((await request('/auth/email/confirm',c.d,'POST',{challengeId:begin.data.challengeId,code})).status,403);
+ const approval=await request('/auth/email/confirm',p.d,'POST',{challengeId:begin.data.challengeId,code});assert.equal(approval.status,200);const approvalToken=approval.data.approvalToken;assert.equal(approvalToken.length,64);
+ assert.equal((await request('/security/2fa/setup',p.d,'POST',{})).status,403);assert.equal((await request('/security/2fa/setup',c.d,'POST',{approvalToken})).status,403);
+ const setup=await request('/security/2fa/setup',p.d,'POST',{approvalToken});assert.equal(setup.status,200);const {totp}=await import('../server/security.js');
+ const confirmed=await request('/security/2fa/confirm',p.d,'POST',{approvalToken,code:totp(setup.data.secret)});assert.equal(confirmed.status,200);assert.equal(confirmed.data.codes.length,10);assert.equal((await request('/security/2fa/setup',p.d,'POST',{approvalToken})).status,403);
+ sql(db=>db.prepare("UPDATE email_cooldowns SET last_sent=0 WHERE email='security@example.test'").run());const other=device();const login=await request('/auth/email/start',other,'POST',{purpose:'login',email:'security@example.test'});assert.equal(login.status,200);const loginCode=mailbox.at(-1).code;
+ assert.equal((await request('/auth/email/confirm',other,'POST',{challengeId:login.data.challengeId,code:loginCode})).status,401);
+ const success=await request('/auth/email/confirm',other,'POST',{challengeId:login.data.challengeId,code:loginCode,secondFactor:confirmed.data.codes[0]});assert.equal(success.status,200);other.user=p.user.id;
+ sql(db=>db.prepare("UPDATE email_cooldowns SET last_sent=0 WHERE email='security@example.test'").run());const step=await request('/auth/email/start',p.d,'POST',{purpose:'security'});const stepCode=mailbox.at(-1).code;
+ assert.equal((await request('/auth/email/confirm',other,'POST',{challengeId:step.data.challengeId,code:stepCode})).status,403);
+ const proof=(await request('/auth/email/confirm',p.d,'POST',{challengeId:step.data.challengeId,code:stepCode})).data.approvalToken;
+ assert.equal((await request('/security/2fa',p.d,'DELETE',{approvalToken:proof,code:confirmed.data.codes[1]})).status,200);
+ assert.equal((await request('/security/2fa',p.d)).data.enabled,false);
+});
