@@ -10,7 +10,7 @@ after(async()=>{server?.kill();await new Promise(resolve=>server?.exitCode!==nul
 async function request(path,cookie,method='GET',data){const response=await fetch(base+'/api'+path,{method,headers:{...(cookie?{Cookie:cookie}:{}),...(data!==undefined?{'Content-Type':'application/json'}:{})},body:data===undefined?undefined:JSON.stringify(data)});return{status:response.status,data:await response.json(),cookie:response.headers.get('set-cookie')?.split(';')[0]};}
 async function account(username){return request('/auth',null,'POST',{register:true,username,name:username,password:'test-password-12345'});}
 test('real accounts, persistent messages, media ACL, polling and server-enforced group restrictions',async()=>{
-  const a=await account('alice'),b=await account('bob'),c=await account('charlie');assert.equal(a.status,200);assert.ok(a.cookie);
+  const a=await account('alice'),b=await account('bobby'),c=await account('charlie');assert.equal(a.status,200);assert.ok(a.cookie);
   assert.equal((await request('/chats')).status,401);
   assert.equal((await request('/auth',null,'POST',{username:'alice',password:'incorrect-123'})).status,401);
   const chat=(await request('/chats',a.cookie,'POST',{kind:'group',title:'Test group',users:[b.data.user.id]})).data;
@@ -43,6 +43,7 @@ test('real accounts, persistent messages, media ACL, polling and server-enforced
   assert.equal((await request('/logout',a.cookie,'POST',{})).status,200);assert.equal((await request('/me',a.cookie)).status,401);
 });
 test('direct chat deduplication and blocks apply to messages and calls',async()=>{
-  const a=await account('diana'),b=await account('eric');const payload={users:[b.data.user.id]};const chat=await request('/chats',a.cookie,'POST',payload);const again=await request('/chats',a.cookie,'POST',payload);assert.equal(chat.data.id,again.data.id);
+  const a=await account('diana'),b=await account('erick');const payload={users:[b.data.user.id]};const chat=await request('/chats',a.cookie,'POST',payload);const again=await request('/chats',a.cookie,'POST',payload);assert.equal(chat.data.id,again.data.id);
   await request('/blocks',b.cookie,'POST',{target:a.data.user.id});assert.equal((await request(`/chats/${chat.data.id}/messages`,a.cookie,'POST',{body:'hello'})).status,403);assert.equal((await request('/calls',a.cookie,'POST',{chat:chat.data.id})).status,403);
 });
+

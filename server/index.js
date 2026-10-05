@@ -46,8 +46,19 @@ function emit(user, event, payload) {
   for (const res of streams.get(user) || []) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 function broadcast(chat, event, payload) {
-  for (const m of all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'", chat)) emit(m.user_id, event, payload);
+  if(event==='message'){
+    // Let the HTTP acknowledgement leave before projecting realtime payloads.
+    setImmediate(()=>{try{
+      const row=one('SELECT * FROM messages WHERE id=?',payload.id);
+      if(!row)return;
+      for(const m of all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",chat))
+        emit(m.user_id,event,{...payload,clientMessageId:row.client_id,message:message(row,m.user_id)});
+    }catch(error){logFailure('message_event_failed',error);}});
+    return;
+  }
+  for(const m of all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",chat))emit(m.user_id,event,payload);
 }
+
 function membership(chatId, userId) {
   const chat = one('SELECT * FROM chats WHERE id=?', chatId);
   const member = one('SELECT * FROM members WHERE chat_id=? AND user_id=?', chatId, userId);
@@ -64,8 +75,9 @@ function audit(chat, actor, action, target = '') {
   broadcast(chat, 'refresh', { chat });
 }
 function message(row, viewer) {
+  row={...row,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent'};
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id), viewer);
-  if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, deleted: true, author };
+  if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, client_id:row.client_id,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent', deleted: true, author };
   const result = { ...row, author, reactions:social.reactions(row.id), media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
   if(row.poll)result.poll=polls.project(row,viewer);
   if(row.kind==='sticker')result.sticker=stickers.asset(row.body);
@@ -275,7 +287,7 @@ const server = http.createServer(async (req, res) => {
         return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {
-        const clientId=b.clientId==null?null:String(b.clientId);if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
+        const clientId=(b.clientMessageId??b.clientId)==null?null:String(b.clientMessageId??b.clientId);if(b.clientMessageId&&b.clientId&&b.clientMessageId!==b.clientId)fail(400,'ID сообщения не совпадают');if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
         if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){const request=one('SELECT fingerprint FROM message_requests WHERE user_id=? AND client_id=?',user.id,clientId);if(existing.chat_id!==chatId || request&&request.fingerprint!==messageFingerprint(chatId,b))fail(409,'ID сообщения уже использован для другого запроса');return json(message(existing,user.id));}}
         rate('message:' + user.id, 90); family.content(chatId,clean(b.body)+' '+JSON.stringify(b.poll||{}),!!b.media);
         const kind = ['text','photo','video','file','voice','round','poll'].includes(b.kind) ? b.kind : 'text';
@@ -359,10 +371,20 @@ const server = http.createServer(async (req, res) => {
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll||m.deleted)fail(400,'Опрос недоступен');polls.vote(m,user.id,b.choices);
       } else if(action==='forward' && req.method==='POST') {
+        membership(b.chat,user.id);family.chatAccess(b.chat,user.id);
+        const clientId=(b.clientMessageId??b.clientId)==null?null:String(b.clientMessageId??b.clientId);
+        if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
+        const fingerprint=messageFingerprint(b.chat,{body:m.id,kind:'forward'});
+        if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){const request=one('SELECT fingerprint FROM message_requests WHERE user_id=? AND client_id=?',user.id,clientId);if(existing.chat_id!==b.chat||request?.fingerprint!==fingerprint)fail(409,'ID сообщения уже использован');return json(message(existing,user.id));}}
         if(m.deleted || m.kind==='poll') fail(400,'Пересылка недоступна');
-        const {chat:destination}=requirePermission(b.chat,user.id,m.kind==='sticker'?'photo':m.kind); family.chatAccess(b.chat,user.id);family.content(b.chat,m.body,!!m.media_id||m.kind==='sticker'||!!one('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id));
+        const {chat:destination}=requirePermission(b.chat,user.id,m.kind==='sticker'?'photo':m.kind);family.content(b.chat,m.body,!!m.media_id||m.kind==='sticker'||!!one('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id));
         if(destination.kind==='direct')for(const member of all('SELECT user_id FROM members WHERE chat_id=?',b.chat))if(member.user_id!==user.id)privacy.assertContact(user.id,member.user_id,'messages');
-        const newId=id(); run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,forwarded,created) VALUES(?,?,?,?,?,?,?,?)',newId,b.chat,user.id,m.kind,m.body,m.media_id,m.author || one('SELECT name FROM users WHERE id=?',m.user_id).name,now()); stickers.bind(newId,all('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id).map(s=>s.sticker_id));broadcast(b.chat,'message',{chat:b.chat,id:newId}); return json({ok:true});
+        const newId=id();db.exec('BEGIN');try{
+          run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,forwarded,created,client_id) VALUES(?,?,?,?,?,?,?,?,?)',newId,b.chat,user.id,m.kind,m.body,m.media_id,m.author || one('SELECT name FROM users WHERE id=?',m.user_id).name,Math.max(now(),(one('SELECT MAX(created) n FROM messages WHERE chat_id=?',b.chat)?.n||0)+1),clientId);
+          if(clientId)run('INSERT INTO message_requests VALUES(?,?,?,?)',user.id,clientId,newId,fingerprint);
+          stickers.bind(newId,all('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id).map(s=>s.sticker_id));db.exec('COMMIT');
+        }catch(error){db.exec('ROLLBACK');throw error;}
+        broadcast(b.chat,'message',{chat:b.chat,id:newId});return json(message(one('SELECT * FROM messages WHERE id=?',newId),user.id),201);
       } else if(action==='transcribe' && req.method==='POST') {
         if(b.consent!==true||ai.settings(user.id).voice!==true)fail(403,'Разрешите AI доступ к голосовым сообщениям и подтвердите передачу записи');
         if(!['voice','round'].includes(m.kind)||m.deleted) fail(400,'Нет записи для расшифровки');
@@ -434,6 +456,7 @@ const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+
 
 
 
