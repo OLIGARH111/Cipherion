@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 export function createStorage({db,one,run,data,env=process.env,client}) {
  db.exec(`CREATE TABLE IF NOT EXISTS media_objects(namespace TEXT NOT NULL,media_id TEXT NOT NULL,owner_id TEXT NOT NULL,provider TEXT NOT NULL,storage_key TEXT NOT NULL UNIQUE,mime_type TEXT NOT NULL,size INTEGER NOT NULL,checksum TEXT NOT NULL,width INTEGER,height INTEGER,duration REAL,thumbnail_key TEXT,status TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(namespace,media_id));`);
  const configured=!!(env.S3_BUCKET&&env.S3_ACCESS_KEY_ID&&env.S3_SECRET_ACCESS_KEY);
- if([env.S3_BUCKET,env.S3_ACCESS_KEY_ID,env.S3_SECRET_ACCESS_KEY].some(Boolean)&&!configured)throw new Error('Incomplete object storage configuration');
+ if([env.S3_BUCKET,env.S3_ACCESS_KEY_ID,env.S3_SECRET_ACCESS_KEY].some(Boolean)&&!configured)console.warn('Object storage configuration is incomplete; durable uploads are unavailable.');
  if(env.S3_ENDPOINT&&!/^https:\/\//.test(env.S3_ENDPOINT)&&env.NODE_ENV!=='test')throw new Error('Object storage requires HTTPS');
  const s3=client||(configured?new S3Client({region:env.S3_REGION||'auto',endpoint:env.S3_ENDPOINT||undefined,forcePathStyle:env.S3_FORCE_PATH_STYLE==='1',credentials:{accessKeyId:env.S3_ACCESS_KEY_ID,secretAccessKey:env.S3_SECRET_ACCESS_KEY},requestChecksumCalculation:'WHEN_REQUIRED'}):null);
  const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};

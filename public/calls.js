@@ -1,6 +1,26 @@
 import {closeCallNotification} from './notifications.js';
 import {$,esc,icon,button,avatar,api,modal,guard,toast} from './ui.js';
 
+// Keep mute/camera state when selecting a new device. Retain the old tracks until
+// every peer has accepted the replacement, so a rejected change is recoverable.
+export async function replaceCallTracks(local,peers,replacement){
+  const tracks=replacement.getTracks(),changes=[];
+  const pairs=tracks.map(track=>({track,old:local.getTracks().find(t=>t.kind===track.kind)}));
+  try{
+    for(const {track,old} of pairs){
+      if(old)track.enabled=old.enabled;
+      for(const p of peers.values()){
+        const sender=p.pc.getSenders().find(s=>s.track===old);
+        if(sender){await sender.replaceTrack(track);changes.push({sender,old});}
+      }
+    }
+  }catch(error){
+    await Promise.allSettled(changes.map(({sender,old})=>sender.replaceTrack(old)));
+    tracks.forEach(t=>t.stop());throw error;
+  }
+  for(const {track,old} of pairs){if(old){local.removeTrack(old);old.stop();}local.addTrack(track);}
+}
+
 // Keep audio independent of video readiness, and retry playback as tracks arrive.
 export function bindRemoteMedia(tile, stream, debug=()=>{}){
   const video=tile.querySelector('video'),audio=document.createElement('audio');
@@ -68,7 +88,7 @@ export function createCalls(state,iceServers){
     $('#minimize-call').onclick=()=>{minimized=!minimized;$('.call-overlay').classList.toggle('minimized',minimized);};
     $('#toggle-mic').onclick=()=>{local.getAudioTracks().forEach(t=>t.enabled=!t.enabled);$('#toggle-mic').classList.toggle('off',!local.getAudioTracks()[0]?.enabled);};
     $('#toggle-camera').onclick=guard(async()=>{const track=local.getVideoTracks()[0];if(track){track.enabled=!track.enabled;$('#toggle-camera').classList.toggle('off',!track.enabled);}else{const stream=await navigator.mediaDevices.getUserMedia({video:true});const track=stream.getVideoTracks()[0];local.addTrack(track);for(const p of peers.values())p.pc.addTrack(track,local);$('#local-video').srcObject=local;$('#toggle-camera').classList.remove('off');}});
-    $('#flip-camera').onclick=guard(async()=>{const old=local.getVideoTracks()[0];if(!old)throw new Error('Сначала включите камеру');const facing=old.getSettings().facingMode==='environment'?'user':'environment';const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});const track=stream.getVideoTracks()[0];try{for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}local.removeTrack(old);old.stop();local.addTrack(track);$('#local-video').srcObject=local;}catch(e){track.stop();throw e;}});
+    $('#flip-camera').onclick=guard(async()=>{const old=local.getVideoTracks()[0];if(!old)throw new Error('Сначала включите камеру');const facing=old.getSettings().facingMode==='environment'?'user':'environment';const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});const track=stream.getVideoTracks()[0];track.enabled=old.enabled;try{for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}local.removeTrack(old);old.stop();local.addTrack(track);$('#local-video').srcObject=local;}catch(e){track.stop();throw e;}});
     $('#call-check').onclick=guard(checkConnection);$('#share-screen').onclick=guard(toggleScreen);$('#call-devices').onclick=guard(devices);$('#hangup').onclick=guard(async()=>{try{await action('leave');}finally{stop();}});
     $('#toggle-camera').classList.toggle('off',!local.getVideoTracks().length);
     started=Date.now();clearInterval(timer);timer=setInterval(()=>{if(!current)return;const seconds=Math.floor((Date.now()-started)/1000);if($('#call-timer'))$('#call-timer').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;},1000);
@@ -161,10 +181,9 @@ export function createCalls(state,iceServers){
     const display=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false});try{await action('share',{enabled:true});}catch(error){display.getTracks().forEach(t=>t.stop());throw error;}
     screen=display;for(const p of peers.values())p.screenSender=p.pc.addTrack(display.getVideoTracks()[0],display);display.getVideoTracks()[0].onended=()=>{if(screen)guard(toggleScreen)();};$('#share-screen')?.classList.add('off');status('Вы демонстрируете экран');
   }
-  async function devices(){const devices=await navigator.mediaDevices.enumerateDevices();const options=kind=>devices.filter(d=>d.kind===kind).map(d=>`<option value="${esc(d.deviceId)}">${esc(d.label||'Устройство')}</option>`).join('');modal('Устройства звонка',`<label class="field">Микрофон<select id="audio-device">${options('audioinput')}</select></label><label class="field">Камера<select id="video-device">${options('videoinput')}</select></label><label class="field">Вывод звука<select id="output-device">${options('audiooutput')}</select></label><button class="primary" id="apply-devices">Применить</button><p class="note">На телефоне динамик и Bluetooth могут переключаться системными средствами. Выбор аудиовыхода поддерживается не во всех браузерах.</p>`);$('#apply-devices').onclick=guard(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:$('#audio-device').value}},video:local.getVideoTracks().length?{deviceId:{exact:$('#video-device').value}}:false});for(const track of stream.getTracks()){const old=local.getTracks().find(t=>t.kind===track.kind);for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}if(old){local.removeTrack(old);old.stop();}local.addTrack(track);}$('#local-video').srcObject=local;const output=$('#output-device').value;for(const video of root.querySelectorAll('video,audio'))if(!video.muted&&video.setSinkId&&output)await video.setSinkId(output);$('#modal').close();});}
+  async function devices(){const devices=await navigator.mediaDevices.enumerateDevices();const options=kind=>devices.filter(d=>d.kind===kind).map(d=>`<option value="${esc(d.deviceId)}">${esc(d.label||'Устройство')}</option>`).join('');modal('Устройства звонка',`<label class="field">Микрофон<select id="audio-device">${options('audioinput')}</select></label><label class="field">Камера<select id="video-device">${options('videoinput')}</select></label><label class="field">Вывод звука<select id="output-device">${options('audiooutput')}</select></label><button class="primary" id="apply-devices">Применить</button><p class="note">На телефоне динамик и Bluetooth могут переключаться системными средствами. Выбор аудиовыхода поддерживается не во всех браузерах.</p>`);$('#apply-devices').onclick=guard(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:$('#audio-device').value}},video:local.getVideoTracks().length?{deviceId:{exact:$('#video-device').value}}:false});await replaceCallTracks(local,peers,stream);$('#local-video').srcObject=local;const output=$('#output-device').value;for(const video of root.querySelectorAll('video,audio'))if(!video.muted&&video.setSinkId&&output)await video.setSinkId(output);$('#modal').close();});}
   return{dispose:stop,busy:()=>!!(current||starting),event,signal:data=>{signalQueue=signalQueue.then(()=>signal(data)).catch(e=>toast(e.message));return signalQueue;},reconnect:async()=>{const active=await api('/calls/active');if(current){if(!active.some(c=>c.id===current.id)){stop();return;}for(const p of peers.values())p.pc.restartIce();}else for(const c of active)if(c.state==='ringing')await event(c);},start:async(chat,video)=>{if(current||incoming||starting||confirming)return;if(!chat)throw new Error('Чат недоступен');confirming=true;const peer=chat.members?.find(m=>m.user_id!==state.user.id),group=chat.kind!=='direct';const confirmed=await new Promise(resolve=>{const dialog=modal(group?'Начать звонок в «'+chat.title+'»?':(video?'Видеозвонок: ':'Позвонить: ')+chat.title+'?',`<div class="call-confirm">${avatar(chat.title,chat.avatar||peer?.avatar,'large')}<p>${group?'Участники группы смогут присоединиться к звонку.':'Вы действительно хотите начать '+(video?'видеозвонок':'аудиозвонок')+' пользователю '+esc(chat.title)+'?'}</p><div class="row"><button class="secondary" id="cancel-dial">Отмена</button><button class="primary" id="confirm-dial">${icon(video?'video':'phone')}${group?'Начать звонок':'Позвонить'}</button></div></div>`);let settled=false;function finish(value){if(settled)return;settled=true;dialog.removeEventListener('close',cancel);dialog.close();resolve(value);}const cancel=()=>finish(false);dialog.addEventListener('close',cancel,{once:true});$('#cancel-dial').onclick=cancel;$('#confirm-dial').onclick=()=>{unlockAudio();finish(true);};});confirming=false;if(!confirmed||current||incoming||starting)return;starting=true;try{local=await media(video);const config=await api('/rtc-config');iceServers=config.iceServers;current=await api('/calls','POST',{chat:chat.id,video});render();status('Звоним…');if(!config.relayConfigured)toast('Прямые звонки включены. Для сложных сетей администратору нужен TURN.');}catch(error){stop();throw error;}finally{starting=false;}}};
 }
-
 
 
 

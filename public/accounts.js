@@ -1,13 +1,13 @@
 import {activeAccount,setActiveAccount} from './account-context.js';
 import {$,api,avatar,esc,modal,guard} from './ui.js';
 import {emailAuthView} from './email-auth.js';
-export function createAccountSessionManager({activate,canSwitch=()=>true}) {
+export function createAccountSessionManager({activate,deactivate=()=>{},canSwitch=()=>true}) {
  let accounts=[],busy=false;
  async function refresh(){accounts=await api('/accounts');return accounts;}
  async function switchTo(id){if(busy)return;if(!canSwitch())throw new Error('Сначала завершите звонок или запись');if(!accounts.some(a=>a.user.id===id)){await refresh();if(!accounts.some(a=>a.user.id===id))throw new Error('Войдите в этот аккаунт заново');}busy=true;try{setActiveAccount(id);await activate(id);}finally{busy=false;}}
  function add(){if(accounts.length>=3)throw new Error('Можно добавить до 3 аккаунтов');if(!canSwitch())throw new Error('Сначала завершите звонок или запись');const dialog=modal('Добавить аккаунт','<div id="add-account-auth"></div>');emailAuthView($('#add-account-auth'),{cancel:()=>dialog.close(),complete:async r=>{dialog.close();await refresh();await switchTo(r.user.id);}});}
  async function show(){await refresh();modal('Аккаунты',accounts.map(a=>`<button class="chat-item" data-switch-account="${a.user.id}">${avatar(a.user.name,a.user.avatar)}<span>${a.user.id===activeAccount()?'✓ ':''}${esc(a.user.name+' '+(a.user.surname||''))}<small>${esc(a.user.username?'@'+a.user.username:mask(a.user.email))}</small></span>${a.unread?`<span class="badge">${a.unread}</span>`:''}</button>`).join('')+'<button class="primary" id="add-account">+ Добавить аккаунт</button><button class="secondary" id="change-email">Добавить / изменить email</button>');document.querySelectorAll('[data-switch-account]').forEach(b=>b.onclick=guard(async()=>{$('#modal').close();await switchTo(b.dataset.switchAccount);}));$('#add-account').onclick=guard(add);$('#change-email').onclick=()=>{const dialog=modal('Электронная почта','<div id="change-email-auth"></div>');emailAuthView($('#change-email-auth'),{changeEmail:true,cancel:()=>dialog.close(),complete:async()=>{dialog.close();await refresh();}});};}
- async function logout(){if(!canSwitch())throw new Error('Сначала завершите звонок или запись');const leaving=activeAccount();await api('/logout','POST',{});await clearAccountCache(leaving);await refresh();setActiveAccount(null);if(accounts.length)await switchTo(accounts[0].user.id);else await activate(null);}
+ async function logout(){if(busy)return;if(!canSwitch())throw new Error('Сначала завершите звонок или запись');busy=true;const leaving=activeAccount();try{await api('/logout','POST',{});setActiveAccount(null);await deactivate();await clearAccountCache(leaving);await refresh();const next=accounts[0]?.user.id||null;setActiveAccount(next);await activate(next);}finally{busy=false;}}
  async function initialize(){await refresh();const stored=localStorage.getItem('cipherion-active-account');setActiveAccount(accounts.some(a=>a.user.id===stored)?stored:accounts[0]?.user.id||null);return activeAccount();}
  return {initialize,show,add,logout,refresh,switchTo};
 }

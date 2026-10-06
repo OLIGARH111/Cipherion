@@ -1,6 +1,6 @@
 # Cipherion October update — implementation and release gates
 
-This change extends the existing Node/SQLite-or-libSQL server and vanilla client. Realtime remains authenticated SSE plus HTTP signaling; it does not introduce a parallel WebSocket implementation. The production database and Render environment have not been modified.
+This change extends the existing Node/SQLite-or-libSQL server and vanilla client. Realtime remains authenticated SSE plus HTTP signaling; it does not introduce a parallel WebSocket implementation. This feature branch has not been deployed and no production database migration has been performed. See the infrastructure status below before rollout.
 
 ## Implemented
 
@@ -56,3 +56,12 @@ Do not treat this draft as a completed production deployment. Do not run destruc
 The Resend adapter uses [POST /emails](https://resend.com/docs/api-reference/emails/send-email). Set `EMAIL_PROVIDER=resend`, a server-only `RESEND_API_KEY`, and `EMAIL_FROM` for your verified sender/domain. Keep `EMAIL_CODE_SECRET` stable and enable email auth only after the database migration. No SMTP server or custom webhook service is required in this mode. Provider/domain verification and real inbox delivery remain external release gates; test-sender success is not evidence of general delivery. Never paste credentials into the repository or a public issue.
 
 Recent GitHub checks for the initial PR commit passed for both push and pull-request workflows. Follow-up changes add direct mail API transport tests, session-bound passwordless 2FA enrollment/login tests, and the shared email security UI flow.
+
+## Pre-release hardening (2026-10-06)
+
+- Partial S3 configuration no longer stops the entire application. Production uploads still return 503 until durable storage is configured; no ephemeral upload fallback is enabled. Existing S3 media records remain untouched. Health exposes only media/email configuration booleans, not credentials or a claim of live provider connectivity.
+- Logout invalidates the active client context, stops account services and waits for pending outbox writes before clearing that account cache. A late network error cannot recreate a departed account's drafts. Other account drafts survive. Disposed history synchronizers no longer accept writes.
+- Changing call devices preserves microphone mute and camera-off state. A failed sender replacement restores previous senders and releases newly acquired tracks. Flipping the camera also preserves its enabled state. This does not prove the reported one-way-audio issue resolved.
+- Validation: npm run check and all 72 tests passed locally (0 failures), including the four added regression tests for partial storage configuration, logout/write races, mute preservation and replacement rollback.
+
+Infrastructure status: the private Backblaze bucket cipherion-media-zadars108 exists in us-east-005. Four non-secret S3 environment variables were added on 2026-10-05. The Render connector unexpectedly triggered a redeploy of unchanged main commit 418ee3c76466e53cfe6571c3b1b3ccb3e6a976fa; Render later reported it live. This is not deployment of PR #8. Old-media availability after that restart has not been verified. App-key installation and actual bucket access remain unverified; never infer them from a configuration flag. Email delivery, a verified Turso backup/migration and real-device audio tests remain release gates. The user postponed the new-version deployment on 2026-10-06.

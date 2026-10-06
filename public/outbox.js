@@ -35,7 +35,7 @@ export function createOutbox(user,onChange){
  }
  function flush(){if(busy)return busy;if(disposed||!navigator.onLine)return Promise.resolve();busy=drain().finally(()=>{busy=null;});return busy;}
  const online=()=>{void flush().catch(()=>{});};window.addEventListener('online',online);const timer=setInterval(online,15000);
- return {list,flush,dispose:()=>{disposed=true;clearInterval(timer);window.removeEventListener('online',online);},
+ return {list,flush,dispose:()=>{disposed=true;clearInterval(timer);window.removeEventListener('online',online);return Promise.allSettled([...saving.values(),busy].filter(Boolean));},
   retry:async(id)=>{await ready;const item=memory.get(id);if(item){delete item.error;item.transient=true;notify({type:'pending',item});await save(item);await flush();}},
   enqueue:(chat,payload,file)=>{
    const item={id:crypto.randomUUID(),user,chat,payload:{...payload},...(file?{file}:{}),created:(lastCreated=Math.max(Date.now(),lastCreated+1))};
@@ -46,4 +46,3 @@ export function createOutbox(user,onChange){
   remove:async(id)=>{await ready;await saving.get(id)?.catch(()=>{});await transaction('readwrite',s=>s.delete(id));memory.delete(id);saving.delete(id);}
  };
 }
-
