@@ -16,6 +16,14 @@ This change extends the existing Node/SQLite-or-libSQL server and vanilla client
 
 ## Required before production rollout
 
+### Mandatory preservation gate (2026-10-07)
+
+The owner explicitly requires preservation of all existing user data and continued use of existing authenticated sessions. Do not release until a restorable Turso backup and a complete inventory/copy of all still-existing media are verified. Compare every pre-existing table's rows/identifiers and attachment checksums on an isolated restored copy before and after migration; row counts alone are insufficient. Reconcile writes made during backup before cutover. Do not reset sessions, replace the database, rotate session tokens, change the site's origin/cookie scope, or force existing users into email registration. Existing expiry/revocation rules remain in effect; expired or manually revoked sessions must not be revived.
+
+`tests/legacy-session-upgrade.test.js` seeds the old NOT NULL username schema and the exact SHA-256 session/cookie format from deployed commit `418ee3c`. It compares every seeded table before/after migration, then uses the original cookie through two new-server starts to read the same account, settings, message and exact attachment bytes, including account selection for the new UI. It verifies no replacement cookie/session, unchanged expiration/password and valid foreign keys. This passes locally; it does not prove production backup completeness or recovery of previously lost files.
+
+Render Dashboard inspection on 2026-10-07 confirms all six S3 variable names are present, with values masked; live credential validity is not yet tested. No email delivery variables or linked environment groups were configured. Free compute blocks Shell access. Production still runs `418ee3c`; no new deployment or production schema changes were made during this inspection.
+
 1. Preserve the current production database and **all still-present local media before any Render redeploy/restart**. Missing files from previous ephemeral instances cannot be recovered by this code. Inventory and restore a verified database backup separately from media.
 2. Provision a private S3-compatible bucket and server-side credentials. Set `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` and, for compatible providers, `S3_ENDPOINT`/`S3_FORCE_PATH_STYLE`. Verify permissions for PUT/HEAD/GET/DELETE. No bucket, paid resource or credentials have been provisioned by this change.
 3. Run `node scripts/migrate-media.js` against the existing data for an inventory. Then run with `--apply` on the instance/export that still holds the files. Upload verification precedes metadata changes; source files are retained for rollback. Review missing-file count. Re-running skips verified objects. Do not point migration at an empty substitute data directory.
