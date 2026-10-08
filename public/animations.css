@@ -112,42 +112,37 @@ body.light .ambient::before{opacity:.4}
 .message{transform-origin:left bottom}
 .message.own{transform-origin:right bottom}
 @media(prefers-reduced-motion:no-preference){
-  .message.msg-in{animation:msg-in .45s cubic-bezier(.2,.9,.3,1.15) backwards}
+  .message.msg-in{animation:msg-in .2s cubic-bezier(.25,.8,.25,1) backwards}
   .message.own.msg-in{animation-name:msg-in-own}
-  .message.msg-open{animation:msg-in .55s cubic-bezier(.2,.9,.3,1) backwards;animation-delay:calc(var(--i,0)*45ms)}
-  .message.own.msg-open{animation-name:msg-in-own}
+  .message.msg-open{animation:msg-fade .18s ease-out backwards}
+  
 }
-@keyframes msg-in{from{opacity:0;transform:translate(-14px,12px) scale(.92)}to{opacity:1;transform:none}}
-@keyframes msg-in-own{from{opacity:0;transform:translate(14px,12px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes msg-fade{from{opacity:0}}
+@keyframes msg-in{from{opacity:0;transform:translate(-6px,8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes msg-in-own{from{opacity:0;transform:translate(6px,8px) scale(.97)}to{opacity:1;transform:none}}
 
 /* ============ Список чатов ============ */
 @media(prefers-reduced-motion:no-preference){
-  .chat-item.item-in{animation:item-in .55s cubic-bezier(.2,.9,.3,1) backwards;animation-delay:calc(var(--i,0)*45ms)}
+  .chat-item.item-in{animation:item-in .2s ease-out backwards}
 }
-@keyframes item-in{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
-.chat-item{transition:background .2s,box-shadow .2s,transform .25s cubic-bezier(.2,.9,.3,1.2)}
-.chat-item:active{transform:scale(.985)}
+@keyframes item-in{from{opacity:0}to{opacity:1;transform:none}}
+.chat-item{transition:background-color .15s,color .15s}
+
 
 /* ============ Кнопки ============ */
-.primary{transition:transform .2s cubic-bezier(.2,.9,.3,1.4),box-shadow .3s,filter .2s}
+.primary{transition:transform .15s,filter .15s}
 .primary:not(:disabled):active{transform:scale(.96)}
-.secondary{transition:transform .2s cubic-bezier(.2,.9,.3,1.4),background .2s,border-color .2s}
+.secondary{transition:transform .15s,background-color .15s}
 .secondary:not(:disabled):active{transform:scale(.96)}
-.icon-button{transition:background .2s,color .2s,transform .2s cubic-bezier(.2,.9,.3,1.4)}
+.icon-button{transition:background-color .15s,color .15s,transform .15s}
 .icon-button:not(:disabled):active{transform:scale(.88)}
-.icon-button svg{transition:transform .3s cubic-bezier(.2,.9,.3,1.4)}
+.icon-button svg{transition:transform .2s}
 .chip{transition:background .2s,color .2s,border-color .2s,transform .2s cubic-bezier(.2,.9,.3,1.4)}
 .chip:active{transform:scale(.93)}
 
 @media(hover:hover){
-  .primary:not(:disabled):hover{
-    transform:translateY(-2px);filter:brightness(1.06);
-    box-shadow:0 10px 32px color-mix(in srgb,var(--accent) 34%,transparent);
-  }
-  .secondary:not(:disabled):hover{transform:translateY(-1px)}
-  .icon-button:not(:disabled):hover{transform:translateY(-1px) scale(1.07)}
-  .icon-button.send:not(:disabled):hover svg{transform:translateX(2px) rotate(-10deg) scale(1.08)}
-  .chat-item:hover{transform:translateX(3px)}
+  .primary:not(:disabled):hover{filter:brightness(1.06)}
+  .icon-button.send:not(:disabled):hover svg{transform:translateX(2px)}
 }
 
 /* Волна при нажатии (создаёт animations.js) */
@@ -158,7 +153,7 @@ body.light .ambient::before{opacity:.4}
 @keyframes ripple{to{transform:scale(1);opacity:0}}
 
 /* ============ Диалоги, тосты, звонки ============ */
-dialog[open]::backdrop{backdrop-filter:blur(6px);animation:backdrop-in .3s ease both}
+dialog[open]::backdrop{animation:backdrop-in .2s ease both}
 @keyframes backdrop-in{from{opacity:0}to{opacity:1}}
 
 #toast{transition:opacity .3s ease,transform .5s cubic-bezier(.2,.9,.3,1.25)}

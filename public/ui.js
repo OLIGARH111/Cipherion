@@ -20,11 +20,31 @@ const paths = {
  more:'M5 12h.01M12 12h.01M19 12h.01', check:'m4 12 5 5L20 6', shield:'m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Zm-4 10 3 3 5-6',
  screen:'M2 3h20v14H2V3ZM12 17v5M7 22h10', lock:'M5 10h14v12H5V10Zm3 0V6a4 4 0 0 1 8 0v4', bell:'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4',
  palette:'M12 2a10 10 0 1 0 0 20h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h6a3 3 0 0 0 3-3 10 10 0 0 0-10-9ZM7 8h.01M12 6h.01M17 8h.01',
- logout:'M9 3H3v18h6M9 12h13m-5-5 5 5-5 5', download:'M12 2v13m-5-5 5 5 5-5M3 17v5h18v-5', stop:'M5 5h14v14H5Z', pin:'m16 3 5 5-5 2-2 6-6-6 6-2 2-5ZM10 14l-7 7', moon:'M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z'
+ logout:'M9 3H3v18h6M9 12h13m-5-5 5 5-5 5', download:'M12 2v13m-5-5 5 5 5-5M3 17v5h18v-5', stop:'M5 5h14v14H5Z', pin:'m16 3 5 5-5 2-2 6-6-6 6-2 2-5ZM10 14l-7 7', moon:'M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z',
+ menu:'M4 6h16M4 12h16M4 18h16', kebab:'M12 5h.01M12 12h.01M12 19h.01',
+ attach:'m16 6-8.41 8.59a2 2 0 0 0 2.83 2.83l8.41-8.59a4 4 0 0 0-5.66-5.66l-8.38 8.55a6 6 0 0 0 8.49 8.49l8.38-8.55',
+ reply:'M20 18v-2a4 4 0 0 0-4-4H4M9 17l-5-5 5-5', forward:'m15 17 5-5-5-5M4 18v-2a4 4 0 0 1 4-4h12',
+ copy:'M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z~M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2',
+ trash:'M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6',
+ select:'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3', archive:'M3 3h18v5H3ZM5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4',
+ mute:'M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7M10.3 21a1.94 1.94 0 0 0 3.4 0M2 2l20 20',
+ down:'m6 9 6 6 6-6', up:'m18 15-6-6-6 6', chevron:'m9 18 6-6-6-6', arrowdown:'M12 5v14M19 12l-7 7-7-7',
+ sun:'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41',
+ user:'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2',
+ language:'m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6',
+ database:'M12 8c4.97 0 9-1.34 9-3s-4.03-3-9-3-9 1.34-9 3 4.03 3 9 3ZM3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5M3 12c0 1.66 4 3 9 3s9-1.34 9-3',
+ star:'m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z',
+ info:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 16v-4M12 8h.01',
+ heart:'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z',
+ history:'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2', group:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+ missed:'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3l2 5-2 2a16 16 0 0 0 6 6l2-2ZM16 2l6 6M22 2l-6 6'
 };
 export const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(paths[name] || paths.chat).split('~').map(d=>`<path d="${d}"/>`).join('')}</svg>`;
 export const button = (name, title, attrs = '') => `<button class="icon-button" title="${esc(title)}" aria-label="${esc(title)}" ${attrs}>${icon(name)}</button>`;
-export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc((name || '?').slice(0, 2).toUpperCase())}</span>`;
+// Letters on a coloured gradient when there is no photo; the colour is stable per name.
+export const initials = name => { const words = String(name || '?').trim().split(/\s+/).filter(Boolean); const first = w => Array.from(w || '')[0] || ''; return ((first(words[0]) || '?') + (words.length > 1 ? first(words[1]) : '')).toUpperCase(); };
+export const tone = name => { let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h % 7; };
+export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}" data-tone="${tone(name)}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc(initials(name))}</span>`;
 export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
 async function requestJSON(url,options,account=activeAccount()) {
@@ -46,6 +66,8 @@ export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
+// Profile, group info and settings sections open as a side sheet (full screen on phones).
+export async function asSheet(fn) { const dialog=$('#modal');dialog.classList.add('sheet');dialog.addEventListener('close',()=>dialog.classList.remove('sheet'),{once:true});try{await fn();}finally{if(!dialog.open)dialog.classList.remove('sheet');} }
 export function guard(fn) { const ticket=accountEpoch();return async (...args)=>{if(ticket!==accountEpoch())return;try{await fn(...args);}catch(error){if(ticket===accountEpoch()&&error.name!=='AbortError')toast(error.message);}}; }
 
 
