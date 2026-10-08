@@ -35,14 +35,5 @@ html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: n
   .incoming { top: calc(12px + env(safe-area-inset-top, 0px)); }
 }
 @media (max-width: 700px) {
-  #app > .shell { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
-  #app > .shell.show-chat { padding-bottom: 0; }
-  .rail {
-    position: absolute;
-    bottom: calc(15px + env(safe-area-inset-bottom, 0px));
-    left: calc(15px + env(safe-area-inset-left, 0px));
-    right: calc(15px + env(safe-area-inset-right, 0px));
-  }
   .keyboard-open .composer-wrap { padding-bottom: 8px; }
-  .conversation-header { min-height: 64px; }
 }

@@ -7,10 +7,10 @@
 .studio-identity h2{margin:8px 0;font-size:24px}
 .studio-identity p{margin:6px 0}
 .vip-badge{display:inline-flex;vertical-align:baseline;align-items:center;justify-content:center;margin-left:3px;font-size:.95em;line-height:1.3;white-space:nowrap;color:var(--accent);padding:0 2px;flex-shrink:0}
-.profile-summary-actions,.profile-photo-actions,.profile-editor-links{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
-.profile-summary-actions>button,.profile-photo-actions>button,.profile-editor-links>button{flex:1;justify-content:center}
-#account-summary{cursor:pointer}
-#account-summary>div{min-width:0;overflow-wrap:anywhere}
+.profile-photo-actions,.profile-editor-links{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.profile-photo-actions>button,.profile-editor-links>button{flex:1;justify-content:center}
+
+
 .profile-fields{display:grid;gap:12px}
 .profile-badge-options{border:0;padding:0;margin:10px 0;min-width:0}
 .badge-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -28,4 +28,4 @@
 #create-chat-error{color:#f6b3b3;margin:0}
 #create-chat-error:empty{display:none}
 #edit-profile-preview{margin-bottom:14px}
-@media(max-width:420px){.profile-summary-actions{flex-direction:column}.studio-identity h2{font-size:22px}}
+@media(max-width:420px){.studio-identity h2{font-size:22px}}
