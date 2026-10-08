@@ -1,5 +1,6 @@
+import {VIP_BADGES} from '../public/vip-badges.js';
 import {normalizeAppearance} from './capabilities.js';
-export function createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers}){
+export function createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers,emit}){
   db.exec(`CREATE TABLE IF NOT EXISTS profile_presets(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,title TEXT NOT NULL,data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id),user_id TEXT REFERENCES users(id),emoji TEXT,PRIMARY KEY(message_id,user_id));
@@ -14,6 +15,8 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
     }
     if(path==='/api/profile'&&req.method==='GET'){const target=url.searchParams.get('user')||user.id;if(target!==user.id)family.contact(user.id,target);const u=one('SELECT * FROM users WHERE id=?',target);if(!u)fail(404,'Профиль не найден');json({...privacy.project(u,user.id),vip:vip.active(target),profile:privacy.profile(profile(target),target,user.id)});return true;}
     if(path==='/api/profile'&&req.method==='PATCH'){
+      if(b.badge!==undefined&&b.badge!==profile(user.id).badge&&!VIP_BADGES.some(([symbol])=>symbol===b.badge))fail(400,'Выберите значок из списка');
+      if(b.badge!==undefined&&b.badge!==profile(user.id).badge&&!vip.active(user.id))fail(403,'Значок доступен с VIP');
       const old=profile(user.id),p={...old,...normalizeAppearance(b,old,vip.capabilities(user.id),fail)};for(const e of p.patternEmoji)if(e.startsWith(':ce['))stickers.tokens(e,user.id);for(const key of ['cover','videoAvatar','backgroundImage']){const value=String(b[key]??old[key]??'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
       for(const key of ['nameColor','badgeColor'])p[key]=/^#[0-9a-f]{6}$/i.test(b[key]??old[key]??'')?(b[key]??old[key]):'';
       for(const key of ['theme','gradient','cardStyle','buttonStyle','bioStyle','linkStyle','badge'])p[key]=String(b[key]??old[key]??'').slice(0,40);
@@ -23,7 +26,7 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
       if(!vip.active(user.id)&&(p.videoAvatar!==old.videoAvatar&&p.videoAvatar||p.badge!==old.badge&&p.badge&&p.badge!=='✦'))fail(403,'Это оформление доступно с VIP');
       p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);p.emoji=String(b.emoji??old.emoji??'').slice(0,8);
       p.links=(Array.isArray(b.links)?b.links:old.links||[]).slice(0,vip.active(user.id)?10:3).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
-      run('INSERT INTO profiles VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',user.id,JSON.stringify(p));json(p);return true;
+      run('INSERT INTO profiles VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',user.id,JSON.stringify(p));emit?.(user.id,'settings',{});for(const c of all("SELECT chat_id FROM members WHERE user_id=? AND role!='banned'",user.id))broadcast(c.chat_id,'profile-updated',{user:user.id});json(p);return true;
     }
     if(path==='/api/reactions'&&req.method==='POST'){const m=one('SELECT * FROM messages WHERE id=? AND deleted=0',b.message);if(!m)fail(404,'Сообщение не найдено');const {chat}=membership(m.chat_id,user.id);if(chat.kind==='channel'&&chat.reactions_enabled===0)fail(403,'Реакции отключены владельцем канала');family.chatAccess(m.chat_id,user.id);const choices=['👍','❤️','🔥','😂','🙏','🎉','✨','💎','🚀','🌟'];if(b.emoji&&!choices.includes(b.emoji)){const keys=stickers.tokens(b.emoji,user.id);if(keys.length!==1||b.emoji!==':ce['+keys[0]+']')fail(400,'Неизвестная реакция');family.content(m.chat_id,'',true);stickers.bind(m.id,keys);}if(!b.emoji)run('DELETE FROM reactions WHERE message_id=? AND user_id=?',m.id,user.id);else run('INSERT INTO reactions VALUES(?,?,?) ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji',m.id,user.id,b.emoji);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});json({ok:true});return true;}
     if(path==='/api/scheduled'){

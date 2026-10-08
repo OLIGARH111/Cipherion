@@ -1,4 +1,6 @@
 import {activeAccount,accountFetch,accountURL,accountEpoch} from './account-context.js';
+import {vipBadgeValue} from './vip-badges.js';
+export function vipBadge(user){return user?.vip===true?`<span class="vip-mark vip-badge" title="Cipherion VIP" aria-label="Cipherion VIP">${vipBadgeValue(user.vipBadge||user.profile?.badge)}</span>`:'';}
 export const $ = (q, root = document) => root.querySelector(q);
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const paths = {
