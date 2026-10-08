@@ -17,7 +17,9 @@ import {setupComposerAI} from './composer-ai.js';
 import {initStories,refreshStories,showStories} from './stories.js';
 import {configureProfiles,extendedProfile} from './profiles.js';
 import {pollCard,bindPolls,pollEditor} from './polls.js';
-import {stickerPanel,renderCustom,setupStickerRecommendations} from './stickers.js';
+import {renderCustom,stickerPanel} from './stickers.js';
+import {toggleEmojiPanel,closeEmojiPanel,emojiPanelOpen,setupStickerSuggestions,showStickerPreview} from './sticker-panel.js';
+import {jumboSize} from './emoji-data.js';
 import { $,esc,icon,button,avatar,tone,time,toast,api,upload,modal,guard,asSheet } from './ui.js';
 import { applyTheme, settingsPage, themes } from './settings.js';
 import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,setupResizer,sideWidth,dayKey,dayLabel,listTime,ticks,tickSVG,mobile} from './chat-ui.js';
@@ -37,7 +39,7 @@ const app=$('#app');
 const mediaLabel={photo:'Фотография',video:'Видео',file:'Файл',voice:'Голосовое сообщение',round:'Видеосообщение',poll:'Опрос'};
 const tabs=[['chat','Чаты'],['ai','AI'],['phone','Звонки'],['settings','Настройки']];
 const pageCache=new Map();let childRegistration=false;
-const preview=m=>m?.deleted?'Сообщение удалено':m?.body || mediaLabel[m?.kind] || 'Начните разговор';
+const preview=m=>m?.deleted?'Сообщение удалено':m?.kind==='sticker'?'Стикер'+(m.sticker?.label?' · '+m.sticker.label:''):String(m?.body||'').replace(/:ce\[[a-zA-Z0-9-]+\]/g,'✨') || mediaLabel[m?.kind] || 'Начните разговор';
 const selected=()=>state.chats.find(c=>c.id===state.chat);
 export async function saveSettings(){await api('/me','PATCH',{settings:state.settings});applyTheme(state.settings);}
 function auth(){applyTheme({theme:'Emerald'});app.innerHTML='<main class="auth"><div class="auth-art"><div class="brand"><img class="auth-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="40" height="40">Cipherion</div><h1>Общение, которое <em>ощущается живым</em></h1><p>Чаты, группы, звонки и AI-помощник — всё в одном спокойном и понятном пространстве.</p><ul class="auth-features"><li><span>💬</span>Личные чаты, группы и каналы</li><li><span>📞</span>Аудио- и видеозвонки</li><li><span>✨</span>AI-помощник прямо в переписке</li></ul></div><div class="auth-side"><div id="auth-mount"></div><button class="secondary auth-alt" id="auth-switch">Другие аккаунты устройства</button></div></main>';$('#auth-switch').onclick=guard(()=>accountManager.show());emailAuthView($('#auth-mount'),{complete:async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);}});}
@@ -55,7 +57,7 @@ state.accounts=accountManager;
 async function connectBackgroundAccounts(){const ticket=accountEpoch(),list=await accountManager.refresh();if(ticket!==accountEpoch())return;for(const a of list){if(a.user.id===state.user.id)continue;const ev=new EventSource(accountURL('/api/events',a.user.id));backgroundEvents.set(a.user.id,ev);ev.addEventListener('message',()=>{if(ticket===accountEpoch())toast('Новое сообщение — '+a.user.name);});ev.addEventListener('call',e=>{if(ticket!==accountEpoch())return;const call=JSON.parse(e.data);if(call.state!=='ringing')return;if(calls?.busy()){toast('Входящий звонок — '+a.user.name);return;}modal('Звонок — '+a.user.name,`<p>${esc(call.name)} звонит вашему аккаунту ${esc(a.user.name)}.</p><button class="primary" id="switch-call-account">Открыть звонок</button>`);$('#switch-call-account').onclick=guard(async()=>{$('#modal').close();await accountManager.switchTo(a.user.id);await calls.event(call);});});}}
 const folderTabs=[['all','Все'],['direct','Личные'],['group','Группы'],['channel','Каналы'],['unread','Непрочитанные'],['archived','Архив']];
 const calm=()=>!!globalThis.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches||document.body.classList.contains('no-motion');
-function shell(){app.innerHTML=`<main class="shell" style="--side-width:${sideWidth()}px"><aside class="side" aria-label="Чаты"><div class="side-header"><div class="side-top">${button('menu','Меню','id="main-menu" aria-haspopup="menu" aria-expanded="false"')}<div class="search">${icon('search')}<input id="chat-search" type="search" placeholder="Поиск" aria-label="Поиск по чатам" autocomplete="off" enterkeyhint="search"></div></div><div class="filters folder-tabs" role="tablist" aria-label="Папки чатов">${folderTabs.map(([key,title])=>`<button class="chip ${state.filter===key?'active':''}" role="tab" aria-selected="${state.filter===key}" data-filter="${key}">${title}</button>`).join('')}<span id="custom-folders"></span><button class="chip folder-add" id="manage-folders" title="Настроить папки" aria-label="Настроить папки">${icon('plus')}</button></div></div><div class="side-status" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="chat-list"></div><button class="fab" id="new-chat" title="Новый чат" aria-label="Новый чат">${icon('edit')}</button><div class="side-resizer" role="separator" aria-orientation="vertical" aria-label="Ширина списка чатов" tabindex="0"></div></aside><section class="workspace"></section><nav class="nav tabbar" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="${state.tab===key?'active':''}" data-tab="${key}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav></main>`;
+function shell(){app.innerHTML=`<main class="shell" style="--side-width:${sideWidth()}px"><aside class="side" aria-label="Чаты"><div class="side-header"><div class="side-top">${button('menu','Меню','id="main-menu" aria-haspopup="menu" aria-expanded="false"')}<div class="brand-mark"><img src="/brand/icon-192-99e4c7990351.png" alt="" width="28" height="28"><span>Cipherion</span></div><span class="side-status" role="status"><span class="dot"></span><span id="connection">Подключение…</span></span></div><div class="side-search"><div class="search">${icon('search')}<input id="chat-search" type="search" placeholder="Поиск по чатам и людям" aria-label="Поиск по чатам" autocomplete="off" enterkeyhint="search"></div></div><div class="filters folder-tabs" role="tablist" aria-label="Папки чатов">${folderTabs.map(([key,title])=>`<button class="chip ${state.filter===key?'active':''}" role="tab" aria-selected="${state.filter===key}" data-filter="${key}">${title}</button>`).join('')}<span id="custom-folders"></span><button class="chip folder-add" id="manage-folders" title="Настроить папки" aria-label="Настроить папки">${icon('plus')}</button></div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="chat-list"></div><button class="fab" id="new-chat" title="Новый чат" aria-label="Новый чат">${icon('edit')}</button><div class="side-resizer" role="separator" aria-orientation="vertical" aria-label="Ширина списка чатов" tabindex="0"></div></aside><section class="workspace"></section><nav class="nav tabbar" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="${state.tab===key?'active':''}" data-tab="${key}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav></main>`;
   document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=guard(()=>navigate(el.dataset.tab)));
   $('#main-menu').onclick=()=>mainMenu();$('#new-chat').onclick=()=>newChat();$('#manage-folders').onclick=()=>foldersPage(state,saveSettings,renderChats);$('#chat-search').oninput=renderChats;
   $('#chat-search').onkeydown=e=>{if(e.key==='Escape'&&e.target.value){e.preventDefault();e.stopPropagation();e.target.value='';renderChats();}else if(e.key==='Enter'){e.preventDefault();$('.chat-list [data-chat]')?.click();}};
@@ -73,7 +75,7 @@ function mainMenu(){
     if(what==='profile')await asSheet(()=>extendedProfile(u.id));else if(what==='tab')await navigate(b.dataset.goto);else if(what==='accounts')await accountManager.show();else await newChat(what);}));
 }
 async function toggleNight(){const s=state.settings,light=document.body.classList.contains('light'),previous={...s};if(light)s.theme=s.darkTheme&&themes[s.darkTheme]&&themes[s.darkTheme]!==themes.White?s.darkTheme:'Emerald';else{s.darkTheme=s.theme||'Emerald';s.theme='White';}s.systemTheme=false;try{await saveSettings();}catch(error){state.settings=previous;applyTheme(previous);throw error;}}
-function empty(){const w=$('.workspace');if(!w)return;w.innerHTML=`<div class="empty chat-placeholder"><div class="empty-symbol">${icon('chat')}</div><h2>Выберите чат</h2><p>Откройте разговор слева или начните новый — найдите человека по username.</p><button class="primary" id="start-chat">${icon('edit')} Новое сообщение</button></div>`;$('#start-chat').onclick=()=>newChat();}
+function empty(){const w=$('.workspace');if(!w)return;w.innerHTML=`<div class="empty chat-placeholder"><div class="placeholder-card"><img class="placeholder-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="72" height="72"><h2>Cipherion</h2><p>Выберите разговор слева или начните новый — найдите человека по username.</p><button class="primary" id="start-chat">${icon('edit')} Новое сообщение</button><small>${icon('shield')} Ваши разговоры — только ваши</small></div></div>`;$('#start-chat').onclick=()=>newChat();}
 function closeChat(){
   if(state.recording){toast('Завершите или отмените запись');return;}
   const shellEl=$('.shell');if(!shellEl||!state.chat)return;closePopover();
@@ -120,7 +122,7 @@ export async function openChat(chatId){
   closePopover();pageCache.delete('chat');state.messages=messagesByChat.get(chatId)||[];state.chat=chatId;state.tab='chat';markTab('chat');state.reply=null;state.editing=null;state.selection=null;state.find=null;state.unseen=0;state.loading=!state.messages.length;renderedKeys=null;const c=selected();if(!c)return;
   $('.shell').classList.add('show-chat');$('.shell').classList.remove('show-page');renderChats();
   const people=c.members.filter(m=>m.user_id!==state.user.id);
-  $('.workspace').innerHTML=`<section class="conversation"><header class="conversation-header">${button('back','Назад к списку чатов','class="icon-button mobile-back" id="chat-back"')}<div class="conversation-peer">${avatar(c.title,c.avatar || people[0]?.avatar)}<div class="conversation-title" role="button" tabindex="0" aria-label="Информация: ${esc(c.title)}"><h3>${esc(c.title)} ${chatVipBadge(c)}</h3><small id="chat-status">${chatStatus(c)}</small></div></div><div class="header-actions">${button('search','Поиск по чату (Ctrl+F)','id="chat-find"')}${c.kind!=='channel'?button('phone','Аудиозвонок','id="audio-call"'):''}${button('kebab','Действия чата','id="chat-menu" aria-haspopup="menu"')}</div><div class="selection-bar" hidden></div></header><div id="chat-find-bar"></div><div id="pinned-bar"></div><div class="messages-wrap"><div class="messages" aria-label="Переписка" role="log"></div><button type="button" class="scroll-down" id="scroll-down" tabindex="-1" aria-hidden="true" aria-label="К последним сообщениям">${icon('down')}<span class="badge" hidden></span></button></div><div class="composer-wrap"><div class="composer-inner"><div id="reply-area"></div><div id="record-area"></div><form class="composer" id="composer">${button('attach','Прикрепить','type="button" id="attach"')}<textarea id="draft" rows="1" maxlength="4000" placeholder="Сообщение" aria-label="Сообщение" enterkeyhint="send"></textarea>${button('emoji','Эмодзи и стикеры','type="button" id="emoji"')}<span class="composer-ai-slot"><button type="button" id="composer-ai" class="icon-button" title="AI-помощник" aria-label="Улучшить текст с AI">${icon('sparkles')}</button></span>${button(state.mode==='voice'?'mic':'video',state.mode==='voice'?'Голосовое: удерживайте для записи, нажмите — видеосообщение':'Видеосообщение: удерживайте для записи, нажмите — голосовое','type="button" id="record"')}<button class="icon-button send" type="submit" title="Отправить" aria-label="Отправить">${icon('send')}</button></form></div></div></section>`;
+  $('.workspace').innerHTML=`<section class="conversation"><header class="conversation-header">${button('back','Назад к списку чатов','class="icon-button mobile-back" id="chat-back"')}<div class="conversation-peer">${avatar(c.title,c.avatar || people[0]?.avatar)}<div class="conversation-title" role="button" tabindex="0" aria-label="Информация: ${esc(c.title)}"><h3>${esc(c.title)} ${chatVipBadge(c)}</h3><small id="chat-status">${chatStatus(c)}</small></div></div><div class="header-actions">${button('search','Поиск по чату (Ctrl+F)','id="chat-find"')}${c.kind!=='channel'?button('phone','Аудиозвонок','id="audio-call"'):''}${button('kebab','Действия чата','id="chat-menu" aria-haspopup="menu"')}</div><div class="selection-bar" hidden></div></header><div id="chat-find-bar"></div><div id="pinned-bar"></div><div class="messages-wrap"><div class="messages" aria-label="Переписка" role="log"></div><button type="button" class="scroll-down" id="scroll-down" tabindex="-1" aria-hidden="true" aria-label="К последним сообщениям">${icon('down')}<span class="badge" hidden></span></button></div><div class="composer-wrap"><div class="composer-inner"><div id="reply-area"></div><div id="record-area"></div><form class="composer" id="composer">${button('attach','Прикрепить','type="button" id="attach"')}<textarea id="draft" rows="1" maxlength="4000" placeholder="Сообщение" aria-label="Сообщение" enterkeyhint="send"></textarea>${button('emoji','Эмодзи, стикеры и GIF','type="button" id="emoji" aria-expanded="false"')}<span class="composer-ai-slot"><button type="button" id="composer-ai" class="icon-button" title="AI-помощник" aria-label="Улучшить текст с AI">${icon('sparkles')}</button></span>${button(state.mode==='voice'?'mic':'video',state.mode==='voice'?'Голосовое: удерживайте для записи, нажмите — видеосообщение':'Видеосообщение: удерживайте для записи, нажмите — голосовое','type="button" id="record"')}<button class="icon-button send" type="submit" title="Отправить" aria-label="Отправить">${icon('send')}</button></form></div></div></section>`;
   $('#chat-back').classList.add('mobile-back');$('#emoji').classList.add('emoji-btn');
   $('#chat-back').onclick=()=>closeChat();
   const info=guard(()=>asSheet(()=>c.kind==='direct'?extendedProfile(people[0]?.user_id||state.user.id):groupPanel(c,state,refresh)));
@@ -133,8 +135,8 @@ export async function openChat(chatId){
   $('#draft').value=sessionStorage.getItem(draftKey(chatId))||'';
   $('#draft').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!e.repeat&&state.settings.enter!==false){e.preventDefault();guard(sendText)();}else if(e.key==='ArrowUp'&&!e.target.value&&!e.shiftKey&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!state.editing){if(editLast())e.preventDefault();}};
   $('#draft').oninput=()=>{const el=$('#draft');sessionStorage.setItem(draftKey(chatId),el.value);el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';if(Date.now()-typingAt>2500){typingAt=Date.now();api(`/chats/${chatId}/typing`,'POST',{}).catch(()=>{});}};
-  $('#attach').onclick=attachments;$('#emoji').onclick=guard(()=>stickerPanel(state,saveSettings,async()=>{}));
-  setupComposerAI();setupStickerRecommendations(state,()=>{});setupRecorder();renderMessages(true);
+  $('#attach').onclick=attachments;$('#emoji').onclick=()=>toggleEmojiPanel(state,saveSettings);
+  setupComposerAI();setupStickerSuggestions(state,saveSettings);setupRecorder();renderMessages(true);
   if(!mobile())$('#draft').focus({preventScroll:true});
   await loadMessages();
 }
@@ -147,6 +149,7 @@ function bindMessageList(){
   box.addEventListener('click',e=>{
     const jump=e.target.closest('[data-jump]');if(jump){e.preventDefault();jumpTo(jump.dataset.jump);return;}
     const react=e.target.closest('[data-react]');if(react){e.preventDefault();guard(async()=>{await api('/reactions','POST',{message:react.dataset.message,emoji:react.dataset.react});await loadMessages(false);})();return;}
+    const sticker=e.target.closest('.sent-sticker');if(sticker&&!state.selection){const m=state.messages.find(x=>x.id===sticker.closest('.message')?.dataset.id);if(m?.sticker)guard(()=>showStickerPreview(state,{...m.sticker,id:m.sticker.id||m.body},{fromChat:true}))();return;}
     if(state.selection){const article=e.target.closest('.message[data-id]');if(article&&!article.dataset.id.startsWith('local:')){e.preventDefault();toggleSelect(article.dataset.id);}}
   });
 }
@@ -165,7 +168,8 @@ const sameRun=(a,b)=>a&&b&&a.user_id===b.user_id&&dayKey(a.created)===dayKey(b.c
 const skeleton=()=>`<div class="skeleton-list" data-key="skeleton" aria-hidden="true">${[52,34,68,44,28,60,40].map((w,i)=>`<div class="skeleton-msg ${[1,4,5].includes(i)?'own':''}" style="--w:${w}%"></div>`).join('')}</div>`;
 function messageHTML(m,{first,last,kind,others}){
   const own=m.user_id===state.user.id,c=selected(),member=c?.members.find(p=>p.user_id===m.user_id),name=authorName(m);let content='';
-  const hasText=!m.deleted&&m.kind!=='sticker'&&!!String(m.body||'').trim();const tail=[];let visual=false;
+  const jumbo=m.kind==='text'&&!m.deleted&&!m.media&&!m.poll&&!m.reply_id&&!m.forwarded&&!m.story?jumboSize(m.body):0;
+  const hasText=!jumbo&&!m.deleted&&m.kind!=='sticker'&&!!String(m.body||'').trim();const tail=[];let visual=!!jumbo;
   if(!m.deleted){
     if(m.media){const source=accountURL('/api/media/'+m.media.id);
       if(m.kind==='photo'){visual=true;content+=`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
@@ -184,10 +188,11 @@ function messageHTML(m,{first,last,kind,others}){
   const read=others.length&&others.every(p=>p.read_at>=m.created);const delivered=others.length&&others.every(p=>p.delivered_at>=m.created);
   m.status=m.pending?(m.error?'failed':'sending'):read?'read':delivered?'delivered':'sent';
   const status=m.pending?`<span class="send-status ${m.error?'failed':''}" title="${esc(m.error||'Отправляется')}">${m.error?'<b aria-hidden="true">!</b> Не отправлено':`${icon('clock')}<span class="sr-only">Отправляется…</span>`}</span>${m.error?`<button class="chip retry-send" data-client-id="${esc(m.clientMessageId)}">Повторить</button>`:''}`:own?ticks(m.status):'';
-  const mediaOnly=visual&&!hasText&&!m.reply_id&&!m.forwarded&&!m.story&&!tail.length&&!m.pending;
+  const mediaOnly=visual&&!hasText&&!m.reply_id&&!m.forwarded&&!m.story&&!tail.length&&(!m.pending||!!jumbo);
   const footer=`<span class="message-footer${mediaOnly?' overlay':''}">${m.pinned?`<span class="footer-pin" aria-label="Закреплено">${icon('pin')}</span>`:''}${m.edited?'<span class="edited">изменено</span>':''}<time datetime="${new Date(m.created).toISOString()}">${time(m.created)}</time>${status}</span>`;
   const reactions=!m.deleted&&m.reactions?.length?`<div class="message-reactions">${m.reactions.map(r=>`<button type="button" class="reaction" data-react="${esc(r.emoji)}" data-message="${m.id}" aria-label="Реакция ${esc(r.emoji)}: ${r.count}">${renderCustom(r.emoji)}<span>${r.count}</span></button>`).join('')}${footer}</div>`:'';
   if(m.deleted)content=`<div class="body deleted">${icon('trash')}<span>Сообщение удалено</span>${footer}</div>`;
+  else if(jumbo)content+=`<div class="jumbo-emoji jumbo-${jumbo}">${renderCustom(m.body.trim())}</div>`;
   else if(m.kind!=='sticker')content+=hasText||!visual?`<div class="body">${renderCustom(m.body)}${!reactions&&!tail.length&&hasText?footer:''}</div>`:'';
   content+=tail.join('');
   if(!m.deleted){if(reactions)content+=reactions;else if(!hasText||tail.length)content+=footer;}
@@ -195,7 +200,7 @@ function messageHTML(m,{first,last,kind,others}){
   const author=showAuthor?`<button class="author profile-name" data-open-profile="${m.user_id}" data-tone="${tone(name)}">${esc(name)} ${vipBadge(own?state.user:member||m.author)}${member?.tag?`<span class="member-tag">${esc(member.tag)}</span>`:''}</button>`:'';
   const side=kind==='group'&&!own?(last?`<button type="button" class="msg-avatar" data-open-profile="${m.user_id}" aria-label="Профиль: ${esc(name)}">${avatar(name,member?.avatar||m.author?.avatar)}</button>`:'<span class="msg-avatar"></span>'):'';
   const picked=state.selection?.has(m.id),found=state.find?.ids.includes(m.id),current=found&&state.find.ids[state.find.index]===m.id;
-  return `<article class="message ${own?'own':''} ${first?'first':''} ${last?'last':''} ${picked?'picked':''} ${found?'found':''} ${current?'found-current':''}" data-key="${esc(messageKey(m))}" data-id="${m.id}">${state.selection?`<span class="select-mark" aria-hidden="true">${icon('check')}</span>`:''}${side}<div class="bubble ${mediaOnly?'media-only':''} ${mediaOnly&&['sticker','round'].includes(m.kind)?'bare':''}">${author}${content}</div>${!m.deleted&&!m.pending&&!state.selection?`<button class="message-menu" data-message="${m.id}" aria-label="Действия сообщения">${icon('kebab')}</button>`:''}</article>`;
+  return `<article class="message ${own?'own':''} ${first?'first':''} ${last?'last':''} ${picked?'picked':''} ${found?'found':''} ${current?'found-current':''}" data-key="${esc(messageKey(m))}" data-id="${m.id}">${state.selection?`<span class="select-mark" aria-hidden="true">${icon('check')}</span>`:''}${side}<div class="bubble ${mediaOnly?'media-only':''} ${mediaOnly&&(jumbo||['sticker','round'].includes(m.kind))?'bare':''} ${m.kind==='sticker'?'sticker-bubble':''}">${author}${content}</div>${!m.deleted&&!m.pending&&!state.selection?`<button class="message-menu" data-message="${m.id}" aria-label="Действия сообщения">${icon('kebab')}</button>`:''}</article>`;
 }
 function renderMessages(scroll){
   const box=$('.messages');if(!box)return;const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;const previous=box.scrollTop;
@@ -241,6 +246,7 @@ function messageMenu(messageId,at={}){
   const items=[];
   if(post)items.push(['reply','reply','Ответить']);
   if(m.body&&m.kind!=='sticker')items.push(['copy','copy','Копировать текст']);
+  if(m.kind==='sticker'&&m.sticker)items.push(['sticker-favorite','star','Стикер в избранное'],['sticker-pack','image','Открыть набор стикеров']);
   items.push(['forward','forward','Переслать']);
   if(!channel||c.canPin)items.push(['pin','pin',m.pinned?'Открепить':'Закрепить']);
   if(channel?c.canEdit:own)items.push(['edit','edit','Изменить']);
@@ -263,6 +269,8 @@ async function messageAction(action,m){
   else if(action==='delete'){if(confirm('Удалить сообщение для всех участников?')){await api('/messages/'+m.id,'DELETE',{});await loadMessages(false);}}
   else if(action==='pin'){await api('/messages/'+m.id,'PATCH',{pinned:!m.pinned});await loadMessages(false);}
   else if(action==='forward')forwardMessages([m]);
+  else if(action==='sticker-favorite'){await api('/stickers/favorites','POST',{id:m.sticker?.id||m.body});toast('Добавлено в избранные стикеры');}
+  else if(action==='sticker-pack'){if(m.sticker?.pack_id)await stickerPanel(state,saveSettings,async()=>{},{pack:m.sticker.pack_id});else await showStickerPreview(state,{...m.sticker,id:m.sticker?.id||m.body},{fromChat:true});}
 }
 function forwardMessages(list){
   if(!list.length)return;
@@ -300,6 +308,7 @@ document.addEventListener('keydown',e=>{
   if(!state.user||!$('.shell'))return;const dialogOpen=document.querySelector('dialog[open]');
   if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.code==='KeyF'){if(dialogOpen)return;e.preventDefault();if(state.chat&&state.tab==='chat')openFind();else $('#chat-search')?.focus();return;}
   if(e.key!=='Escape'||e.defaultPrevented||dialogOpen||popoverOpen()||state.recording||$('.composer-ai-panel'))return;
+  if(emojiPanelOpen()){closeEmojiPanel();$('#emoji')?.focus();return;}
   if(state.find){closeFind();return;}
   if(state.selection){exitSelection();return;}
   if(state.reply||state.editing){cancelReply();return;}
