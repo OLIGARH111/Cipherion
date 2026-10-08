@@ -1,0 +1,192 @@
+/*
+  Cipherion — слой «полировки» интерфейса.
+  Подключается последним: делает состояния элементов понятнее
+  (наведение, выбор, фокус) и добавляет мягкие переходы между экранами.
+  Все анимации отключаются через prefers-reduced-motion и body.no-motion (style.css).
+*/
+:root{
+  --ease-out:cubic-bezier(.2,.9,.3,1);
+  --ease-spring:cubic-bezier(.2,1.4,.4,1);
+  --ring:0 0 0 3px color-mix(in srgb,var(--accent) 28%,transparent);
+}
+::selection{background:color-mix(in srgb,var(--accent) 35%,transparent);color:var(--text)}
+
+/* ============ Фокус с клавиатуры — заметный, но аккуратный ============ */
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--ring)}
+input:focus-visible,textarea:focus-visible,select:focus-visible{box-shadow:var(--ring)}
+.composer textarea:focus-visible{box-shadow:none}
+
+/* ============ Экран входа ============ */
+.auth{grid-template-columns:1.1fr minmax(0,440px);align-items:center}
+.auth-side{display:grid;gap:12px;min-width:0}
+.auth-side .auth-card{width:100%}
+.auth-alt{width:100%;background:transparent;color:var(--muted);border-style:dashed}
+.auth-alt:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.auth-art .brand{gap:14px}
+.auth-art h1{font-size:58px;letter-spacing:-2.5px}
+.auth-art .auth-logo{margin:0;width:44px;height:44px;border-radius:14px}
+.auth-features{list-style:none;padding:0;margin:30px 0 0;display:grid;gap:10px;max-width:400px}
+.auth-features li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--hover);border:1px solid var(--line);color:var(--text);font-size:14px}
+.auth-features span{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,var(--accent) 14%,transparent);font-size:17px;flex-shrink:0}
+.auth-card form .secondary,.auth-card>.secondary{width:100%}
+.auth-card>.secondary{margin-top:10px}
+.auth-card [role=alert]:empty{display:none}
+.auth-card [role=alert]{color:#ffb0b0;font-size:13px;padding:10px 12px;border-radius:12px;background:#ff6b6b14;border:1px solid #ff6b6b33}
+.auth-card .primary{padding:14px 20px;font-size:15px}
+label.field{font-size:12.5px;font-weight:500}
+@media(prefers-reduced-motion:no-preference){
+  .auth-features li{animation:rise .6s var(--ease-out) backwards}
+  .auth-features li:nth-child(1){animation-delay:.35s}
+  .auth-features li:nth-child(2){animation-delay:.45s}
+  .auth-features li:nth-child(3){animation-delay:.55s}
+  .auth-side>.auth-alt{animation:rise .6s var(--ease-out) .5s backwards}
+}
+@media(max-width:1000px){.auth{grid-template-columns:1fr minmax(0,400px)}.auth-art h1{font-size:44px}}
+@media(min-width:701px) and (max-width:1000px){.nav button{width:52px}.nav-label{font-size:8px}}
+@media(max-width:700px){
+  .auth-art h1{font-size:34px}
+  .auth-features{display:none}
+  .auth-side{width:100%}
+  .auth-side .auth-card{padding-top:24px}
+}
+
+/* ============ Навигация: подписи и индикатор раздела ============ */
+@media(min-width:701px){
+  .nav button{width:62px;height:58px;flex-direction:column;gap:3px;padding:0}
+  .nav button svg{width:21px;height:21px}
+  .nav-label{display:block;font-size:8.5px;line-height:1;letter-spacing:-.1px;white-space:nowrap}
+  .nav button.active .nav-label{font-weight:650}
+}
+.nav button{position:relative;transition:color .25s,background .3s,transform .3s var(--ease-spring),box-shadow .3s}
+.nav button.active{color:var(--accent)}
+.nav button::after{
+  content:"";position:absolute;left:-6px;top:50%;width:3px;height:22px;border-radius:0 3px 3px 0;
+  background:var(--accent);box-shadow:0 0 10px var(--accent);transform:translateY(-50%) scaleY(0);transition:transform .35s var(--ease-spring)
+}
+.nav button.active::after{transform:translateY(-50%) scaleY(1)}
+.nav button.active svg{animation:nav-pop .45s var(--ease-spring)}
+@keyframes nav-pop{40%{transform:scale(1.18) translateY(-1px)}}
+@media(max-width:700px){
+  .nav button::after{left:50%;top:auto;bottom:-3px;width:18px;height:3px;border-radius:3px 3px 0 0;transform:translateX(-50%) scaleX(0)}
+  .nav button.active::after{transform:translateX(-50%) scaleX(1)}
+  .nav-label{font-size:9px}
+  .nav button.active .nav-label{font-weight:650}
+}
+
+/* ============ Список чатов ============ */
+.chat-item{position:relative}
+.chat-item.selected::before{
+  content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--accent);
+  animation:bar-in .35s var(--ease-spring)
+}
+@keyframes bar-in{from{transform:scaleY(0)}}
+.chat-item .avatar{transition:transform .3s var(--ease-spring),box-shadow .3s}
+@media(hover:hover){.chat-item:hover .avatar{transform:scale(1.05);box-shadow:0 6px 18px #0003}}
+.chat-item:has(.badge) .chat-info strong{font-weight:650}
+.chat-item:has(.badge) .chat-info p{color:var(--text);opacity:.85}
+.badge{padding:0 5px;font-weight:650;box-shadow:0 2px 10px color-mix(in srgb,var(--accent) 35%,transparent);animation:badge-pop .45s var(--ease-spring)}
+@keyframes badge-pop{from{transform:scale(0)}}
+.chip{border:1px solid transparent}
+@media(hover:hover){.chip:not(.active):hover{background:var(--hover);color:var(--text)}}
+.search input{transition:background .25s,border-color .25s,box-shadow .25s}
+.search:focus-within svg{color:var(--accent)}
+
+/* ============ Пустые состояния ============ */
+.empty-list svg{color:var(--accent);opacity:.8}
+.empty-list{line-height:1.6}
+@media(prefers-reduced-motion:no-preference){
+  .empty>*{animation:rise .6s var(--ease-out) backwards}
+  .empty>:nth-child(2){animation-delay:.06s}
+  .empty>:nth-child(3){animation-delay:.12s}
+  .empty>:nth-child(4){animation-delay:.18s}
+  .empty>:nth-child(5){animation-delay:.24s}
+  .empty>:nth-child(6){animation-delay:.3s}
+}
+
+/* ============ Смена экрана (класс ставит animations.js) ============ */
+@media(prefers-reduced-motion:no-preference){
+  .view-in{animation:view-in .4s var(--ease-out) backwards}
+  .panel-page.view-in>header{animation:rise .5s var(--ease-out) backwards}
+  .panel-page.view-in .setting-card,.panel-page.view-in .history-row,.panel-page.view-in .person{animation:rise .5s var(--ease-out) backwards;animation-delay:calc(var(--i,0)*35ms + 80ms)}
+}
+@media(prefers-reduced-motion:no-preference) and (max-width:700px){
+  .conversation.view-in{animation:view-slide .38s var(--ease-out) backwards}
+}
+@keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes view-slide{from{opacity:.4;transform:translateX(28px)}to{opacity:1;transform:none}}
+
+/* ============ Карточки настроек ============ */
+.setting-card{transition:transform .3s var(--ease-spring),background .25s,border-color .25s,box-shadow .3s}
+.setting-card>svg,.setting-card>:first-child:is(svg){
+  width:42px;height:42px;padding:10px;border-radius:13px;background:color-mix(in srgb,var(--accent) 12%,transparent);
+  transition:transform .35s var(--ease-spring)
+}
+@media(hover:hover){
+  .setting-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 30%,transparent);box-shadow:0 12px 32px #0003;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+  .setting-card:hover>svg{transform:rotate(-8deg) scale(1.06)}
+  .menu-grid button:hover,.compose-menu button:hover{border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+}
+.menu-grid button{transition:transform .3s var(--ease-spring),background .25s,border-color .25s}
+.setting-row input[type=checkbox]{transition:background .25s;border:1px solid var(--line)}
+.theme-card{transition:transform .3s var(--ease-spring),box-shadow .3s}
+@media(hover:hover){.theme-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px #0004}}
+
+/* ============ Переписка ============ */
+.conversation-header{box-shadow:0 8px 24px #0000001a}
+.bubble{transition:box-shadow .25s,transform .25s}
+@media(hover:hover){.message:hover .bubble{box-shadow:0 6px 22px #0000002a}}
+.message-footer button{opacity:.55;transition:opacity .2s,color .2s,transform .2s var(--ease-spring)}
+.message:hover .message-footer button,.message-footer button:focus-visible{opacity:1}
+.message-footer button:hover{color:var(--accent);transform:scale(1.15)}
+.date-divider{backdrop-filter:blur(10px);font-weight:550;letter-spacing:.3px}
+.composer{transition:box-shadow .3s,border-color .3s}
+.composer:focus-within{border-color:color-mix(in srgb,var(--accent) 35%,transparent);box-shadow:0 10px 30px #0002,0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+.composer .send{box-shadow:0 4px 16px color-mix(in srgb,var(--accent) 30%,transparent)}
+.reply-bar{border-left:3px solid var(--accent);margin:0 4px 8px;border-radius:10px;background:var(--hover)}
+@media(prefers-reduced-motion:no-preference){
+  .reply-bar,.record-bar{animation:rise .3s var(--ease-out)}
+  .record-time::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#ff7b7b;vertical-align:middle;animation:rec-blink 1s ease-in-out infinite}
+}
+@keyframes rec-blink{50%{opacity:.2}}
+
+/* ============ Диалоги и уведомления ============ */
+dialog[open]{animation:dialog-in .32s var(--ease-spring)}
+@keyframes dialog-in{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+dialog header{padding-bottom:14px;border-bottom:1px solid var(--line)}
+dialog header .icon-button:hover{transform:rotate(90deg)}
+dialog{box-shadow:0 30px 90px #0007,inset 0 1px 0 #ffffff12}
+@media(max-width:700px){
+  dialog:not(.story-viewer){margin:auto auto 0;width:100%;max-width:100%;border-radius:24px 24px 0 0;max-height:90dvh;padding-bottom:max(25px,env(safe-area-inset-bottom))}
+  dialog:not(.story-viewer)[open]{animation:sheet-in .38s var(--ease-out)}
+}
+@keyframes sheet-in{from{transform:translateY(100%)}to{transform:none}}
+
+#toast{
+  display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:500;
+  background:color-mix(in srgb,var(--bg) 88%,var(--accent));backdrop-filter:blur(16px);
+  border-color:color-mix(in srgb,var(--accent) 25%,transparent);border-radius:16px;
+  transform:translate(-50%,24px) scale(.95)
+}
+#toast::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);flex-shrink:0}
+#toast.show{transform:translate(-50%,0) scale(1)}
+@media(max-width:700px){#toast{bottom:96px}.show-chat~#toast,body:has(.show-chat) #toast{bottom:90px}}
+
+/* ============ Звонки ============ */
+.call-controls button{width:52px;height:52px;border-radius:18px}
+.call-controls button.hangup{box-shadow:0 8px 24px #dc565f66}
+@media(prefers-reduced-motion:no-preference){
+  .incoming{animation:incoming-in .5s var(--ease-spring)}
+  .incoming .avatar{animation:ring-pulse 1.6s ease-out infinite}
+}
+@keyframes incoming-in{from{opacity:0;transform:translateY(-20px) scale(.95)}}
+@keyframes ring-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}100%{box-shadow:0 0 0 18px transparent}}
+
+/* ============ Истории ============ */
+.story-bubble .avatar{transition:transform .3s var(--ease-spring)}
+@media(hover:hover){.story-bubble:hover .avatar{transform:scale(1.06)}}
+.story-bubble.unseen .avatar{outline-color:var(--accent)}
+
+/* ============ Полоса прокрутки ============ */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 35%,transparent) transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 35%,transparent)}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}

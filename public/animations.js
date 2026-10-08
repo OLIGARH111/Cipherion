@@ -78,3 +78,22 @@ document.addEventListener('pointerdown', event => {
   button.append(ripple);
   setTimeout(() => ripple.remove(), 700);
 }, { passive: true });
+
+// ---------- Плавная смена экрана ----------
+// Рабочая область перерисовывается и при обновлении данных, поэтому
+// анимируем только когда действительно открылся другой раздел или чат.
+let lastView = '';
+function scanView() {
+  const view = document.querySelector('.workspace > *');
+  if (!view) { lastView = ''; return; }
+  const title = view.querySelector('.conversation-title h3, .panel-page > header h1, .empty h2');
+  const key = view.className.replace(/\s*view-in/, '') + '|' + (title?.textContent || '');
+  if (key === lastView) return;
+  lastView = key;
+  if (calm()) return;
+  view.querySelectorAll('.setting-card,.history-row,.person').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  view.classList.remove('view-in');
+  void view.offsetWidth;
+  view.classList.add('view-in');
+}
+new MutationObserver(scanView).observe(document.body, { childList: true, subtree: true });

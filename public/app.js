@@ -39,7 +39,7 @@ const pageCache=new Map();let childRegistration=false;
 const preview=m=>m?.deleted?'Сообщение удалено':m?.body || mediaLabel[m?.kind] || 'Начните разговор';
 const selected=()=>state.chats.find(c=>c.id===state.chat);
 export async function saveSettings(){await api('/me','PATCH',{settings:state.settings});applyTheme(state.settings);}
-function auth(){applyTheme({theme:'Emerald'});app.innerHTML='<main class="auth"><div id="auth-mount"></div><button class="secondary" id="auth-switch">Другие аккаунты устройства</button></main>';$('#auth-switch').onclick=guard(()=>accountManager.show());emailAuthView($('#auth-mount'),{complete:async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);}});}
+function auth(){applyTheme({theme:'Emerald'});app.innerHTML='<main class="auth"><div class="auth-art"><div class="brand"><img class="auth-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="40" height="40">Cipherion</div><h1>Общение, которое <em>ощущается живым</em></h1><p>Чаты, группы, звонки и AI-помощник — всё в одном спокойном и понятном пространстве.</p><ul class="auth-features"><li><span>💬</span>Личные чаты, группы и каналы</li><li><span>📞</span>Аудио- и видеозвонки</li><li><span>✨</span>AI-помощник прямо в переписке</li></ul></div><div class="auth-side"><div id="auth-mount"></div><button class="secondary auth-alt" id="auth-switch">Другие аккаунты устройства</button></div></main>';$('#auth-switch').onclick=guard(()=>accountManager.show());emailAuthView($('#auth-mount'),{complete:async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);}});}
 const backgroundEvents=new Map();
 function resetAccount(){
  state.events?.close();for(const ev of backgroundEvents.values())ev.close();backgroundEvents.clear();
