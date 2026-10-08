@@ -101,7 +101,7 @@ test('release API regressions: concurrent retry, conflict, multi-device receipts
     assert.equal((await request('/logout',bob.cookie,'POST',{})).status,200);
     assert.equal((await request('/me',bob.cookie)).status,401);assert.equal((await request('/me',bob2.cookie)).status,200);
     assert.equal((await request('/auth',null,'POST',{username:'release_bob',password})).status,200);
-    const db=new DatabaseSync(join(dir,'cipherion.sqlite'),{readOnly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM schema_migrations').get().n,1);db.close();
+    const db=new DatabaseSync(join(dir,'cipherion.sqlite'),{readOnly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM schema_migrations').get().n,2);db.close();
     await stop();await createBackup(dir,snapshot);await cp(snapshot,restored,{recursive:true});await verifyBackup(restored);await start(restored);
     assert.equal((await request(path,bob2.cookie)).data.find(m=>m.id===mid).body,'reliable');
     assert.equal(await (await fetch(base+'/api/media/'+media.id,{headers:{Cookie:bob2.cookie}})).text(),'private file');

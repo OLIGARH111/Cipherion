@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import Libsql from 'libsql';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { schemaVersion } from './migrations.js';
 export function databaseConfig(env=process.env) {
   const url=env.TURSO_DATABASE_URL?.trim(),token=env.TURSO_AUTH_TOKEN?.trim();
   if(Boolean(url)!==Boolean(token))throw new Error('Both TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required');
@@ -23,9 +24,11 @@ export function database(directory) {
   if(config.remote){
     const registry=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();
     const version=registry?db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version:0;
-    if(version>1)throw new Error('Database schema is newer than this application');
+    if(version>schemaVersion)throw new Error('Database schema is newer than this application');
     const existing=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
-    if(existing.length&&version!==1)throw new Error('Remote database requires a verified migration before startup');
+    if(existing.length&&version<1)throw new Error('Remote database requires a verified migration before startup');
+    // Schema upgrades rebuild tables, so a remote database must be backed up first and upgraded on purpose.
+    if(existing.length&&version<schemaVersion&&process.env.CIPHERION_ALLOW_REMOTE_MIGRATION!=='1')throw new Error('Remote database schema is behind. Back it up, then set CIPHERION_ALLOW_REMOTE_MIGRATION=1 for one deploy.');
     if(!existing.length&&process.env.TURSO_ALLOW_EMPTY_INIT!=='1')throw new Error('Empty Turso database: import existing data first, or explicitly enable empty initialization');
   }
   db.exec(`

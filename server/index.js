@@ -20,7 +20,8 @@ import { readFile, open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database, databaseConfig } from './db.js';
-import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
+import { allowed, defaults, adminPermissions, memberPermissions, channelAdminPermissions, channelPostKinds, canPostToChannel } from './permissions.js';
+import { createCommunities } from './communities.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = resolve(process.env.DATA_DIR || resolve(root, 'data'));
@@ -67,7 +68,7 @@ function membership(chatId, userId) {
 }
 function requirePermission(chatId, userId, permission) {
   const { chat, member } = membership(chatId, userId);
-  if (!allowed(member, chat, permission)) fail(403, 'Недостаточно прав');
+  if (!allowed(member, chat, permission)) fail(403, chat.kind === 'channel' && channelPostKinds.includes(permission) ? 'Публиковать в канале могут только владелец и администраторы' : 'Недостаточно прав');
   return { chat, member };
 }
 function audit(chat, actor, action, target = '') {
@@ -88,8 +89,15 @@ function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
   const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC,id DESC LIMIT 1', c.id);
   const mine = members.find(m => m.user_id === user);
+  const channel = c.kind === 'channel', staff = m => ['owner','admin'].includes(m.role);
+  // Ordinary channel subscribers only see the owner/admins (and themselves), never the audience list.
+  const visible = members.filter(m => m.role !== 'banned').filter(m => !channel || staff(mine) || staff(m) || m.user_id === user);
+  const mute = one('SELECT until_at FROM chat_mutes WHERE user_id=? AND chat_id=?', user, c.id);
   return { ...c, title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
-    members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
+    public: !!c.public, myRole: mine.role, muted: !!mute && (mute.until_at === -1 || mute.until_at > now()),
+    ...(c.kind === 'direct' ? {} : { memberCount: members.filter(m => m.role !== 'banned').length }),
+    ...(channel ? { subscribers: members.filter(m => m.role !== 'banned').length, canPost: canPostToChannel(mine) } : {}),
+    members: visible.map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
     last: last ? message(last, user) : null,
     unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>?', c.id, user, mine.read_at).n };
 }
@@ -176,7 +184,7 @@ const server = http.createServer(async (req, res) => {
       }
       if(!b.register)security.verify(account.id,b.code);
       const token = randomBytes(32).toString('hex');
-      run('INSERT INTO sessions VALUES(?,?,?,?,?,?)', createHash('sha256').update(token).digest('hex'), account.id, clean(req.headers['user-agent'], 200), now(), now(), now() + 30 * 86400_000);
+      run('INSERT INTO sessions(id,user_id,agent,created,active,expires) VALUES(?,?,?,?,?,?)', createHash('sha256').update(token).digest('hex'), account.id, clean(req.headers['user-agent'], 200), now(), now(), now() + 30 * 86400_000);
       res.setHeader('Set-Cookie', `session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${process.env.COOKIE_SECURE === '1' ? '; Secure' : ''}`);
       privacy.event(account.id,'new_session');
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode });
@@ -274,7 +282,8 @@ const server = http.createServer(async (req, res) => {
         if (chat.kind === 'direct') fail(400, 'Это личный чат');
         const avatar = b.avatar === undefined ? chat.avatar : clean(b.avatar, 200);
         if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
-        run('UPDATE chats SET title=?,avatar=? WHERE id=?', clean(b.title ?? chat.title, 80), avatar, chatId); audit(chatId, user.id, 'info'); return json({ ok: true });
+        if (b.public !== undefined && (chat.kind !== 'channel' || member.role !== 'owner')) fail(403, 'Публичность канала меняет только владелец');
+        run('UPDATE chats SET title=?,avatar=?,public=? WHERE id=?', clean(b.title ?? chat.title, 80) || chat.title, avatar, b.public === undefined ? chat.public : (b.public === true ? 1 : 0), chatId); audit(chatId, user.id, 'info'); return json({ ok: true });
       }
       if (action === 'messages' && req.method === 'GET') {
         const before = url.searchParams.has('before')?Number(url.searchParams.get('before')):Number.MAX_SAFE_INTEGER;
@@ -312,7 +321,7 @@ const server = http.createServer(async (req, res) => {
         if(clientId)run('INSERT INTO message_requests VALUES(?,?,?,?)',user.id,clientId,messageId,messageFingerprint(chatId,b));
         stickers.bind(messageId,emojiKeys);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
       }
-      if (action === 'read' && req.method === 'POST') { const last = b.message ? one('SELECT created n FROM messages WHERE id=? AND chat_id=?',String(b.message),chatId)?.n : one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0;if(last===undefined)fail(400,'Сообщение не найдено'); run('UPDATE members SET read_at=MAX(read_at,?),delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id);emit(user.id,'receipt',{chat:chatId,user:user.id,read:last,delivered:last}); if(privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
+      if (action === 'read' && req.method === 'POST') { const last = b.message ? one('SELECT created n FROM messages WHERE id=? AND chat_id=?',String(b.message),chatId)?.n : one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0;if(last===undefined)fail(400,'Сообщение не найдено'); run('UPDATE members SET read_at=MAX(read_at,?),delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id);emit(user.id,'receipt',{chat:chatId,user:user.id,read:last,delivered:last}); if(chat.kind!=='channel'&&privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
       if (action === 'typing' && req.method === 'POST') { requirePermission(chatId, user.id, 'text'); broadcast(chatId, 'typing', { chat: chatId, user: user.id, name: user.name }); return json({ ok: true }); }
       if (action === 'audit' && req.method === 'GET') { if (!['owner','admin'].includes(member.role)) fail(403, 'Только для администраторов'); return json(all('SELECT a.*,u.name FROM audit a JOIN users u ON u.id=a.actor WHERE chat_id=? ORDER BY created DESC LIMIT 100', chatId)); }
       if (action === 'members' && req.method === 'GET') {
@@ -341,7 +350,7 @@ const server = http.createServer(async (req, res) => {
             if (b.action === 'transfer') {
               if (target.role === 'banned') fail(400,'Участник заблокирован');
               db.exec('BEGIN'); try { run("UPDATE members SET role='member',rules='{}' WHERE chat_id=? AND user_id=?",chatId,user.id); run("UPDATE members SET role='owner',rules='{}' WHERE chat_id=? AND user_id=?",chatId,b.user); db.exec('COMMIT'); } catch(error) { db.exec('ROLLBACK'); throw error; }
-            } else { rules.admin = Object.fromEntries(adminPermissions.map(k => [k,b.permissions?.[k]===true])); run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?',b.enabled ? 'admin':'member',JSON.stringify(rules),chatId,b.user); }
+            } else { rules.admin = Object.fromEntries((chat.kind === 'channel' ? channelAdminPermissions : adminPermissions).map(k => [k,b.permissions?.[k]===true])); run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?',b.enabled ? 'admin':'member',JSON.stringify(rules),chatId,b.user); }
           } else if (b.action === 'restrict') {
             requirePermission(chatId,user.id,'permissions');
             rules.overrides = Object.fromEntries(memberPermissions.filter(k => typeof b.permissions?.[k] === 'boolean').map(k => [k,b.permissions[k]]));
@@ -362,12 +371,12 @@ const server = http.createServer(async (req, res) => {
     const msgMatch = /^\/api\/messages\/([^/]+)(?:\/(vote|forward|transcribe))?$/.exec(path);
     if (msgMatch) {
       const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
-      membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
+      const {chat:msgChat,member:msgMember}=membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
       if (!action && req.method === 'GET') return json(message(m,user.id));
       if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
-        else { if(m.user_id!==user.id || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
+        else { const mayEdit=msgChat.kind==='channel'?(allowed(msgMember,msgChat,'edit')||(m.user_id===user.id&&canPostToChannel(msgMember))):m.user_id===user.id; if(!mayEdit || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll||m.deleted)fail(400,'Опрос недоступен');polls.vote(m,user.id,b.choices);
       } else if(action==='forward' && req.method==='POST') {
@@ -407,7 +416,7 @@ const server = http.createServer(async (req, res) => {
       const maximum=vip.uploadMB(user.id)*1024*1024;
       if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>20*1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 20 ГБ');
       uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
-      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
+      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;run('INSERT INTO media(id,user_id,name,type,size,created) VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
       catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;}
       return json({id:mediaId,name,type,size},201);
     }
