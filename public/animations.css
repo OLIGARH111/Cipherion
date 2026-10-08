@@ -1,0 +1,173 @@
+/*
+  Cipherion — слой анимаций.
+  Только transform/opacity (дёшево для GPU). Всё отключается при
+  prefers-reduced-motion и при настройке body.no-motion (правила в style.css).
+*/
+
+/* ============ Заставка ============ */
+#launch{
+  background:radial-gradient(ellipse 80% 60% at 50% 38%,#12382c 0%,#09221e 50%,#050f0d 100%);
+  color:#9ec4b5;overflow:hidden;
+  transition:opacity .55s ease,transform .7s cubic-bezier(.4,0,.2,1);
+}
+#launch img{
+  position:relative;z-index:1;filter:drop-shadow(0 0 40px #83d9b544);
+  animation:launch-logo .9s cubic-bezier(.2,.9,.3,1.1) both,launch-breathe 3.4s ease-in-out .9s infinite;
+}
+#launch::before,#launch::after{
+  content:"";position:absolute;left:50%;top:calc(50% - 30px);border-radius:50%;pointer-events:none;
+}
+#launch::before{
+  width:460px;height:460px;
+  background:radial-gradient(circle,#83d9b533 0%,#83d9b50f 45%,transparent 70%);
+  animation:launch-glow 3.4s ease-in-out infinite;
+}
+#launch::after{
+  width:240px;height:240px;border:1px solid #83d9b588;
+  animation:launch-ring 2.8s cubic-bezier(.2,.6,.3,1) .6s infinite both;
+}
+#launch p{
+  margin:0;opacity:0;letter-spacing:.02em;
+  animation:launch-text .7s ease .35s forwards;
+}
+#launch p::after{
+  content:"";display:block;width:96px;height:2px;margin:18px auto 0;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#83d9b5,transparent);background-size:200% 100%;
+  animation:launch-bar 1.4s linear infinite;
+}
+/* Плавный уход заставки (класс ставит animations.js) */
+#launch[data-exit] img,#launch[data-exit] p,#launch[data-exit] p::after,
+#launch[data-exit]::before,#launch[data-exit]::after{animation:none}
+#launch[data-exit] p{opacity:1}
+#launch[data-exit]::after{opacity:0}
+#launch.leaving{opacity:0;transform:scale(1.07);pointer-events:none}
+
+@keyframes launch-logo{from{opacity:0;transform:translateY(14px) scale(.7)}to{opacity:1;transform:none}}
+@keyframes launch-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+@keyframes launch-glow{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.92)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+@keyframes launch-ring{0%{opacity:.55;transform:translate(-50%,-50%) scale(.6)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9)}}
+@keyframes launch-text{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes launch-bar{from{background-position:200% 0}to{background-position:-200% 0}}
+
+@media(prefers-reduced-motion:reduce){
+  #launch img,#launch::before,#launch::after,#launch p,#launch p::after{animation:none}
+  #launch p{opacity:1}
+  #launch::after{opacity:0}
+}
+
+/* ============ Живой фон ============ */
+.ambient{overflow:hidden}
+.ambient::before{
+  content:"";position:absolute;inset:-25%;pointer-events:none;will-change:transform;opacity:.7;
+  background:
+    radial-gradient(circle at 22% 30%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 38%),
+    radial-gradient(circle at 78% 70%,#4fb3a022,transparent 40%),
+    radial-gradient(circle at 60% 15%,color-mix(in srgb,var(--accent) 9%,transparent),transparent 32%);
+  animation:aurora 32s ease-in-out infinite alternate;
+}
+body.light .ambient::before{opacity:.4}
+@keyframes aurora{
+  0%{transform:translate3d(-3%,-2%,0) rotate(0deg) scale(1)}
+  50%{transform:translate3d(4%,3%,0) rotate(6deg) scale(1.08)}
+  100%{transform:translate3d(-2%,5%,0) rotate(-4deg) scale(1.03)}
+}
+
+/* ============ Вход и регистрация ============ */
+@media(prefers-reduced-motion:no-preference){
+  .auth-art>*{animation:rise .75s cubic-bezier(.2,.9,.3,1) backwards}
+  .auth-art>:nth-child(2){animation-delay:.08s}
+  .auth-art>:nth-child(3){animation-delay:.16s}
+  .auth-art>:nth-child(4){animation-delay:.24s}
+  .auth-card{animation:card-in .8s cubic-bezier(.2,.9,.3,1) .12s backwards}
+  .auth-card form>*{animation:rise .55s cubic-bezier(.2,.9,.3,1) backwards}
+  .auth-card form>:nth-child(1){animation-delay:.3s}
+  .auth-card form>:nth-child(2){animation-delay:.38s}
+  .auth-card form>:nth-child(3){animation-delay:.46s}
+  .auth-card form>:nth-child(4){animation-delay:.54s}
+  .auth-card form>:nth-child(5){animation-delay:.62s}
+  .auth-card form>:nth-child(6){animation-delay:.7s}
+  .auth-logo{animation:float 5s ease-in-out infinite}
+  .auth-art h1 em{
+    background:linear-gradient(100deg,var(--accent) 25%,#e8fff5 48%,var(--accent) 72%);
+    background-size:240% 100%;-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;color:transparent;
+    animation:shine 6s ease-in-out infinite;
+  }
+}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes card-in{from{opacity:0;transform:translateY(28px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes shine{0%,100%{background-position:100% 0}50%{background-position:0 0}}
+
+/* Поля ввода */
+.field input,.field textarea,.field select{transition:border-color .25s,box-shadow .25s,background-color .25s}
+.field input:focus,.field textarea:focus,.field select:focus{
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent);
+}
+
+/* ============ Сообщения ============ */
+/* Если animations.js работает, анимируем только НОВЫЕ сообщения — иначе
+   каждая перерисовка списка проигрывала бы анимацию заново. */
+.anim-ready .message{animation:none}
+.message{transform-origin:left bottom}
+.message.own{transform-origin:right bottom}
+@media(prefers-reduced-motion:no-preference){
+  .message.msg-in{animation:msg-in .45s cubic-bezier(.2,.9,.3,1.15) backwards}
+  .message.own.msg-in{animation-name:msg-in-own}
+  .message.msg-open{animation:msg-in .55s cubic-bezier(.2,.9,.3,1) backwards;animation-delay:calc(var(--i,0)*45ms)}
+  .message.own.msg-open{animation-name:msg-in-own}
+}
+@keyframes msg-in{from{opacity:0;transform:translate(-14px,12px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes msg-in-own{from{opacity:0;transform:translate(14px,12px) scale(.92)}to{opacity:1;transform:none}}
+
+/* ============ Список чатов ============ */
+@media(prefers-reduced-motion:no-preference){
+  .chat-item.item-in{animation:item-in .55s cubic-bezier(.2,.9,.3,1) backwards;animation-delay:calc(var(--i,0)*45ms)}
+}
+@keyframes item-in{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.chat-item{transition:background .2s,box-shadow .2s,transform .25s cubic-bezier(.2,.9,.3,1.2)}
+.chat-item:active{transform:scale(.985)}
+
+/* ============ Кнопки ============ */
+.primary{transition:transform .2s cubic-bezier(.2,.9,.3,1.4),box-shadow .3s,filter .2s}
+.primary:not(:disabled):active{transform:scale(.96)}
+.secondary{transition:transform .2s cubic-bezier(.2,.9,.3,1.4),background .2s,border-color .2s}
+.secondary:not(:disabled):active{transform:scale(.96)}
+.icon-button{transition:background .2s,color .2s,transform .2s cubic-bezier(.2,.9,.3,1.4)}
+.icon-button:not(:disabled):active{transform:scale(.88)}
+.icon-button svg{transition:transform .3s cubic-bezier(.2,.9,.3,1.4)}
+.chip{transition:background .2s,color .2s,border-color .2s,transform .2s cubic-bezier(.2,.9,.3,1.4)}
+.chip:active{transform:scale(.93)}
+
+@media(hover:hover){
+  .primary:not(:disabled):hover{
+    transform:translateY(-2px);filter:brightness(1.06);
+    box-shadow:0 10px 32px color-mix(in srgb,var(--accent) 34%,transparent);
+  }
+  .secondary:not(:disabled):hover{transform:translateY(-1px)}
+  .icon-button:not(:disabled):hover{transform:translateY(-1px) scale(1.07)}
+  .icon-button.send:not(:disabled):hover svg{transform:translateX(2px) rotate(-10deg) scale(1.08)}
+  .chat-item:hover{transform:translateX(3px)}
+}
+
+/* Волна при нажатии (создаёт animations.js) */
+.ripple{
+  position:absolute;border-radius:50%;background:currentColor;opacity:.22;
+  transform:scale(0);pointer-events:none;animation:ripple .6s ease-out forwards;
+}
+@keyframes ripple{to{transform:scale(1);opacity:0}}
+
+/* ============ Диалоги, тосты, звонки ============ */
+dialog[open]::backdrop{backdrop-filter:blur(6px);animation:backdrop-in .3s ease both}
+@keyframes backdrop-in{from{opacity:0}to{opacity:1}}
+
+#toast{transition:opacity .3s ease,transform .5s cubic-bezier(.2,.9,.3,1.25)}
+
+@media(prefers-reduced-motion:no-preference){
+  .call-overlay{animation:call-in .5s cubic-bezier(.2,.9,.3,1) backwards}
+  .empty-symbol{animation:float 4.5s ease-in-out infinite}
+}
+@keyframes call-in{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:none}}
+.call-controls button{transition:transform .2s cubic-bezier(.2,.9,.3,1.4),background .2s}
+.call-controls button:active{transform:scale(.9)}
+@media(hover:hover){.call-controls button:hover{transform:scale(1.08)}}

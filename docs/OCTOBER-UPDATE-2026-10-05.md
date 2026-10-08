@@ -2,6 +2,14 @@
 
 This change extends the existing Node/SQLite-or-libSQL server and vanilla client. Realtime remains authenticated SSE plus HTTP signaling; it does not introduce a parallel WebSocket implementation. This feature branch has not been deployed and no production database migration has been performed. See the infrastructure status below before rollout.
 
+## Current release checkpoint (2026-10-08)
+
+- The owner requested completing the entire release preparation, including opening Turso for backup. Data/session preservation gates below still apply.
+- Render independently auto-deployed main `95e8f5b504ea8632650c28715ede90d0412d0db0` at 09:39 UTC (12:39 Moscow): animation assets and index wiring. Preserve these changes when releasing this branch. This restart means current legacy-media availability must be inventoried again; it does not prove the files survived.
+- The animation commit has been incorporated into this branch without changing its contents. Syntax checks and all 73 local tests pass, including legacy-session continuity after migration/restart.
+- Turso browser login via Google encountered `502 Connection refused`; a fresh Turso page still shows sign-in. No production database backup, schema migration, media transfer, or new-version deployment has been performed. Do not claim successful authentication or provider integration from this checkpoint.
+- Production email provider/sender credentials and real inbox delivery, real B2 PUT/HEAD/GET, current-media preservation and actual two-device calls remain unverified.
+
 ## Implemented
 
 - Shared `saveAction`: duplicate-submit protection, retained inputs and inline errors, local-state completion before closing; stale account callbacks are ignored.
