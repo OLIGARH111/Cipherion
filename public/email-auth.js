@@ -1,6 +1,15 @@
 import {$,esc,api,guard} from './ui.js';
+import {passwordAuthView} from './password-auth.js';
 // The same flow is used at first launch and when adding another account.
-export function emailAuthView(target,{complete,cancel,changeEmail=false,purpose,email=''}) {
+export async function emailAuthView(target,{complete,cancel,changeEmail=false,purpose,email=''}) {
+ const marker=document.createElement('p');marker.textContent='Загрузка…';target.replaceChildren(marker);
+ let config;
+ try{config=await api('/auth/config');}catch(e){if(e.name==='AbortError')return;config={email:false,passwordRegistration:false};}
+ if(target.firstChild!==marker)return;
+ if(!config.email){
+  if(changeEmail||purpose){target.innerHTML='<p>Подтверждение по электронной почте пока недоступно.</p>'+(cancel?'<button class="secondary" id="auth-cancel">Назад</button>':'');target.querySelector('#auth-cancel')?.addEventListener('click',cancel);return;}
+  return passwordAuthView(target,{complete,cancel,allowRegistration:config.passwordRegistration===true});
+ }
  let mode=purpose|| (changeEmail?'change':'home'),step=purpose?1:0,busy=false,challenge=null,until=0;
  const draft={firstName:'',lastName:'',email,username:'',password:''};
  const content=()=>target.querySelector('.email-content');

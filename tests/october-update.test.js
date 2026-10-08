@@ -74,6 +74,15 @@ test('object storage verifies upload, survives local deletion/restart, ranges an
  }finally{db.close();await rm(tmp,{recursive:true,force:true});await rm(tmp+'-backup',{recursive:true,force:true});}
 });
 
+test('temporary media mode keeps uploads local despite configured but unusable S3 credentials',async()=>{
+ const tmp=await mkdtemp(join(tmpdir(),'cipherion-temporary-storage-')),db=new DatabaseSync(':memory:');let calls=0;
+ const config={db,one:(s,...p)=>db.prepare(s).get(...p),run:(s,...p)=>db.prepare(s).run(...p),data:tmp,env:{NODE_ENV:'production',RENDER:'true',MEDIA_STORAGE_MODE:'temporary',S3_BUCKET:'configured',S3_ACCESS_KEY_ID:'invalid',S3_SECRET_ACCESS_KEY:'invalid'},client:{send:async()=>{calls++;throw Error('Invalid credentials');}}};
+ try{
+  await mkdir(join(tmp,'media'));await writeFile(join(tmp,'media','photo'),'temporary bytes');let storage=createStorage(config);storage.writable();await storage.persist('media','photo','owner',join(tmp,'media','photo'),'text/plain');await storage.releaseLocal('media','photo');storage=createStorage(config);
+  assert.equal((await storage.bytes('media','photo')).toString(),'temporary bytes');assert.equal(storage.configured,false);assert.equal(storage.mode,'temporary');assert.equal(db.prepare('SELECT provider FROM media_objects').get().provider,'local');assert.equal(calls,0);
+ }finally{db.close();await rm(tmp,{recursive:true,force:true});}
+});
+
 test('passwordless 2FA requires a fresh session-bound email approval and protects later login',async()=>{
  await stop();await start();const p=await register('security@example.test');sql(db=>db.prepare("UPDATE email_cooldowns SET last_sent=0 WHERE email='security@example.test'").run());
  const begin=await request('/auth/email/start',p.d,'POST',{purpose:'security',email:'ignored@example.test'});assert.equal(begin.status,200);assert.equal(mailbox.at(-1).to,'security@example.test');const code=mailbox.at(-1).code;

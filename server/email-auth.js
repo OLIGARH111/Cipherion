@@ -37,7 +37,7 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
   return {challengeId:cid,email:email.slice(0,1)+'•••••@'+email.split('@')[1],retryAfter:60,message:neutral};
  }
  async function route({path,req,res,b,user,json}) {
-  if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:true});return true;}
+  if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:ready(),passwordRegistration:!enabled});return true;}
   if(path==='/api/auth/email/start'&&req.method==='POST'){json(await issue(req,b,user));return true;}
   if(path!=='/api/auth/email/confirm'||req.method!=='POST')return false;
   if(!ready())fail(503,'Подтверждение email пока недоступно');rate('email-confirm:'+req.socket.remoteAddress,30,600000);

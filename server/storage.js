@@ -5,18 +5,20 @@ import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 export function createStorage({db,one,run,data,env=process.env,client}) {
  db.exec(`CREATE TABLE IF NOT EXISTS media_objects(namespace TEXT NOT NULL,media_id TEXT NOT NULL,owner_id TEXT NOT NULL,provider TEXT NOT NULL,storage_key TEXT NOT NULL UNIQUE,mime_type TEXT NOT NULL,size INTEGER NOT NULL,checksum TEXT NOT NULL,width INTEGER,height INTEGER,duration REAL,thumbnail_key TEXT,status TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(namespace,media_id));`);
+ const temporary=env.MEDIA_STORAGE_MODE==='temporary';
  const configured=!!(env.S3_BUCKET&&env.S3_ACCESS_KEY_ID&&env.S3_SECRET_ACCESS_KEY);
  if([env.S3_BUCKET,env.S3_ACCESS_KEY_ID,env.S3_SECRET_ACCESS_KEY].some(Boolean)&&!configured)console.warn('Object storage configuration is incomplete; durable uploads are unavailable.');
  if(env.S3_ENDPOINT&&!/^https:\/\//.test(env.S3_ENDPOINT)&&env.NODE_ENV!=='test')throw new Error('Object storage requires HTTPS');
  const s3=client||(configured?new S3Client({region:env.S3_REGION||'auto',endpoint:env.S3_ENDPOINT||undefined,forcePathStyle:env.S3_FORCE_PATH_STYLE==='1',credentials:{accessKeyId:env.S3_ACCESS_KEY_ID,secretAccessKey:env.S3_SECRET_ACCESS_KEY},requestChecksumCalculation:'WHEN_REQUIRED'}):null);
+ const uploadToS3=!!s3&&!temporary;
  const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
  function local(namespace,key){if(!['media','stickers'].includes(namespace)||!/^[a-zA-Z0-9_-]+(?:\.png)?$/.test(key))fail(400,'Некорректный ID файла');return resolve(data,namespace,key);}
- function writable(){if(!s3&&(env.NODE_ENV==='production'||env.RENDER==='true'))fail(503,'Постоянное хранилище ещё не подключено. Загрузка временно недоступна.');}
+ function writable(){if(!s3&&!temporary&&(env.NODE_ENV==='production'||env.RENDER==='true'))fail(503,'Постоянное хранилище ещё не подключено. Загрузка временно недоступна.');}
  async function persist(namespace,key,owner,file,type) {
   writable();const size=(await stat(file)).size,hash=createHash('sha256');for await(const chunk of createReadStream(file))hash.update(chunk);const checksum=hash.digest('hex');
   const storageKey=`users/${owner}/${namespace}/${key}`;
-  if(s3){await s3.send(new PutObjectCommand({Bucket:env.S3_BUCKET,Key:storageKey,Body:createReadStream(file),ContentLength:size,ContentType:type,Metadata:{sha256:checksum}}));const head=await s3.send(new HeadObjectCommand({Bucket:env.S3_BUCKET,Key:storageKey}));if(head.ContentLength!==size||head.Metadata?.sha256!==checksum)fail(502,'Хранилище не подтвердило сохранение файла');}
-  run(`INSERT INTO media_objects(namespace,media_id,owner_id,provider,storage_key,mime_type,size,checksum,status,created) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(namespace,media_id) DO UPDATE SET provider=excluded.provider,storage_key=excluded.storage_key,size=excluded.size,checksum=excluded.checksum,status=excluded.status`,namespace,key,owner,s3?'s3':'local',storageKey,type,size,checksum,'ready',Date.now());
+  if(uploadToS3){await s3.send(new PutObjectCommand({Bucket:env.S3_BUCKET,Key:storageKey,Body:createReadStream(file),ContentLength:size,ContentType:type,Metadata:{sha256:checksum}}));const head=await s3.send(new HeadObjectCommand({Bucket:env.S3_BUCKET,Key:storageKey}));if(head.ContentLength!==size||head.Metadata?.sha256!==checksum)fail(502,'Хранилище не подтвердило сохранение файла');}
+  run(`INSERT INTO media_objects(namespace,media_id,owner_id,provider,storage_key,mime_type,size,checksum,status,created) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(namespace,media_id) DO UPDATE SET provider=excluded.provider,storage_key=excluded.storage_key,size=excluded.size,checksum=excluded.checksum,status=excluded.status`,namespace,key,owner,uploadToS3?'s3':'local',storageKey,type,size,checksum,'ready',Date.now());
   return {storageKey,checksum,size};
  }
  async function get(namespace,key,range) {
@@ -26,9 +28,9 @@ export function createStorage({db,one,run,data,env=process.env,client}) {
   }catch(e){if(e.code==='ENOENT'||e.name==='NoSuchKey'||e.$metadata?.httpStatusCode===404)fail(404,'Файл недоступен: исходный файл не сохранился');throw e;}
  }
  async function bytes(namespace,key,range){const stream=await get(namespace,key,range),chunks=[];for await(const c of stream)chunks.push(c);return Buffer.concat(chunks);}
- async function releaseLocal(namespace,key){if(s3)await unlink(local(namespace,key)).catch(()=>{});}
+ async function releaseLocal(namespace,key){if(uploadToS3)await unlink(local(namespace,key)).catch(()=>{});}
  async function remove(namespace,key){const row=one('SELECT * FROM media_objects WHERE namespace=? AND media_id=?',namespace,key);if(row?.provider==='s3'){if(!s3)fail(503,'Хранилище недоступно');await s3.send(new DeleteObjectCommand({Bucket:env.S3_BUCKET,Key:row.storage_key}));}else await unlink(local(namespace,key)).catch(e=>{if(e.code!=='ENOENT')throw e;});run('DELETE FROM media_objects WHERE namespace=? AND media_id=?',namespace,key);}
- return {persist,get,bytes,releaseLocal,remove,writable,configured:!!s3};
+ return {persist,get,bytes,releaseLocal,remove,writable,configured:uploadToS3,mode:temporary?'temporary':s3?'s3':'local'};
 }
 export function validateUpload(bytes,type,name) {
  const error=()=>{throw Object.assign(new Error('Содержимое файла не соответствует формату или этот тип запрещён'),{status:400});};

@@ -4,6 +4,20 @@ This change extends the existing Node/SQLite-or-libSQL server and vanilla client
 
 ## Current release checkpoint (2026-10-08)
 
+### Interim release authorized at 19:00 Europe/Moscow
+
+The owner explicitly requested publishing the update now and deferring persistent photo storage. This supersedes the earlier requirement to block this release on media migration. Existing accounts, messages, and valid sessions must still be preserved in the current Turso database. No database replacement, username table rebuild, session reset, or credential rotation is part of this release.
+
+- The two S3 credentials currently configured in Render were tested with the owner's permission. The application adapter received `403 SignatureDoesNotMatch`; an independent signed PUT received `403 AccessDenied` / `Signature validation failed`; Backblaze's native authorization endpoint returned `401 unauthorized`. No test upload succeeded. Temporary local credential files were removed. Backblaze's dashboard is presently blocked for this browser by a Cloudflare challenge loop.
+- Docker explicitly sets `MEDIA_STORAGE_MODE=temporary`. Uploads remain local even when unusable S3 variables exist; local bytes are retained after upload. No silent fallback occurs when durable mode is selected. Temporary files can be lost on Render restart/redeploy, including this deployment; metadata in Turso does not preserve file bytes.
+- Email delivery remains disabled. The auth UI reads `/api/auth/config` and provides existing username/password login, password registration (minimum five-character new usernames), child registration and 2FA login. Email signup/change is enabled only when configured. The current NOT NULL username schema is retained; the offline email migration is deferred.
+- Starting this release against an isolated copy of the verified production snapshot compared all 71 original application tables. No unexpected row changes occurred; only six expected channel membership roles changed from `member` to `subscriber`. Integrity and foreign-key checks passed; the original username constraint remains intact. `/health` and `/api/auth/config` returned 200 with temporary storage and password registration enabled.
+- Regression coverage now exercises both migrated and unmigrated old schemas, the original session cookie through two restarts, existing history/attachments, and new temporary uploads. Tests also cover ignoring bad S3 credentials in temporary mode and the password/child/2FA auth UI when mail is unavailable.
+- Validation for this interim release: syntax checks passed; 76 tests passed, 0 failed; `git diff --check` passed.
+- Real two-device call verification remains outstanding; microphone and device-switch safeguards are included, but the original one-way audio issue is not claimed resolved.
+
+The preservation/migration instructions below describe the later durable-media/email rollout, except account/message/session preservation which remains mandatory now. For that later rollout, verify new storage credentials and real email delivery before enabling `MEDIA_STORAGE_MODE=durable` / `EMAIL_AUTH_ENABLED=1`.
+
 - The owner requested completing the entire release preparation, including opening Turso for backup. Data/session preservation gates below still apply.
 - Render independently auto-deployed main `95e8f5b504ea8632650c28715ede90d0412d0db0` at 09:39 UTC (12:39 Moscow): animation assets and index wiring. Preserve these changes when releasing this branch. This restart means current legacy-media availability must be inventoried again; it does not prove the files survived.
 - The animation commit has been incorporated into this branch without changing its contents. Syntax checks and all 73 local tests pass, including legacy-session continuity after migration/restart.

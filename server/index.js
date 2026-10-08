@@ -135,7 +135,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
-      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,emailAuthConfigured:!!emailAuth.ready()},result.status);
+      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},result.status);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');

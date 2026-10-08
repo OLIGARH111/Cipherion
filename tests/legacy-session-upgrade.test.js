@@ -9,7 +9,7 @@ import {join} from 'node:path';
 import {database} from '../server/db.js';
 import {migrateNullableUsername} from '../server/email-migration.js';
 
-test('pre-update session cookie survives username migration and restarts with original history and media',async()=>{
+for(const migrateUsername of [false,true])test(`pre-update session survives ${migrateUsername?'with':'without'} username migration and restarts`,async()=>{
  const dir=await mkdtemp(join(tmpdir(),'cipherion-legacy-session-'));
  const uid=randomUUID(),peer=randomUUID(),chat=randomUUID(),mid=randomUUID(),media=randomUUID();
  // Exact token/cookie/hash format used by production commit 418ee3c.
@@ -17,7 +17,7 @@ test('pre-update session cookie survives username migration and restarts with or
  const at=Date.now(),expires=at+86400000,bytes=Buffer.from('original private attachment');
  let server,base;
  async function start(){
-  server=spawn(process.execPath,['server/index.js'],{env:{...process.env,TURSO_DATABASE_URL:'',TURSO_AUTH_TOKEN:'',S3_BUCKET:'',S3_ACCESS_KEY_ID:'',S3_SECRET_ACCESS_KEY:'',NODE_ENV:'test',DATA_DIR:dir,PORT:'0',HOST:'127.0.0.1',EMAIL_AUTH_ENABLED:'0'},stdio:['ignore','pipe','pipe']});
+  server=spawn(process.execPath,['server/index.js'],{env:{...process.env,TURSO_DATABASE_URL:'',TURSO_AUTH_TOKEN:'',S3_BUCKET:'',S3_ACCESS_KEY_ID:'',S3_SECRET_ACCESS_KEY:'',NODE_ENV:'production',MEDIA_STORAGE_MODE:'temporary',DATA_DIR:dir,PORT:'0',HOST:'127.0.0.1',EMAIL_AUTH_ENABLED:'0'},stdio:['ignore','pipe','pipe']});
   base=await new Promise((resolve,reject)=>{let errors='';server.stderr.on('data',b=>errors+=b);server.stdout.on('data',b=>{const match=String(b).match(/http:\/\/127.0.0.1:\d+/);if(match)resolve(match[0]);});server.once('exit',()=>reject(Error(errors)));});
  }
  async function stop(){const exited=new Promise(r=>server.once('exit',r));server.kill();await exited;}
@@ -35,10 +35,11 @@ test('pre-update session cookie survives username migration and restarts with or
   db.prepare('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,created) VALUES(?,?,?,?,?,?,?)').run(mid,chat,uid,'file','Original message',media,at);
   const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(r=>r.name);
   const rows=()=>Object.fromEntries(tables.map(t=>[t,db.prepare('SELECT * FROM "'+t+'" ORDER BY rowid').all()]));
-  const before=rows();assert.equal(migrateNullableUsername(db).changed,true);assert.deepEqual(rows(),before);db.close();
+  const before=rows();if(migrateUsername)assert.equal(migrateNullableUsername(db).changed,true);assert.deepEqual(rows(),before);db.close();
   await mkdir(join(dir,'media'));await writeFile(join(dir,'media',media),bytes);
   for(let restart=0;restart<2;restart++){
    await start();
+   const config=await request('/auth/config');assert.deepEqual(await config.json(),{email:false,passwordless:false,passwordRegistration:true});
    const accounts=await request('/accounts');assert.equal(accounts.status,200);assert.equal((await accounts.json())[0].user.id,uid);
    for(const selected of [false,true]){
     const me=await request('/me',selected);assert.equal(me.status,200);assert.equal(me.headers.get('set-cookie'),null);
@@ -46,6 +47,8 @@ test('pre-update session cookie survives username migration and restarts with or
    }
    const history=await request('/chats/'+chat+'/messages',true);assert.equal(history.status,200);assert.equal((await history.json())[0].id,mid);
    const file=await request('/media/'+media,true);assert.equal(file.status,200);assert.deepEqual(Buffer.from(await file.arrayBuffer()),bytes);
+   const upload=await fetch(base+'/api/media',{method:'POST',headers:{Cookie:'session='+token,'Content-Type':'text/plain','X-File-Name':'test.txt'},body:'new temporary upload'});assert.equal(upload.status,201);const uploadId=(await upload.json()).id;
+   const uploaded=await request('/media/'+uploadId,true);assert.equal(uploaded.status,200);assert.equal(await uploaded.text(),'new temporary upload');
    await stop();
    db=new DatabaseSync(join(dir,'cipherion.sqlite'));
    const session=db.prepare('SELECT * FROM sessions WHERE id=?').get(sid);assert.equal(session.expires,expires);assert.equal(session.user_id,uid);
