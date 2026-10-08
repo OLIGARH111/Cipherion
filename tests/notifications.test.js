@@ -28,7 +28,7 @@ test('call push has priority, privacy, expiry, ownership and device-specific tes
  for(const u of ['a','b','c'])run("INSERT INTO users(id,username,name,password,created) VALUES(?,?,?,'x',0)",u,u,u);
  run("INSERT INTO chats(id,kind) VALUES('chat','direct')");for(const u of ['a','b'])run("INSERT INTO members(chat_id,user_id) VALUES('chat',?)",u);
  run("INSERT INTO sessions(id,user_id,expires) VALUES('s','b',999999)");
- run("INSERT INTO push_devices VALUES('device','b','s','web','https://web.push.apple.com/test','{}',0)");
+ run("INSERT INTO push_account_devices VALUES('device','b','s','web','https://web.push.apple.com/test','{}',0)");
  run("INSERT INTO notification_preferences VALUES('b',?)",JSON.stringify({showName:false,showText:false}));
  run("INSERT INTO messages(id,chat_id,user_id,kind,body,created) VALUES('m','chat','a','text','secret',?)",clock);
  const call=(id,at=clock)=>run("INSERT INTO calls(id,chat_id,user_id,video,created,status) VALUES(?,'chat','a',1,?,'ringing')",id,at);
@@ -43,7 +43,7 @@ test('call push has priority, privacy, expiry, ownership and device-specific tes
  await assert.rejects(test('c'),{status:404});await assert.rejects(test('b','other'),{status:404});await test();await assert.rejects(test(),{status:429});
  // A queued retry must never leak to another account that reclaims this endpoint.
  run("UPDATE notification_preferences SET data='{}' WHERE user_id='b'");call('retry');service.providers.set('web',async()=>{throw new Error('temporary');});await service.tick();
- run("UPDATE push_devices SET user_id='c' WHERE id='device'");clock+=20000;service.providers.set('web',async(s,p)=>sent.push(p));const count=sent.length;await service.tick();assert.equal(sent.length,count);
+ run("UPDATE push_account_devices SET user_id='c' WHERE id='device'");clock+=20000;service.providers.set('web',async(s,p)=>sent.push(p));const count=sent.length;await service.tick();assert.equal(sent.length,count);
  }finally{db.close();await rm(dir,{recursive:true,force:true});}
 });
 
@@ -58,3 +58,4 @@ test('service worker opens live windows without navigation and renders expired c
  await dispatch('notificationclick',{notification:{data:{url:'https://evil.example/'},close(){}}});assert.equal(focused,1);
  self.clients.matchAll=async()=>[];await dispatch('notificationclick',{notification:{data:{url:'/#chat=1'},close(){}}});assert.equal(opened,1);
 });
+

@@ -1,3 +1,7 @@
+import {createAccounts} from './accounts.js';
+import {createEmailAuth} from './email-auth.js';
+import {createStorage,validateUpload} from './storage.js';
+import {createCommunities} from './communities.js';
 import {health, logFailure, messageFingerprint} from './release.js';
 import {backupBeforeMigration, migrate} from './migrations.js';
 import {createDelivery} from './delivery.js';
@@ -34,7 +38,7 @@ const id = () => randomUUID();
 const now = () => Date.now();
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
-const publicUser = (u, viewer) => ({...privacy.project(u, viewer, streams.has(u?.id)),...(u?.id===viewer?{isAdmin:adminAccess.isAdmin(u.id)}:{})});
+const publicUser = (u, viewer) => ({...privacy.project(u, viewer, streams.has(u?.id)),...(u?.id===viewer?{isAdmin:adminAccess.isAdmin(u.id),email:u.email||null,emailVerified:!!u.email_verified,surname:one('SELECT surname FROM profile_details WHERE user_id=?',u.id)?.surname||''}:{})});
 const streams = new Map(), liveCalls = new Map(), limits = new Map();
 let uploadsInFlight=0;
 function rate(key, count, window = 60_000) {
@@ -88,18 +92,10 @@ function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
   const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC,id DESC LIMIT 1', c.id);
   const mine = members.find(m => m.user_id === user);
-  return { ...c, title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
+  return { ...c, invite_key:undefined, canPost:allowed(mine,c,'text'),canEdit:allowed(mine,c,'edit'),canDelete:allowed(mine,c,'delete'),canPin:allowed(mine,c,'pin'), muted:!!one('SELECT 1 FROM chat_mutes WHERE user_id=? AND chat_id=? AND (until_at=-1 OR until_at>?)',user,c.id,now()), title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
     members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
     last: last ? message(last, user) : null,
     unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>?', c.id, user, mine.read_at).n };
-}
-function authenticate(req) {
-  const raw = /(?:^|;\s*)session=([a-f0-9]+)/.exec(req.headers.cookie || '')?.[1];
-  if (!raw) return null;
-  const session = one('SELECT * FROM sessions WHERE id=? AND expires>?', createHash('sha256').update(raw).digest('hex'), now());
-  if (!session) return null;
-  run('UPDATE sessions SET active=? WHERE id=?', now(), session.id);
-  return { ...one('SELECT * FROM users WHERE id=?', session.user_id), session };
 }
 async function body(req, limit = 1024 * 1024) {
   const chunks = []; let size = 0;
@@ -112,19 +108,23 @@ function endCall(call, status = 'ended') {
   liveCalls.delete(call.id);
 }
 const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
 const vip=createVip({db,one,all,run,fail,now,id,rate,isAdmin:adminAccess.isAdmin});
-const stickers=createStickers({db,one,all,run,fail,now,id,data,rate,membership,requirePermission,privacy,family,broadcast,isAdmin:adminAccess.isAdmin});
+const stickers=createStickers({db,one,all,run,fail,now,id,data,storage,rate,membership,requirePermission,privacy,family,broadcast,isAdmin:adminAccess.isAdmin});
 const social=createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers});
 const profiles=createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,social,isAdmin:adminAccess.isAdmin});
-const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data});
+const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data,storage});
 const polls=createPolls({db,one,all,run,fail,now,id,rate,membership,requirePermission,family,privacy,broadcast,emit});
-const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data});
+const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data,storage});
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
 migrate(db);
+const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
+const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
+const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -135,7 +135,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
-      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured()},result.status);
+      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},result.status);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
@@ -149,14 +149,18 @@ const server = http.createServer(async (req, res) => {
     const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
     if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
     rate(req.socket.remoteAddress, 600);
-    const user = authenticate(req);
+    const user = accounts.authenticate(req);
     let b = {};
     if (!['GET', 'HEAD'].includes(req.method) && path !== '/api/media') {
       if (!(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'Ожидается JSON');
       try { b = JSON.parse((await body(req)).toString() || '{}'); } catch (error) { if (error.status) throw error; fail(400, 'Некорректный JSON'); }
     }
     if (!b || typeof b !== 'object' || Array.isArray(b)) fail(400, 'Ожидается JSON-объект');
+    if(path==='/api/accounts'&&req.method==='GET')return json(accounts.list(req));
+    if(await emailAuth.route({path,req,res,b,user,json}))return;
     if (path === '/api/auth' && req.method === 'POST') {
+      if(b.register&&emailAuth.enabled)fail(410,'Создайте аккаунт через подтверждение email');
+      accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
@@ -172,17 +176,15 @@ const server = http.createServer(async (req, res) => {
       } else {
         const [salt, hash] = (account?.password || 'dummy:' + '0'.repeat(128)).split(':');
         const attempt = scryptSync(password, salt, 64);
-        if (!account || !timingSafeEqual(attempt, Buffer.from(hash, 'hex'))) fail(401, 'Неверный username или пароль');
+        if (!account || !hash || Buffer.from(hash,'hex').length!==attempt.length || !timingSafeEqual(attempt, Buffer.from(hash, 'hex'))) fail(401, 'Неверный username или пароль');
       }
       if(!b.register)security.verify(account.id,b.code);
-      const token = randomBytes(32).toString('hex');
-      run('INSERT INTO sessions VALUES(?,?,?,?,?,?)', createHash('sha256').update(token).digest('hex'), account.id, clean(req.headers['user-agent'], 200), now(), now(), now() + 30 * 86400_000);
-      res.setHeader('Set-Cookie', `session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${process.env.COOKIE_SECURE === '1' ? '; Secure' : ''}`);
-      privacy.event(account.id,'new_session');
+      accounts.create(req,res,account);
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), transcription: !!process.env.TRANSCRIPTION_KEY, ...rtcConfiguration(user.id) });
+    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, ...rtcConfiguration(user.id) });
+    if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
     if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
     if(await delivery.route({path,req,b,user,json,url}))return;
@@ -200,10 +202,10 @@ const server = http.createServer(async (req, res) => {
     if(await ai.route({path,req,res,b,user,json}))return;
     if (path === '/api/logout' && req.method === 'POST') {
       ai.abortUser(user.id);
-      run('DELETE FROM push_devices WHERE session_id=?',user.session.id);
+      run('DELETE FROM push_account_devices WHERE session_id=?',user.session.id);
       run('DELETE FROM sessions WHERE id=?', user.session.id);
       for (const stream of streams.get(user.id) || []) if (stream.sessionId === user.session.id) stream.end();
-      res.setHeader('Set-Cookie', 'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ ok: true });
+      accounts.logout(req,res,user); return json({ ok: true });
     }
     if (path === '/api/me' && req.method === 'PATCH') {
       ai.abortUser(user.id);
@@ -226,7 +228,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/sessions' && req.method === 'GET') return json(all('SELECT id,agent,created,active FROM sessions WHERE user_id=? AND expires>?', user.id, now()).map(s => ({ ...s, current: s.id === user.session.id })));
     if (path === '/api/sessions' && req.method === 'DELETE') {
       const doomed = all('SELECT id FROM sessions WHERE user_id=? AND id!=? AND (?=\'all\' OR id=?)', user.id, user.session.id, b.id, b.id);
-      for (const s of doomed) { run('DELETE FROM push_devices WHERE session_id=?',s.id); run('DELETE FROM sessions WHERE id=?', s.id); for (const stream of streams.get(user.id) || []) if (stream.sessionId === s.id) stream.end(); }
+      for (const s of doomed) { run('DELETE FROM push_account_devices WHERE session_id=?',s.id); run('DELETE FROM sessions WHERE id=?', s.id); for (const stream of streams.get(user.id) || []) if (stream.sessionId === s.id) stream.end(); }
       return json({ ok: true });
     }
     if (path === '/api/blocks' && req.method === 'GET') return json(all('SELECT u.* FROM blocks b JOIN users u ON b.target=u.id WHERE b.user_id=?', user.id).map(u=>publicUser(u,user.id)));
@@ -263,7 +265,7 @@ const server = http.createServer(async (req, res) => {
       }
       const chatId = id(); const perms = kind === 'channel' ? Object.fromEntries(memberPermissions.map(k => [k, false])) : defaults;
       run('INSERT INTO chats(id,kind,title,permissions,created) VALUES(?,?,?,?,?)', chatId, kind, clean(b.title, 80) || (kind === 'channel' ? 'Новый канал' : 'Новая группа'), JSON.stringify(perms), now());
-      for (const u of users) run('INSERT INTO members(chat_id,user_id,role) VALUES(?,?,?)', chatId, u, u === user.id && kind !== 'direct' ? 'owner' : 'member');
+      for (const u of users) run('INSERT INTO members(chat_id,user_id,role) VALUES(?,?,?)', chatId, u, u === user.id && kind !== 'direct' ? 'owner' : kind==='channel'?'subscriber':'member');
       broadcast(chatId, 'refresh', { chat: chatId }); return json(chatView(one('SELECT * FROM chats WHERE id=?', chatId), user.id), 201);
     }
     const chatMatch = /^\/api\/chats\/([^/]+)(?:\/(messages|read|typing|members|audit))?$/.exec(path);
@@ -274,6 +276,7 @@ const server = http.createServer(async (req, res) => {
         if (chat.kind === 'direct') fail(400, 'Это личный чат');
         const avatar = b.avatar === undefined ? chat.avatar : clean(b.avatar, 200);
         if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
+        if(b.reactionsEnabled!==undefined){if(member.role!=='owner')fail(403,'Только владелец управляет реакциями');run('UPDATE chats SET reactions_enabled=? WHERE id=?',b.reactionsEnabled===true?1:0,chatId);}
         run('UPDATE chats SET title=?,avatar=? WHERE id=?', clean(b.title ?? chat.title, 80), avatar, chatId); audit(chatId, user.id, 'info'); return json({ ok: true });
       }
       if (action === 'messages' && req.method === 'GET') {
@@ -332,7 +335,7 @@ const server = http.createServer(async (req, res) => {
           requirePermission(chatId,user.id,'invite');
           if (!one('SELECT id FROM users WHERE id=?',b.user)) fail(404,'Пользователь не найден');
           if (target) fail(409,'Пользователь уже в группе или заблокирован');
-          run('INSERT INTO members(chat_id,user_id) VALUES(?,?)',chatId,b.user);
+          run('INSERT INTO members(chat_id,user_id,role) VALUES(?,?,?)',chatId,b.user,chat.kind==='channel'?'subscriber':'member');
         } else {
           if (!target || target.user_id === user.id || target.role === 'owner' || (target.role === 'admin' && member.role !== 'owner')) fail(403,'Нельзя изменить этого участника');
           const rules = JSON.parse(target.rules);
@@ -340,8 +343,8 @@ const server = http.createServer(async (req, res) => {
             if (member.role !== 'owner') fail(403,'Только владелец');
             if (b.action === 'transfer') {
               if (target.role === 'banned') fail(400,'Участник заблокирован');
-              db.exec('BEGIN'); try { run("UPDATE members SET role='member',rules='{}' WHERE chat_id=? AND user_id=?",chatId,user.id); run("UPDATE members SET role='owner',rules='{}' WHERE chat_id=? AND user_id=?",chatId,b.user); db.exec('COMMIT'); } catch(error) { db.exec('ROLLBACK'); throw error; }
-            } else { rules.admin = Object.fromEntries(adminPermissions.map(k => [k,b.permissions?.[k]===true])); run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?',b.enabled ? 'admin':'member',JSON.stringify(rules),chatId,b.user); }
+              db.exec('BEGIN'); try { run("UPDATE members SET role=?,rules='{}' WHERE chat_id=? AND user_id=?",chat.kind==='channel'?'subscriber':'member',chatId,user.id); run("UPDATE members SET role='owner',rules='{}' WHERE chat_id=? AND user_id=?",chatId,b.user); db.exec('COMMIT'); } catch(error) { db.exec('ROLLBACK'); throw error; }
+            } else { rules.admin = Object.fromEntries(adminPermissions.map(k => [k,b.permissions?.[k]===true])); run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?',b.enabled ? 'admin':chat.kind==='channel'?'subscriber':'member',JSON.stringify(rules),chatId,b.user); }
           } else if (b.action === 'restrict') {
             requirePermission(chatId,user.id,'permissions');
             rules.overrides = Object.fromEntries(memberPermissions.filter(k => typeof b.permissions?.[k] === 'boolean').map(k => [k,b.permissions[k]]));
@@ -351,7 +354,7 @@ const server = http.createServer(async (req, res) => {
           else if (['ban','unban','remove'].includes(b.action)) {
             requirePermission(chatId,user.id,b.action==='remove'?'remove':'ban');
             if (b.action === 'remove') run('DELETE FROM members WHERE chat_id=? AND user_id=?',chatId,b.user);
-            else run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?', b.action === 'ban' ? 'banned':'member', '{}',chatId,b.user);
+            else run('UPDATE members SET role=?,rules=? WHERE chat_id=? AND user_id=?', b.action === 'ban' ? 'banned':chat.kind==='channel'?'subscriber':'member', '{}',chatId,b.user);
             emit(b.user,'refresh',{chat:chatId});
             for (const call of liveCalls.values()) if(call.chat===chatId && call.participants.has(b.user)) { call.participants.delete(b.user); broadcast(chatId,'call',{...call,participants:[...call.participants],state:'active'}); emit(b.user,'call',{id:call.id,state:'removed'}); }
           } else fail(400,'Неизвестное действие');
@@ -364,10 +367,10 @@ const server = http.createServer(async (req, res) => {
       const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
       membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
       if (!action && req.method === 'GET') return json(message(m,user.id));
-      if (!action && req.method === 'DELETE') { if(m.user_id!==user.id) requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
+      if (!action && req.method === 'DELETE') { if(m.user_id!==user.id||one('SELECT kind FROM chats WHERE id=?',m.chat_id).kind==='channel') requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
         if (b.pinned !== undefined) { requirePermission(m.chat_id,user.id,'pin'); run('UPDATE messages SET pinned=? WHERE id=?',b.pinned?1:0,m.id); audit(m.chat_id,user.id,'pin',m.id); }
-        else { if(m.user_id!==user.id || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
+        else { if(one('SELECT kind FROM chats WHERE id=?',m.chat_id).kind==='channel')requirePermission(m.chat_id,user.id,'edit'); if((m.user_id!==user.id && one('SELECT kind FROM chats WHERE id=?',m.chat_id).kind!=='channel') || m.deleted || ['poll','sticker'].includes(m.kind)) fail(403,'Редактирование недоступно'); if(!clean(b.body)) fail(400,'Пустое сообщение'); family.content(m.chat_id,clean(b.body),false);const keys=stickers.tokens(clean(b.body),user.id);if(keys.length)family.content(m.chat_id,'',true);stickers.bind(m.id,keys); run('UPDATE messages SET body=?,edited=? WHERE id=?',clean(b.body),now(),m.id); }
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll||m.deleted)fail(400,'Опрос недоступен');polls.vote(m,user.id,b.choices);
       } else if(action==='forward' && req.method==='POST') {
@@ -391,7 +394,7 @@ const server = http.createServer(async (req, res) => {
         if(!process.env.TRANSCRIPTION_KEY || !process.env.TRANSCRIPTION_URL) fail(503,'Администратор ещё не подключил сервис расшифровки');
         rate('transcribe:'+user.id,6,60_000);
         const media=one('SELECT * FROM media WHERE id=?',m.media_id); if(media.size>25*1024*1024) fail(413,'Запись превышает лимит расшифровки 25 МБ');
-        const form=new FormData();form.set('file',new Blob([await readFile(resolve(data,'media',media.id))],{type:media.type}),media.name);form.set('model',process.env.TRANSCRIPTION_MODEL || 'gpt-4o-transcribe');form.set('language','ru');
+        const form=new FormData();form.set('file',new Blob([await storage.bytes('media',media.id)],{type:media.type}),media.name);form.set('model',process.env.TRANSCRIPTION_MODEL || 'gpt-4o-transcribe');form.set('language','ru');
         const response=await fetch(process.env.TRANSCRIPTION_URL,{method:'POST',headers:{Authorization:'Bearer '+process.env.TRANSCRIPTION_KEY},body:form,signal:AbortSignal.timeout(90_000)});
         if(!response.ok) fail(502,'Сервис расшифровки временно недоступен');
         const result=await response.json(); run('UPDATE messages SET transcript=? WHERE id=?',clean(result.text,30000),m.id);
@@ -399,7 +402,7 @@ const server = http.createServer(async (req, res) => {
       broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id}); return json({ok:true});
     }
     if(path==='/api/media' && req.method==='POST') {
-      rate('upload:'+user.id,30);
+      storage.writable();rate('upload:'+user.id,30);
       if(family.child(user.id)&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Вложения отключены родителем');
       const mediaId=id(); const type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
       const name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
@@ -407,9 +410,9 @@ const server = http.createServer(async (req, res) => {
       const maximum=vip.uploadMB(user.id)*1024*1024;
       if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>20*1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 20 ГБ');
       uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
-      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
+      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;validateUpload(await storage.bytes('media',mediaId,'bytes=0-31'),type,name);await storage.persist('media',mediaId,user.id,destination,type);run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
       catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;}
-      return json({id:mediaId,name,type,size},201);
+      await storage.releaseLocal('media',mediaId);return json({id:mediaId,name,type,size},201);
     }
     if(path.startsWith('/api/media/') && req.method==='GET') {
       const mediaId=path.slice('/api/media/'.length);const media=one('SELECT * FROM media WHERE id=?',mediaId);if(!media)fail(404,'Файл не найден');
@@ -421,8 +424,8 @@ const server = http.createServer(async (req, res) => {
       const mediaPath=resolve(data,'media',mediaId);const byteLength=media.size;
       res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');
       const range=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range||'');
-      if(range){const start=Number(range[1]),end=Math.min(range[2]?Number(range[2]):byteLength-1,byteLength-1);if(start>end || start>=byteLength){res.writeHead(416,{'Content-Range':`bytes */${byteLength}`});return res.end();}res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${byteLength}`,'Content-Length':end-start+1});const stream=createReadStream(mediaPath,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);}
-      res.setHeader('Content-Length',byteLength);const stream=createReadStream(mediaPath);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);
+      if(range){const start=Number(range[1]),end=Math.min(range[2]?Number(range[2]):byteLength-1,byteLength-1);if(start>end || start>=byteLength){res.writeHead(416,{'Content-Range':`bytes */${byteLength}`});return res.end();}const stream=await storage.get('media',mediaId,`bytes=${start}-${end}`);res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${byteLength}`,'Content-Length':end-start+1});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);}
+      const stream=await storage.get('media',mediaId);res.setHeader('Content-Length',byteLength);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);
     }
     if(path==='/api/calls/active'&&req.method==='GET')return json([...liveCalls.values()].filter(c=>one("SELECT user_id FROM members WHERE chat_id=? AND user_id=? AND role!='banned'",c.chat,user.id)).map(c=>({...c,participants:[...c.participants],state:c.participants.size>1?'active':'ringing'})));
     if(path==='/api/calls' && req.method==='GET') return json(all("SELECT c.*,h.title,h.kind,u.name FROM calls c JOIN members m ON m.chat_id=c.chat_id JOIN chats h ON h.id=c.chat_id JOIN users u ON u.id=c.user_id WHERE m.user_id=? AND m.role!='banned' ORDER BY c.created DESC LIMIT 100",user.id));
@@ -456,6 +459,7 @@ const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+
 
 
 

@@ -1,4 +1,6 @@
-import {createReadStream} from 'node:fs';
+import {createReadStream,createWriteStream} from 'node:fs';
+import {pipeline} from 'node:stream/promises';
+import {createStorage} from '../server/storage.js';
 import {DatabaseSync, backup} from 'node:sqlite';
 import {mkdir, readdir, lstat, copyFile, readFile, writeFile, chmod} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -24,7 +26,7 @@ async function files(root, directory='') {
   return result.sort();
 }
 async function hash(file){const digest=createHash('sha256');for await(const chunk of createReadStream(file))digest.update(chunk);return digest.digest('hex');}
-export async function createBackup(source, destination) {
+export async function createBackup(source, destination, storageOptions={}) {
   source=resolve(source);destination=resolve(destination);
   if(destination===source||destination.startsWith(source+sep))throw new Error('Backup must be outside DATA_DIR');
   const stat=await lstat(resolve(source,'cipherion.sqlite'));if(!stat.isFile()||stat.isSymbolicLink())throw new Error('Expected a database file');
@@ -44,6 +46,21 @@ export async function createBackup(source, destination) {
       await copyFile(resolve(source,name),target);await chmod(target,0o600);
     }
   }
+  // Materialize remote objects in the snapshot so a restore is self-contained.
+  // Only the backup database changes provider; the live database is untouched.
+  const mediaDb=new DatabaseSync(resolve(destination,'cipherion.sqlite'));
+  try{
+    if(mediaDb.prepare("SELECT name FROM sqlite_master WHERE name='media_objects'").get()){
+      const storage=createStorage({db:mediaDb,one:(s,...p)=>mediaDb.prepare(s).get(...p),run:(s,...p)=>mediaDb.prepare(s).run(...p),data:source,...storageOptions});
+      for(const row of mediaDb.prepare("SELECT * FROM media_objects WHERE provider='s3'").all()){
+        if(!['media','stickers'].includes(row.namespace)||!/^[\w-]+(?:\.png)?$/.test(row.media_id))throw new Error('Invalid object metadata');
+        const target=resolve(destination,row.namespace,row.media_id);await mkdir(resolve(target,'..'),{recursive:true,mode:0o700});
+        await pipeline(await storage.get(row.namespace,row.media_id),createWriteStream(target,{mode:0o600}));
+        if((await lstat(target)).size!==row.size||await hash(target)!==row.checksum)throw new Error('Object backup checksum mismatch');
+        mediaDb.prepare("UPDATE media_objects SET provider='local' WHERE namespace=? AND media_id=?").run(row.namespace,row.media_id);
+      }
+    }
+  }finally{mediaDb.close();}
   const hashes={};for(const name of await files(destination))hashes[name]=await hash(resolve(destination,name));
   await writeFile(resolve(destination,'manifest.json'),JSON.stringify({version:1,created:new Date().toISOString(),counts,hashes},null,2),{flag:'wx',mode:0o600});
   await verifyBackup(destination);
