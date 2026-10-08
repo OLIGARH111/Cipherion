@@ -1,3 +1,4 @@
+import {vipBadge} from './ui.js';
 import {peopleCount} from './ui.js';
 import {saveAction} from './ui.js';
 import {$,esc,avatar,icon,button,api,upload,modal,guard,toast} from './ui.js';
@@ -25,7 +26,7 @@ export async function groupPanel(chat,state,refresh){
     }));
   }catch(error){toast(error.message);}
 }
-function person(m,manage=false,channel=false){return `<div class="person"><button class="profile-name" data-open-profile="${m.user_id}">${avatar(m.name,m.avatar)}</button><div><button class="profile-name" data-open-profile="${m.user_id}">${esc(m.name)}</button>${m.tag?`<span class="tag">${esc(m.tag)}</span>`:''}<small>@${esc(m.username)} · ${{owner:'Владелец',admin:'Администратор',member:channel?'Подписчик':'Участник',subscriber:'Подписчик',banned:'Заблокирован'}[m.role]}</small></div>${manage?button('more',channel?'Управление подписчиком':'Управление участником',`data-member="${m.user_id}"`):''}</div>`;}
+function person(m,manage=false,channel=false){return `<div class="person"><button class="profile-name" data-open-profile="${m.user_id}">${avatar(m.name,m.avatar)}</button><div><button class="profile-name" data-open-profile="${m.user_id}">${esc(m.name)} ${vipBadge(m)}</button>${m.tag?`<span class="tag">${esc(m.tag)}</span>`:''}<small>@${esc(m.username)} · ${{owner:'Владелец',admin:'Администратор',member:channel?'Подписчик':'Участник',subscriber:'Подписчик',banned:'Заблокирован'}[m.role]}</small></div>${manage?button('more',channel?'Управление подписчиком':'Управление участником',`data-member="${m.user_id}"`):''}</div>`;}
 function memberPanel(chat,target,mine,refresh){
   const change=async(action,extra={})=>{await api(`/chats/${chat.id}/members`,'PATCH',{action,user:target.user_id,...extra});await refresh();$('#modal').close();toast('Изменения сохранены');};
   modal(target.name,`${person(target,false,chat.kind==='channel')}<button class="secondary" id="set-tag">Назначить тег</button><button class="secondary" id="restrict">Настроить ограничения</button><button class="secondary" id="clear-restrict">Снять ограничения</button>${mine.role==='owner'?'<button class="secondary" id="set-admin">Права администратора</button><button class="secondary danger" id="transfer-owner">Передать владение</button>':''}<button class="secondary danger" id="ban-member">${target.role==='banned'?'Разблокировать':'Заблокировать'}</button><button class="secondary danger" id="remove-member">Удалить из сообщества</button>`);

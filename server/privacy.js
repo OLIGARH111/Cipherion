@@ -1,5 +1,5 @@
 export const privacyFields=['email','phone','phoneDiscovery','activity','avatar','bio','birthday','status','links','forward','calls','p2p','groups','messages'];
-export function createPrivacy({db,one,all,run,fail,now,id,emit}) {
+export function createPrivacy({db,one,all,run,fail,now,id,emit,vipInfo=()=>({})}) {
   db.exec(`CREATE TABLE IF NOT EXISTS privacy_rules(user_id TEXT PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL,revision INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS contacts(user_id TEXT REFERENCES users(id),target TEXT REFERENCES users(id),PRIMARY KEY(user_id,target));
     CREATE TABLE IF NOT EXISTS security_events(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),action TEXT,created INTEGER);
@@ -9,7 +9,7 @@ export function createPrivacy({db,one,all,run,fail,now,id,emit}) {
   function blocked(a,b){return !!one('SELECT user_id FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)',a,b,b,a);}
   function permits(owner,viewer,field){if(owner===viewer)return true;if(!viewer||blocked(owner,viewer))return false;const r=get(owner).rules[field];if(!r)return false;if(r.deny.includes(viewer))return false;if(r.allow.includes(viewer))return true;return r.audience==='everyone'||r.audience==='contacts'&&!!one('SELECT target FROM contacts WHERE user_id=? AND target=?',owner,viewer);}
   function event(u,action){run('INSERT INTO security_events VALUES(?,?,?,?)',id(),u,action,now());emit?.(u,'security',{action});}
-  function project(u,viewer,online=false){if(!u)return null;const p=one('SELECT * FROM private_profiles WHERE user_id=?',u.id)||{};return {id:u.id,username:u.username,name:u.name,bio:permits(u.id,viewer,'bio')?u.bio:'',avatar:permits(u.id,viewer,'avatar')?u.avatar:p.public_avatar||'',online:permits(u.id,viewer,'activity')?online:false,...(permits(u.id,viewer,'phone')?{phone:p.phone||''}:{}),...(permits(u.id,viewer,'birthday')?{birthday:p.birthday||''}:{})};}
+  function project(u,viewer,online=false){if(!u)return null;const p=one('SELECT * FROM private_profiles WHERE user_id=?',u.id)||{};return {...vipInfo(u.id),id:u.id,username:u.username,name:u.name,bio:permits(u.id,viewer,'bio')?u.bio:'',avatar:permits(u.id,viewer,'avatar')?u.avatar:p.public_avatar||'',online:permits(u.id,viewer,'activity')?online:false,...(permits(u.id,viewer,'phone')?{phone:p.phone||''}:{}),...(permits(u.id,viewer,'birthday')?{birthday:p.birthday||''}:{})};}
   function profile(p,owner,viewer){const v={...p};for(const key of ['description','links','status','emoji','cover','videoAvatar','backgroundImage','gallery','patternEmoji'])if(!permits(owner,viewer,key==='description'?'bio':key==='emoji'?'status':['cover','videoAvatar','backgroundImage','gallery','patternEmoji'].includes(key)?'avatar':key))delete v[key];return v;}
   function assertContact(sender,target,field){if(!permits(target,sender,field))fail(403,'Действие запрещено настройками конфиденциальности');}
   function canRead(u,kind){const p=get(u);return kind==='direct'?p.readDirect:p.readGroup;}

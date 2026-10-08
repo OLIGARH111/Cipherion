@@ -54,3 +54,26 @@ test('family media restrictions cover stickers, forwards, inline emoji, reaction
  assert.equal((await fetch(base+'/api/stickers/builtin-0-0/file',{headers:{Cookie:child.cookie}})).status,403);
 });
 
+
+test('VIP badge selection is shared in chat lists, messages, search and profiles; rejected profile edits are atomic',async()=>{
+ const a=await reviewAccount('badge_author'),b=await reviewAccount('badge_reader');
+ const chat=(await request('/chats',a.cookie,'POST',{users:[b.data.user.id]})).data;
+ assert.equal((await request('/profile',a.cookie,'PATCH',{badge:'💎'})).status,403);
+ await request('/admin/vip/grant',admin,'POST',{user:a.data.user.id,days:30});
+ assert.equal((await request('/profile/details',a.cookie,'PATCH',{name:'Badge author',bio:'New bio',badge:'💎'})).status,200);
+ const profile=(await request('/profile?user='+a.data.user.id,b.cookie)).data;
+ assert.equal(profile.vip,true);assert.equal(profile.vipBadge,'💎');assert.equal(profile.name,'Badge author');
+ assert.equal((await request('/users?q=badge_author',b.cookie)).data[0].vipBadge,'💎');
+ assert.equal((await request('/chats',b.cookie)).data[0].members.find(m=>m.user_id===a.data.user.id).vipBadge,'💎');
+ await request('/chats/'+chat.id+'/messages',a.cookie,'POST',{body:'Hello'});
+ assert.equal((await request('/chats/'+chat.id+'/messages',b.cookie)).data.at(-1).author.vipBadge,'💎');
+ assert.equal((await request('/profile/details',a.cookie,'PATCH',{name:'Must not save',username:'x',badge:'👑'})).status,400);
+ assert.equal((await request('/me',a.cookie)).data.user.name,'Badge author');
+ assert.equal((await request('/profile',a.cookie,'PATCH',{badge:'<script>'})).status,400);
+ const remote=await request('/auth',null,'POST',{username:'badge_author',password});
+ assert.equal((await request('/me',remote.cookie)).data.user.vipBadge,'💎');
+ await request('/admin/vip/revoke',admin,'POST',{user:a.data.user.id});
+ const expired=(await request('/users?q=badge_author',b.cookie)).data[0];assert.equal(expired.vip,false);assert.equal(expired.vipBadge,null);
+ assert.equal((await request('/profile/details',a.cookie,'PATCH',{badge:'👑'})).status,403);
+ assert.equal((await request('/profile',a.cookie)).data.savedProfile.badge,'💎');
+});
