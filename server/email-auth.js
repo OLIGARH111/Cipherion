@@ -1,5 +1,5 @@
 import {createMailer} from './mail.js';
-import {randomInt,createHmac,timingSafeEqual} from 'node:crypto';
+import {randomInt,randomBytes,createHmac,timingSafeEqual} from 'node:crypto';
 export const normalizeEmail=value=>String(value||'').trim().normalize('NFKC').toLowerCase();
 export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,env=process.env}) {
  const columns=all('PRAGMA table_info(users)');for(const [name,type]of [['email','TEXT'],['normalized_email','TEXT'],['email_verified','INTEGER DEFAULT 0']])if(!columns.some(c=>c.name===name))db.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
@@ -8,7 +8,10 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
  CREATE INDEX IF NOT EXISTS email_challenges_email ON email_challenges(email,created);
  CREATE TABLE IF NOT EXISTS email_cooldowns(email TEXT PRIMARY KEY,last_sent INTEGER NOT NULL);`);
  const enabled=env.EMAIL_AUTH_ENABLED==='1',mailer=createMailer({env});
- const ready=()=>enabled&&mailer.ready()&&String(env.EMAIL_CODE_SECRET||'').length>=32&&!columns.find(c=>c.name==='username')?.notnull;
+ const ready=()=>enabled&&mailer.ready()&&String(env.EMAIL_CODE_SECRET||'').length>=32;
+ // Databases created before email signup still require a username; give such accounts a generated one instead of migrating live data.
+ const usernameRequired=!!columns.find(c=>c.name==='username')?.notnull;
+ const generatedUsername=()=>{for(;;){const name='user_'+randomBytes(5).toString('hex');if(!one('SELECT id FROM users WHERE username=?',name))return name;}};
  const hash=(cid,code)=>createHmac('sha256',env.EMAIL_CODE_SECRET).update(cid+':'+code).digest();
  const neutral='Если аккаунт с таким адресом существует, мы отправили инструкции.';
  function validateEmail(value){const email=normalizeEmail(value);if(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail(400,'Проверьте электронную почту');return email;}
@@ -37,7 +40,7 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
   return {challengeId:cid,email:email.slice(0,1)+'•••••@'+email.split('@')[1],retryAfter:60,message:neutral};
  }
  async function route({path,req,res,b,user,json}) {
-  if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:ready(),passwordRegistration:!enabled});return true;}
+  if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:ready(),passwordRegistration:!ready()});return true;}
   if(path==='/api/auth/email/start'&&req.method==='POST'){json(await issue(req,b,user));return true;}
   if(path!=='/api/auth/email/confirm'||req.method!=='POST')return false;
   if(!ready())fail(503,'Подтверждение email пока недоступно');rate('email-confirm:'+req.socket.remoteAddress,30,600000);
@@ -55,7 +58,7 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
    if(!run('UPDATE email_challenges SET used=? WHERE id=? AND used IS NULL AND expires>?',now(),r.id,now()).changes)fail(400,'Код уже использован');
    if(r.purpose==='register'){
     if(one('SELECT id FROM users WHERE normalized_email=?',r.email))fail(409,'Не удалось создать аккаунт. Используйте вход.');
-    const uid=id();run('INSERT INTO users(id,username,name,password,email,normalized_email,email_verified,created) VALUES(?,NULL,?,?,?, ?,1,?)',uid,payload.firstName,'',r.email,r.email,now());run('INSERT INTO profile_details(user_id,surname,email,email_verified) VALUES(?,?,?,1)',uid,payload.lastName,r.email);account=one('SELECT * FROM users WHERE id=?',uid);
+    const uid=id();run('INSERT INTO users(id,username,name,password,email,normalized_email,email_verified,created) VALUES(?,?,?,?,?, ?,1,?)',uid,usernameRequired?generatedUsername():null,payload.firstName,'',r.email,r.email,now());run('INSERT INTO profile_details(user_id,surname,email,email_verified) VALUES(?,?,?,1)',uid,payload.lastName,r.email);account=one('SELECT * FROM users WHERE id=?',uid);
    }else if(r.purpose==='change'){
     if(one('SELECT id FROM users WHERE normalized_email=? AND id!=?',r.email,user.id))fail(409,'Этот адрес недоступен');
     run('UPDATE users SET email=?,normalized_email=?,email_verified=1 WHERE id=?',r.email,r.email,user.id);run('INSERT INTO profile_details(user_id,email,email_verified) VALUES(?,?,1) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,email_verified=1',user.id,r.email);

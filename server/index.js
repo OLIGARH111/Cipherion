@@ -163,7 +163,7 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/accounts'&&req.method==='GET')return json(accounts.list(req));
     if(await emailAuth.route({path,req,res,b,user,json}))return;
     if (path === '/api/auth' && req.method === 'POST') {
-      if(b.register&&emailAuth.enabled)fail(410,'Создайте аккаунт через подтверждение email');
+      if(b.register&&emailAuth.ready())fail(410,'Создайте аккаунт через подтверждение email');
       accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
