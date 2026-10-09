@@ -1,4 +1,5 @@
 import {createMailer} from './mail.js';
+import {hashPassword} from './recovery.js';
 import {randomInt,createHmac,timingSafeEqual} from 'node:crypto';
 export const normalizeEmail=value=>String(value||'').trim().normalize('NFKC').toLowerCase();
 export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,env=process.env}) {
@@ -59,6 +60,12 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
    }else if(r.purpose==='change'){
     if(one('SELECT id FROM users WHERE normalized_email=? AND id!=?',r.email,user.id))fail(409,'Этот адрес недоступен');
     run('UPDATE users SET email=?,normalized_email=?,email_verified=1 WHERE id=?',r.email,r.email,user.id);run('INSERT INTO profile_details(user_id,email,email_verified) VALUES(?,?,1) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,email_verified=1',user.id,r.email);
+   }
+   if(r.purpose==='recovery'&&b.newPassword){
+    // A verified mailbox may set a new password; every older session is ended.
+    if(typeof b.newPassword!=='string'||b.newPassword.length<10||b.newPassword.length>256)fail(400,'Новый пароль: от 10 до 256 символов');
+    run('UPDATE users SET password=? WHERE id=?',hashPassword(b.newPassword),account.id);
+    run('DELETE FROM push_account_devices WHERE session_id IN (SELECT id FROM sessions WHERE user_id=?)',account.id);run('DELETE FROM sessions WHERE user_id=?',account.id);
    }
    if(r.purpose==='security')approvalToken=security.issueApproval(user);
    if(!['change','security'].includes(r.purpose))accounts.create(req,res,account);

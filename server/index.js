@@ -11,6 +11,8 @@ import {createProfiles} from './profiles.js';
 import {createPolls} from './polls.js';
 import {createStories} from './stories.js';
 import {createStickers} from './stickers.js';
+import {createChatTools} from './chat-tools.js';
+import {createRecovery} from './recovery.js';
 import {createReadStream} from 'node:fs';
 import { createPrivacy } from './privacy.js';
 import { createSecurity } from './security.js';
@@ -48,7 +50,8 @@ function rate(key, count, window = 60_000) {
   if (++entry.n > count) fail(429, 'Слишком много запросов. Попробуйте позже.');
 }
 function emit(user, event, payload) {
-  for (const res of streams.get(user) || []) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  // A stream ended by logout or a password change stays in the set until its socket closes.
+  for (const res of streams.get(user) || []) if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 function broadcast(chat, event, payload) {
   if(event==='message'){
@@ -83,7 +86,7 @@ function message(row, viewer) {
   row={...row,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent'};
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id), viewer);
   if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, client_id:row.client_id,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent', deleted: true, author };
-  const result = { ...row, author, reactions:social.reactions(row.id), media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
+  const result = { ...row, author, reactions:social.reactions(row.id), myReaction:one('SELECT emoji FROM reactions WHERE message_id=? AND user_id=?',row.id,viewer)?.emoji||null, media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
   if(row.poll)result.poll=polls.project(row,viewer);
   if(row.kind==='sticker')result.sticker=stickers.asset(row.body);
   result.story=stories.replyPreview(row.id,viewer);
@@ -91,12 +94,12 @@ function message(row, viewer) {
 }
 function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
-  const last = one('SELECT * FROM messages WHERE chat_id=? ORDER BY created DESC,id DESC LIMIT 1', c.id);
-  const mine = members.find(m => m.user_id === user);
-  return { ...c, invite_key:undefined, canPost:allowed(mine,c,'text'),canEdit:allowed(mine,c,'edit'),canDelete:allowed(mine,c,'delete'),canPin:allowed(mine,c,'pin'), muted:!!one('SELECT 1 FROM chat_mutes WHERE user_id=? AND chat_id=? AND (until_at=-1 OR until_at>?)',user,c.id,now()), title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.title,
+  const mine = members.find(m => m.user_id === user), cleared = mine?.cleared_at || 0;
+  const last = one('SELECT * FROM messages WHERE chat_id=? AND created>? ORDER BY created DESC,id DESC LIMIT 1', c.id, cleared);
+  return { ...c, invite_key:undefined, canPost:allowed(mine,c,'text'),canEdit:allowed(mine,c,'edit'),canDelete:allowed(mine,c,'delete'),canPin:allowed(mine,c,'pin'), muted:!!one('SELECT 1 FROM chat_mutes WHERE user_id=? AND chat_id=? AND (until_at=-1 OR until_at>?)',user,c.id,now()), title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.kind === 'saved' ? 'Избранное' : c.title, cleared_at: cleared, draft: chatTools.draft(user, c.id),
     members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
     last: last ? message(last, user) : null,
-    unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>?', c.id, user, mine.read_at).n };
+    unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>?', c.id, user, Math.max(mine.read_at, cleared)).n };
 }
 async function body(req, limit = 1024 * 1024) {
   const chunks = []; let size = 0;
@@ -125,6 +128,8 @@ const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadc
 migrate(db);
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
+const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
+const chatTools=createChatTools({db,one,all,run,fail,now,id,clean,membership,family,emit,broadcast,projectMessage:message});
 const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
 let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
@@ -162,6 +167,7 @@ const server = http.createServer(async (req, res) => {
     if (!b || typeof b !== 'object' || Array.isArray(b)) fail(400, 'Ожидается JSON-объект');
     if(path==='/api/accounts'&&req.method==='GET')return json(accounts.list(req));
     if(await emailAuth.route({path,req,res,b,user,json}))return;
+    if(await recovery.route({path,req,res,b,user,json}))return;
     if (path === '/api/auth' && req.method === 'POST') {
       if(b.register&&emailAuth.enabled)fail(410,'Создайте аккаунт через подтверждение email');
       accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);
@@ -184,7 +190,7 @@ const server = http.createServer(async (req, res) => {
       }
       if(!b.register)security.verify(account.id,b.code);
       accounts.create(req,res,account);
-      return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode });
+      return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode, ...(b.register?{recoveryKey:recovery.issue(account.id)}:{}) });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
     if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, ...await rtcConfigurationAsync(user.id) });
@@ -253,8 +259,10 @@ const server = http.createServer(async (req, res) => {
       req.on('close', () => { clearInterval(heartbeat); streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
       return;
     }
-    if (path === '/api/chats' && req.method === 'GET') return json(all("SELECT c.* FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).map(c => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created)));
+    if(await chatTools.route({path,req,b,user,json,url}))return;
+    if (path === '/api/chats' && req.method === 'GET') return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created)));
     if (path === '/api/chats' && req.method === 'POST') {
+      if (b.kind === 'saved') return json(chatView(chatTools.ensureSaved(user.id), user.id), 201);
       const kind = ['group','channel'].includes(b.kind) ? b.kind : 'direct';
       const users = [...new Set([user.id, ...(Array.isArray(b.users) ? b.users : [])])];
       if (users.length > 100 || (kind === 'direct' && users.length !== 2)) fail(400, 'Проверьте участников');
@@ -266,7 +274,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (kind === 'direct') {
         const existing = one("SELECT c.* FROM chats c JOIN members a ON a.chat_id=c.id JOIN members b ON b.chat_id=c.id WHERE c.kind='direct' AND a.user_id=? AND b.user_id=?", user.id, users.find(u => u !== user.id));
-        if (existing) return json(chatView(existing, user.id));
+        if (existing) { run('UPDATE members SET hidden=0 WHERE chat_id=? AND user_id=?', existing.id, user.id); return json(chatView(existing, user.id)); }
       }
       const chatId = id(); const perms = kind === 'channel' ? Object.fromEntries(memberPermissions.map(k => [k, false])) : defaults;
       run('INSERT INTO chats(id,kind,title,permissions,created) VALUES(?,?,?,?,?)', chatId, kind, clean(b.title, 80) || (kind === 'channel' ? 'Новый канал' : 'Новая группа'), JSON.stringify(perms), now());
@@ -278,7 +286,7 @@ const server = http.createServer(async (req, res) => {
       const chatId = chatMatch[1], action = chatMatch[2]; const { chat, member } = membership(chatId, user.id); family.chatAccess(chatId,user.id);
       if (!action && req.method === 'PATCH') {
         requirePermission(chatId, user.id, 'info');
-        if (chat.kind === 'direct') fail(400, 'Это личный чат');
+        if (['direct','saved'].includes(chat.kind)) fail(400, 'Это личный чат');
         const avatar = b.avatar === undefined ? chat.avatar : clean(b.avatar, 200);
         if (avatar && !one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')", avatar, user.id)) fail(400, 'Недопустимый аватар');
         if(b.reactionsEnabled!==undefined){if(member.role!=='owner')fail(403,'Только владелец управляет реакциями');run('UPDATE chats SET reactions_enabled=? WHERE id=?',b.reactionsEnabled===true?1:0,chatId);}
@@ -290,8 +298,8 @@ const server = http.createServer(async (req, res) => {
         const beforeId=url.searchParams.get('beforeId');
         if(beforeId!==null&&(!url.searchParams.has('before')||!beforeId||beforeId.length>100))fail(400,'Некорректный курсор');
         const rows = (beforeId===null
-          ? all('SELECT * FROM messages WHERE chat_id=? AND created<? ORDER BY created DESC,id DESC LIMIT 60',chatId,before)
-          : all('SELECT * FROM messages WHERE chat_id=? AND (created<? OR (created=? AND id<?)) ORDER BY created DESC,id DESC LIMIT 60',chatId,before,before,beforeId)).reverse();
+          ? all('SELECT * FROM messages WHERE chat_id=? AND created>? AND created<? ORDER BY created DESC,id DESC LIMIT 60',chatId,member.cleared_at||0,before)
+          : all('SELECT * FROM messages WHERE chat_id=? AND created>? AND (created<? OR (created=? AND id<?)) ORDER BY created DESC,id DESC LIMIT 60',chatId,member.cleared_at||0,before,before,beforeId)).reverse();
         return json(rows.map(m => message(m, user.id)));
       }
       if (action === 'messages' && req.method === 'POST') {
@@ -328,7 +336,7 @@ const server = http.createServer(async (req, res) => {
         return json(all('SELECT m.*,u.name,u.username,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', chatId).map(m=>({...m,...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user.id),read_at:m.user_id===user.id||privacy.canRead(m.user_id,chat.kind)?m.read_at:0})));
       }
       if (action === 'members' && req.method === 'PATCH') {
-        if (chat.kind === 'direct') fail(400, 'Это личный чат');
+        if (['direct','saved'].includes(chat.kind)) fail(400, 'Это личный чат');
         if (b.action === 'defaults') {
           requirePermission(chatId,user.id,'permissions');
           const perms = Object.fromEntries(memberPermissions.map(k => [k, b.permissions?.[k] === true]));
@@ -436,7 +444,7 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/calls' && req.method==='GET') return json(all("SELECT c.*,h.title,h.kind,u.name FROM calls c JOIN members m ON m.chat_id=c.chat_id JOIN chats h ON h.id=c.chat_id JOIN users u ON u.id=c.user_id WHERE m.user_id=? AND m.role!='banned' ORDER BY c.created DESC LIMIT 100",user.id));
     if(path==='/api/calls' && req.method==='POST') {
       const {chat}=membership(b.chat,user.id);family.chatAccess(b.chat,user.id,true);
-      if(chat.kind==='channel')fail(400,'Звонки доступны в личных и групповых чатах');
+      if(['channel','saved'].includes(chat.kind))fail(400,'Звонки доступны в личных и групповых чатах');
       const members=all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",b.chat);
       for(const m of members)if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');
       if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');

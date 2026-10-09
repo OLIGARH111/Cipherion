@@ -5,7 +5,7 @@ export function createCommunities({db,one,all,run,fail,now,id,membership,family,
  run("UPDATE members SET role='subscriber' WHERE role='member' AND chat_id IN (SELECT id FROM chats WHERE kind='channel')");
  async function route({path,req,b,user,json}) {
   const match=/^\/api\/communities\/([^/]+)(?:\/(join|leave|invite))?$/.exec(path);if(!match)return false;
-  const chat=one('SELECT * FROM chats WHERE id=? AND kind!=?',match[1],'direct');if(!chat)fail(404,'Сообщество не найдено');
+  const chat=one("SELECT * FROM chats WHERE id=? AND kind NOT IN ('direct','saved')",match[1]);if(!chat)fail(404,'Сообщество не найдено');
   const member=one('SELECT * FROM members WHERE chat_id=? AND user_id=?',chat.id,user.id),action=match[2];
   if(action==='join'&&req.method==='POST') {
    if(member?.role==='banned')fail(403,'Доступ закрыт');
@@ -40,7 +40,7 @@ export function createCommunities({db,one,all,run,fail,now,id,membership,family,
     run('DELETE FROM push_attempts WHERE job IN (SELECT id FROM notification_jobs WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?) OR message_id IN (SELECT id FROM notification_events WHERE chat_id=?))',chat.id,chat.id);
     run('DELETE FROM notification_jobs WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?) OR message_id IN (SELECT id FROM notification_events WHERE chat_id=?)',chat.id,chat.id);
     for(const table of ['votes','reactions','message_stickers','message_requests','poll_attempts','poll_comments','story_replies'])run(`DELETE FROM ${table} WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?)`,chat.id);
-    for(const table of ['message_events','notification_events','scheduled','poll_schedule','chat_mutes','audit','calls'])run(`DELETE FROM ${table} WHERE chat_id=?`,chat.id);
+    for(const table of ['message_events','notification_events','scheduled','poll_schedule','chat_mutes','audit','calls','drafts'])run(`DELETE FROM ${table} WHERE chat_id=?`,chat.id);
     run('DELETE FROM family_groups WHERE chat=?',chat.id);
     run('DELETE FROM messages WHERE chat_id=?',chat.id);run('DELETE FROM members WHERE chat_id=?',chat.id);run('DELETE FROM chats WHERE id=?',chat.id);
     db.exec('COMMIT');
