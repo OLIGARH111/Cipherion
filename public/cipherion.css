@@ -1,7 +1,7 @@
 /*
   Cipherion «Изумруд» — the messenger's own visual identity. Loaded last.
   Familiar, convenient layout (chat list + conversation, gestures, menus) with Cipherion's
-  look: deep emerald night, floating glass islands, squircle avatars, tail-less bubbles,
+  look: deep emerald night, floating glass islands, round avatars, tail-less bubbles,
   the «шифр» lattice and gold VIP details. Everything derives from the theme tokens
   (--bg, --text, --muted, --accent, --on-accent, --surface, --blur), so all themes, custom
   colours and the Liquid Glass option keep working. Icons: Lucide / inline SVG.
@@ -105,9 +105,9 @@ input:focus,textarea:focus,select:focus{border-color:color-mix(in srgb,var(--acc
 body:not(.glass-ui) .glass{background:var(--ci-side);border-color:var(--ci-hairline);box-shadow:none}
 .vip-badge{color:var(--ci-gold)}
 
-/* Squircle avatars: letters on an emerald-family gradient when there is no photo. */
-.avatar{border-radius:36%;border:0;color:#fff;font-weight:650;letter-spacing:0;background:linear-gradient(140deg,var(--av1,#3aa79a),var(--av2,#1f7f74));text-shadow:0 1px 1px rgba(0,0,0,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);user-select:none}
-.avatar img{border-radius:inherit}
+/* Round avatars: letters on an emerald-family gradient when there is no photo. */
+.avatar{border-radius:50%;overflow:hidden;aspect-ratio:1;border:0;color:#fff;font-weight:650;letter-spacing:0;background:linear-gradient(140deg,var(--av1,#3aa79a),var(--av2,#1f7f74));text-shadow:0 1px 1px rgba(0,0,0,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);user-select:none}
+.avatar img,.avatar video{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
 .avatar[data-tone="0"]{--av1:#f07d6e;--av2:#c03a56}
 .avatar[data-tone="1"]{--av1:#eba04a;--av2:#b9601a}
 .avatar[data-tone="2"]{--av1:#9a8af5;--av2:#5d43cf}
@@ -369,7 +369,7 @@ body.light .message-footer .tick.read{color:var(--ci-meta-out)}
 .reaction .custom-emoji{width:18px!important;height:18px!important}
 
 /* Avatars in groups (only on the last bubble of a series) */
-.msg-avatar{flex:none;align-self:flex-end;width:34px;height:34px;padding:0;border:0;border-radius:36%;background:none}
+.msg-avatar{flex:none;align-self:flex-end;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:none}
 .msg-avatar .avatar{width:34px;height:34px;font-size:13px}
 button.msg-avatar:focus-visible{box-shadow:0 0 0 2px var(--accent)}
 

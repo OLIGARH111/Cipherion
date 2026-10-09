@@ -15,7 +15,7 @@ import {createReadStream} from 'node:fs';
 import { createPrivacy } from './privacy.js';
 import { createSecurity } from './security.js';
 import http from 'node:http';
-import { rtcConfiguration } from './turn.js';
+import { rtcConfiguration, rtcConfigurationAsync, managedTurnConfigured } from './turn.js';
 import { createFamily } from './family.js';
 import { createVip } from './vip.js';
 import { createSocial } from './social.js';
@@ -184,12 +184,12 @@ const server = http.createServer(async (req, res) => {
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, ...rtcConfiguration(user.id) });
+    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, ...await rtcConfigurationAsync(user.id) });
     if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
     if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
     if(await delivery.route({path,req,b,user,json,url}))return;
-    if(path==='/api/rtc-config'&&req.method==='GET')return json(rtcConfiguration(user.id));
+    if(path==='/api/rtc-config'&&req.method==='GET')return json(await rtcConfigurationAsync(user.id));
     if(path==='/api/activity'&&req.method==='POST')return json({ok:true});
     if(await privacy.route({path,req,b,user,json}))return;
     if(await security.route({path,req,b,user,json}))return;
@@ -437,7 +437,7 @@ const server = http.createServer(async (req, res) => {
       for(const m of members)if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');
       if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');
       if([...liveCalls.values()].some(c=>c.chat===b.chat || members.some(m=>c.participants.has(m.user_id))))fail(409,'Участник занят другим звонком');
-      const relayOnly=members.some(a=>members.some(b=>a.user_id!==b.user_id&&!privacy.permits(a.user_id,b.user_id,'p2p')));if(relayOnly&&!rtcConfiguration(user.id).relayConfigured)fail(503,'Для приватного звонка требуется настроенный TURN');
+      const relayOnly=members.some(a=>members.some(b=>a.user_id!==b.user_id&&!privacy.permits(a.user_id,b.user_id,'p2p')));if(relayOnly&&!rtcConfiguration(user.id).relayConfigured&&!managedTurnConfigured())fail(503,'Для приватного звонка требуется настроенный TURN');
       const call={relayOnly,id:id(),chat:b.chat,caller:user.id,name:user.name,video:!!b.video,participants:new Set([user.id]),created:now(),sharing:null};liveCalls.set(call.id,call);
       run('INSERT INTO calls(id,chat_id,user_id,video,created,status) VALUES(?,?,?,?,?,?)',call.id,b.chat,user.id,b.video?1:0,now(),'ringing');
       broadcast(b.chat,'call',{...call,participants:[...call.participants],state:'ringing'});delivery.tick().catch(e=>logFailure('push_worker_failed',e));return json({...call,participants:[...call.participants]});
