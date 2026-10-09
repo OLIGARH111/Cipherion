@@ -126,6 +126,7 @@ migrate(db);
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
 const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
+let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -136,7 +137,9 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
-      const result=health(db);return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},result.status);
+      // Liveness must not wait on the remote database: a slow Turso round trip would make
+      // Render restart a healthy instance. Database state comes from the background probe.
+      const result=databaseHealth;return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},200);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
@@ -243,7 +246,8 @@ const server = http.createServer(async (req, res) => {
       if (streams.get(user.id).size >= 6) { res.end(); return; }
       res.sessionId = user.session.id; streams.get(user.id).add(res); res.write('event: ready\ndata: {}\n\n');
       const heartbeat = setInterval(() => {
-        if (!one('SELECT id FROM sessions WHERE id=? AND expires>?', user.session.id, now())) { res.end(); return; }
+        try { if (!one('SELECT id FROM sessions WHERE id=? AND expires>?', user.session.id, now())) { res.end(); return; } }
+        catch (error) { logFailure('stream_heartbeat_failed', error); }
         res.write(': heartbeat\n\n');
       }, 20_000);
       req.on('close', () => { clearInterval(heartbeat); streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
@@ -455,7 +459,9 @@ const server = http.createServer(async (req, res) => {
     fail(404,'Не найдено');
   } catch(error) { const requestId=!error.status?logFailure('request_failed',error):undefined; if(!res.headersSent) json({error:error.status?error.message:'Не удалось выполнить действие. Попробуйте позже.',...(requestId?{requestId}:{})},error.status||500); else res.end(); }
 });
-setInterval(()=>{social.tick();polls.tick();for(const [key,value] of limits)if(value.until<now())limits.delete(key);for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');run('DELETE FROM sessions WHERE expires<?',now());},15_000).unref();
+// Each maintenance step is isolated: a transient database error must be logged, never crash the process.
+const maintenance=[()=>social.tick(),()=>polls.tick(),()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);},()=>{for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');},()=>run('DELETE FROM sessions WHERE expires<?',now()),()=>{databaseHealth=health(db);}];
+setInterval(()=>{for(const step of maintenance)try{step();}catch(error){logFailure('maintenance_failed',error);}},15_000).unref();
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}

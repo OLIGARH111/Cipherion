@@ -75,9 +75,11 @@ export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broad
     }
     return false;
   }
-  let busy=false;
+  let busy=false,cleaned=-Infinity;
   async function tick(){if(busy||!configured())return;busy=true;try{
-    run('DELETE FROM push_account_devices WHERE session_id NOT IN (SELECT id FROM sessions WHERE expires>?)',now());
+    // Housekeeping runs every few minutes, not every tick: on Turso each query is a blocking round trip.
+    const housekeeping=now()-cleaned>=300000;if(housekeeping)cleaned=now();
+    if(housekeeping)run('DELETE FROM push_account_devices WHERE session_id NOT IN (SELECT id FROM sessions WHERE expires>?)',now());
     // Devices are snapshotted durably. Provider acceptance never marks a message as delivered.
     run(`INSERT OR IGNORE INTO push_attempts(job,device) SELECT j.id,d.id FROM notification_jobs j JOIN push_account_devices d ON d.user_id=j.user_id WHERE j.created>? AND d.created<=j.created`,now()-86400000);
     const jobs=all(`SELECT a.*,j.user_id,j.message_id,d.subscription,d.provider FROM push_attempts a JOIN notification_jobs j ON j.id=a.job JOIN push_account_devices d ON d.id=a.device AND d.user_id=j.user_id WHERE a.status='pending' AND a.next_at<=? ORDER BY CASE WHEN j.message_id LIKE 'call:%' THEN 0 ELSE 1 END,a.job LIMIT 20`,now());
@@ -90,7 +92,7 @@ export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broad
       try{await providers.get(job.provider)(JSON.parse(job.subscription),payload);run("UPDATE push_attempts SET status='sent' WHERE job=? AND device=?",job.job,job.device);}
       catch(e){if([404,410].includes(e.statusCode)){run('DELETE FROM push_account_devices WHERE id=?',job.device);run("UPDATE push_attempts SET status='expired' WHERE job=? AND device=?",job.job,job.device);}else run('UPDATE push_attempts SET attempts=attempts+1,next_at=? WHERE job=? AND device=?',now()+Math.min(3600000,10000*2**Math.min(job.attempts,9)),job.job,job.device);}
     }
-    run('DELETE FROM push_attempts WHERE job IN (SELECT id FROM notification_jobs WHERE created<?)',now()-7*86400000);run('DELETE FROM notification_jobs WHERE created<?',now()-7*86400000);run('DELETE FROM notification_events WHERE created<?',now()-7*86400000);
+    if(housekeeping){run('DELETE FROM push_attempts WHERE job IN (SELECT id FROM notification_jobs WHERE created<?)',now()-7*86400000);run('DELETE FROM notification_jobs WHERE created<?',now()-7*86400000);run('DELETE FROM notification_events WHERE created<?',now()-7*86400000);}
   }finally{busy=false;}}
   return {route,tick,providers,configured};
 }
