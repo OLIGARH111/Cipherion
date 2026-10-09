@@ -64,7 +64,7 @@ export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broad
     if(path==='/api/chat-mute'&&req.method==='POST'){membership(b.chat,user.id);const durations={off:0,hour:3600000,hours8:28800000,day:86400000,week:604800000,forever:-1};if(!(b.duration in durations))fail(400,'Неизвестный срок');const d=durations[b.duration];run('INSERT INTO chat_mutes VALUES(?,?,?) ON CONFLICT(user_id,chat_id) DO UPDATE SET until_at=excluded.until_at',user.id,b.chat,d>0?now()+d:d);emit(user.id,'settings',{});json({ok:true});return true;}
     if(path==='/api/sync'&&req.method==='GET'){
       const after=Number(url.searchParams.get('after')||0);if(!Number.isSafeInteger(after)||after<0)fail(400,'Некорректный курсор');
-      const rows=all(`SELECT e.* FROM message_events e JOIN members m ON m.chat_id=e.chat_id WHERE m.user_id=? AND m.role!='banned' AND e.seq>? ORDER BY e.seq LIMIT 200`,user.id,after);
+      const rows=all(`SELECT e.* FROM message_events e JOIN members m ON m.chat_id=e.chat_id WHERE m.user_id=? AND m.role!='banned' AND e.seq>? AND NOT EXISTS(SELECT 1 FROM messages x WHERE x.id=e.message_id AND x.created<=m.cleared_at) ORDER BY e.seq LIMIT 200`,user.id,after);
       json({events:rows.flatMap(e=>{try{family.chatAccess(e.chat_id,user.id);const m=one('SELECT * FROM messages WHERE id=?',e.message_id);return m?[{...e,message:projectMessage?projectMessage(m,user.id):m}]:[];}catch{return [];}}),cursor:rows.at(-1)?.seq||after,hasMore:rows.length===200});return true;
     }
     if(path==='/api/receipts'&&req.method==='POST'){
