@@ -11,3 +11,4 @@
 @keyframes authStep{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.email-content{animation:none}}
 .media-unavailable{padding:20px;color:var(--muted);border:1px solid var(--glow);border-radius:12px}
+.auth-photo{display:flex;align-items:center;gap:14px}.auth-photo-pick{cursor:pointer}.auth-photo-pick .avatar{font-size:30px;transition:border-color .2s}.auth-photo-pick:hover .avatar,.auth-photo-pick:focus-within .avatar{border-color:var(--accent)}.auth-photo>div{display:grid;gap:4px;justify-items:start}.auth-photo small{color:var(--muted);font-size:12px}
