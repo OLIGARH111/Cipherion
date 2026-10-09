@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><style>
+.a{transform-box:fill-box;transform-origin:center;animation-timing-function:ease-in-out;animation-iteration-count:infinite}
+.bob{animation-name:bob;animation-duration:2.6s}.shadow{animation-name:shadow;animation-duration:2.6s}
+.breathe{animation-name:breathe;animation-duration:3.6s;transform-origin:50% 100%}
+.blink{animation-name:blink;animation-duration:4.2s}.pulse{animation-name:pulse;animation-duration:1.1s}
+.twinkle{animation-name:twinkle;animation-duration:1.8s}.rise{animation-name:rise;animation-duration:2.8s;animation-timing-function:ease-out}
+.wave{animation-name:wave;animation-duration:.9s}.shake{animation-name:shake;animation-duration:.35s}
+.laugh{animation-name:laugh;animation-duration:.5s}.drip{animation-name:drip;animation-duration:1.3s;animation-timing-function:ease-in}
+.spin{animation-name:spin;animation-duration:9s;animation-timing-function:linear}.sway{animation-name:sway;animation-duration:3s}
+.flap{animation-name:flap;animation-duration:.7s}.flicker{animation-name:flicker;animation-duration:.6s;transform-origin:50% 100%}
+.steam{animation-name:steam;animation-duration:2.4s;animation-timing-function:ease-out}.bow{animation-name:bow;animation-duration:2.4s}
+.pop{animation-name:pop;animation-duration:2.8s}.fall{animation-name:fall;animation-duration:2.2s;animation-timing-function:linear}
+.ring{animation-name:ring;animation-duration:2.2s;animation-timing-function:ease-out}.draw{animation-name:draw;animation-duration:3.2s}
+.drift{animation-name:drift;animation-duration:6s}.glow{animation-name:glow;animation-duration:1.8s}
+.wobble{animation-name:wobble;animation-duration:2.2s}.slide{animation-name:slide;animation-duration:2.8s;animation-timing-function:linear}
+.hop{animation-name:hop;animation-duration:1.2s}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes shadow{0%,100%{transform:scaleX(1);opacity:.18}50%{transform:scaleX(.82);opacity:.1}}
+@keyframes breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}
+@keyframes blink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.1)}}
+@keyframes pulse{0%,100%{transform:scale(1)}30%{transform:scale(1.14)}55%{transform:scale(.97)}}
+@keyframes twinkle{0%,100%{transform:scale(.35) rotate(0);opacity:.2}50%{transform:scale(1) rotate(25deg);opacity:1}}
+@keyframes rise{0%{transform:translateY(30px) scale(.4);opacity:0}25%{opacity:1}100%{transform:translateY(-150px) scale(1.05);opacity:0}}
+@keyframes wave{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(26deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+@keyframes laugh{0%,100%{transform:rotate(-3deg) translateY(0)}50%{transform:rotate(3deg) translateY(-8px)}}
+@keyframes drip{0%{transform:translateY(0) scale(.6);opacity:0}20%{opacity:1}100%{transform:translateY(70px) scale(1);opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sway{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+@keyframes flap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.35)}}
+@keyframes flicker{0%,100%{transform:scale(1,1) skewX(0)}33%{transform:scale(.94,1.08) skewX(3deg)}66%{transform:scale(1.04,.95) skewX(-3deg)}}
+@keyframes steam{0%{transform:translateY(10px);opacity:0}30%{opacity:.85}100%{transform:translateY(-60px);opacity:0}}
+@keyframes bow{0%,20%,100%{transform:rotate(0)}45%,70%{transform:rotate(14deg)}}
+@keyframes pop{0%{transform:scale(0);opacity:0}18%{transform:scale(1.15);opacity:1}28%,82%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes fall{0%{transform:translateY(-60px) rotate(0);opacity:0}15%{opacity:1}100%{transform:translateY(200px) rotate(320deg);opacity:0}}
+@keyframes ring{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+@keyframes draw{0%{stroke-dashoffset:600}45%,85%{stroke-dashoffset:0}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes drift{0%,100%{transform:translateX(-12px)}50%{transform:translateX(12px)}}
+@keyframes glow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.9;transform:scale(1.08)}}
+@keyframes wobble{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}
+@keyframes slide{from{transform:translateX(0)}to{transform:translateX(-120px)}}
+@keyframes hop{0%,100%{transform:translateY(0) scale(1,1)}15%{transform:translateY(0) scale(1.06,.94)}50%{transform:translateY(-26px) scale(.97,1.03)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style><style>*{animation:none!important}</style><defs><linearGradient id="tx" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox"><stop offset="0" stop-color="#ff7eb3"/><stop offset=".5" stop-color="#ff9f6b"/><stop offset="1" stop-color="#ffd36e"/></linearGradient></defs><g class="a twinkle" style=""><g transform="translate(90 130) scale(0.9)"><path d="M0-24C3-4 4-3 24 0 4 3 3 4 0 24-3 4-4 3-24 0-4-3-3-4 0-24Z" fill="#ffd36e"/></g></g><g class="a twinkle" style="animation-delay:0.45s;"><g transform="translate(430 380) scale(0.8)"><path d="M0-24C3-4 4-3 24 0 4 3 3 4 0 24-3 4-4 3-24 0-4-3-3-4 0-24Z" fill="#ffd36e"/></g></g><g class="a wobble" style=""><g opacity=".18" transform="translate(6 10)"><text x="256" y="291.36" text-anchor="middle" font-size="104" font-family="'Nunito','Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="900" textLength="436.8" lengthAdjust="spacingAndGlyphs" fill="#4b2c7a" stroke="#4b2c7a" stroke-width="18" stroke-linejoin="round" paint-order="stroke">Привет!</text></g><text x="256" y="291.36" text-anchor="middle" font-size="104" font-family="'Nunito','Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="900" textLength="436.8" lengthAdjust="spacingAndGlyphs" fill="url(#tx)" stroke="#fff" stroke-width="18" stroke-linejoin="round" paint-order="stroke">Привет!</text></g></svg>
