@@ -12,10 +12,26 @@ export function databaseConfig(env=process.env) {
   }
   return {remote:false};
 }
+// Turso drops idle Hrana streams and its edge occasionally answers 502. Those
+// errors surface from prepare() before anything runs, so one retry on a fresh
+// stream is safe — except inside an explicit transaction, which died with the stream.
+const TRANSIENT=/stream not found|stream expired|Bad Gateway|Service Unavailable|Gateway Timeout|connect to upstream failed|connection (?:reset|closed|refused)|error sending request/i;
+export function isTransientDatabaseError(error){return TRANSIENT.test(String(error?.message||''));}
+export function retryTransient(db){
+  let transaction=false;
+  const prepare=db.prepare.bind(db),exec=db.exec.bind(db);
+  db.prepare=sql=>{try{return prepare(sql);}catch(error){if(transaction||!isTransientDatabaseError(error))throw error;return prepare(sql);}};
+  db.exec=sql=>{
+    const text=String(sql).trim(),ends=/(?:^|;)\s*(?:COMMIT|ROLLBACK|END)\b[^;]*;?\s*$/i.test(text);
+    try{return exec(sql);}catch(error){if(!transaction&&!/^BEGIN\b/i.test(text)&&isTransientDatabaseError(error))return exec(sql);throw error;}
+    finally{if(/^BEGIN\b/i.test(text)&&!ends)transaction=true;else if(ends)transaction=false;}
+  };
+  return db;
+}
 export function database(directory) {
   mkdirSync(directory, { recursive: true });
   const config=databaseConfig();
-  const db = config.remote ? new Libsql(config.url,{authToken:config.token})
+  const db = config.remote ? retryTransient(new Libsql(config.url,{authToken:config.token}))
     : process.env.CIPHERION_TEST_LIBSQL==='1' ? new Libsql(resolve(directory,'cipherion.sqlite')) : new DatabaseSync(resolve(directory, 'cipherion.sqlite'));
   // Remote errors must propagate; never fall back to an ephemeral local database.
   if(!config.remote)db.exec('PRAGMA journal_mode=WAL');
