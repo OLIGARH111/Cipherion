@@ -114,7 +114,7 @@ function endCall(call, status = 'ended') {
 const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
-const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null};}});
+const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null};}});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
 const vip=createVip({db,one,all,run,fail,now,id,rate,isAdmin:adminAccess.isAdmin});
@@ -256,7 +256,7 @@ const server = http.createServer(async (req, res) => {
         catch (error) { logFailure('stream_heartbeat_failed', error); }
         res.write(': heartbeat\n\n');
       }, 20_000);
-      req.on('close', () => { clearInterval(heartbeat); streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
+      req.on('close', () => { clearInterval(heartbeat); try { run('UPDATE sessions SET active=? WHERE id=?', now(), user.session.id); } catch (error) { logFailure('stream_close_failed', error); } streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
       return;
     }
     if(await chatTools.route({path,req,b,user,json,url}))return;
