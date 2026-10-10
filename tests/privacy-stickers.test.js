@@ -77,3 +77,4 @@ test('VIP badge selection is shared in chat lists, messages, search and profiles
  assert.equal((await request('/profile/details',a.cookie,'PATCH',{badge:'👑'})).status,403);
  assert.equal((await request('/profile',a.cookie)).data.savedProfile.badge,'💎');
 });
+test('only VIP members can publish stories',async()=>{const a=await account('story_vip');const post=()=>request('/stories',a.cookie,'POST',{kind:'text',caption:'hello',audience:'everyone'});const denied=await post();assert.equal(denied.status,403);assert.match(denied.data.error,/VIP/);await request('/admin/vip/grant',admin,'POST',{user:a.data.user.id,days:30});assert.equal((await post()).status,201);await request('/admin/vip/revoke',admin,'POST',{user:a.data.user.id});assert.equal((await post()).status,403);assert.equal((await request('/stories',a.cookie)).status,200);});
