@@ -1,9 +1,10 @@
 import {activeAccount,accountFetch,accountURL,accountEpoch} from './account-context.js';
-import {vipBadgeValue} from './vip-badges.js';
-export function vipBadge(user){return user?.vip===true?`<span class="vip-mark vip-badge" title="Cipherion VIP" aria-label="Cipherion VIP">${vipBadgeValue(user.vipBadge||user.profile?.badge)}</span>`:'';}
+import {vipBadgeValue,vipBadgeText} from './vip-badges.js';
+export function vipBadge(user){if(user?.vip!==true)return '';const value=vipBadgeValue(user.vipBadge||user.profile?.badge);return `<span class="vip-mark vip-badge${value==='✦'?' vip-text':''}" title="Cipherion VIP" aria-label="Cipherion VIP">${vipBadgeText(value)}</span>`;}
 export const $ = (q, root = document) => root.querySelector(q);
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const paths = {
+ speakeroff:'M11 5 6 9H2v6h4l5 4V5ZM22 9l-6 6M16 9l6 6', mobile:'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM11 18h2', tablet:'M5 2h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM11 18h2',
  ai:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM4 12h16M12 3c-6 5-6 13 0 18 6-5 6-13 0-18',edit:'m4 16 12-12 4 4L8 20H4v-4ZM14 6l4 4',
  bookmark:'M6 3.5h12V21l-6-4.2L6 21V3.5Z',link:'M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6~M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2',eraser:'M8 20h12~M4.6 15.4 14 6l5 5-8.6 8.6a1.4 1.4 0 0 1-2 0l-3.8-3.8a1 1 0 0 1 0-1.4Z~M9.5 10.5l5 5',
  chat:'M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0ZM7 9h9M7 13h6',
