@@ -126,7 +126,7 @@ body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page
   .nav-label{font-size:11.5px;font-weight:600;letter-spacing:-.01em}
   .nav button.active{color:var(--accent);background:color-mix(in srgb,var(--text) 8%,transparent);box-shadow:none;backdrop-filter:none}
   .nav button.active .nav-label{font-weight:650}
-  .nav button::after{display:none}
+  .nav button::after{bottom:1px}
   body.light .nav button,body.light .nav button:hover{color:#1d1d1f}
   body.light .nav button.active{color:var(--accent);background:#0000000f}
 }
