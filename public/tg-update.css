@@ -8,15 +8,28 @@
 }
 
 /* ---------- Video notes in the chat ---------- */
-.round-note{position:relative;display:block;width:220px;height:220px;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.round-note video.round{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;background:#0006}
-.round-note:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.round-duration,.round-muted{position:absolute;bottom:10px;padding:2px 8px;border-radius:10px;background:#0009;color:#fff;font-size:12px;font-variant-numeric:tabular-nums;line-height:18px}
+/* The note shows its first frame as a preview; a tap grows it in place and plays it with sound. */
+.round-note{--round:220px;position:relative;display:block;width:var(--round);height:var(--round);border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent;overflow:visible;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--accent) 30%,#2a3a33),#141c18);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 50%,transparent);transition:width .28s cubic-bezier(.2,.9,.3,1.1),height .28s cubic-bezier(.2,.9,.3,1.1);will-change:width,height}
+.round-note video.round,.bubble .round-note video.round{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover;pointer-events:none;background:transparent;box-shadow:none}
+.round-note:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.round-note.broken::after{content:"Видео недоступно";position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;color:#ffffffb8;font-size:13px}
+.round-duration,.round-muted{position:absolute;z-index:2;bottom:10px;padding:2px 8px;border-radius:10px;background:#0009;color:#fff;font-size:12px;font-variant-numeric:tabular-nums;line-height:18px;transition:opacity .2s}
 .round-duration{left:14px}
 .round-duration:empty{display:none}
 .round-muted{right:14px;display:grid;place-items:center;padding:3px;width:24px;height:24px;border-radius:50%}
 .round-muted svg{width:14px;height:14px}
-@media(max-width:700px){.round-note{width:200px;height:200px}}
+@media(max-width:700px){.round-note{--round:200px}}
+/* Playing: bigger, sound on, progress ring along the rim. */
+.round-note.playing{--round:min(340px,calc(100vw - 72px));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent),0 14px 40px #0004}
+.round-note.playing .round-muted{opacity:0}
+.round-note .round-ring{position:absolute;inset:-6px;width:calc(100% + 12px);height:calc(100% + 12px);transform:rotate(-90deg);pointer-events:none;opacity:0;transition:opacity .2s}
+.round-note.playing .round-ring{opacity:1}
+.round-note .round-ring circle{fill:none;stroke:transparent;stroke-width:2.4}
+.round-note .round-ring .round-progress{stroke:var(--accent,#83d9b5);stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .25s linear}
+.round-note .round-state{z-index:2}
+.round-note.paused .round-state{opacity:1}
+.bubble.media-only:has(.round-note){overflow:visible;box-shadow:none}
+@media(prefers-reduced-motion:reduce){.round-note{transition:none}}
 
 /* ---------- Shared ring + stage for recorder and viewer ---------- */
 .round-recorder,.round-viewer{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:calc(20px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,#000 72%,transparent);backdrop-filter:blur(18px) saturate(120%);-webkit-backdrop-filter:blur(18px) saturate(120%);color:#fff;touch-action:none}
@@ -101,3 +114,19 @@ body.round-recording{overflow:hidden}
 .tg-danger:hover{background:var(--ci-hover)}
 /* Lists must stay readable over the Liquid Glass background. */
 body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page) header{background:var(--bg)!important}
+
+/* ---------- Phone tab bar: iOS-style frosted pill ---------- */
+@media(max-width:700px){
+  .rail{left:calc(14px + env(safe-area-inset-left,0px));right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));height:68px;border-radius:999px}
+  .nav,body.light .nav{height:100%;padding:5px;gap:2px;border-radius:999px;border:1px solid color-mix(in srgb,#fff 70%,transparent);background-color:color-mix(in srgb,#fff 72%,transparent);box-shadow:0 8px 30px #0000001f,0 1px 2px #0000000f,inset 0 1px 0 #fff;backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%)}
+  body:not(.light) .nav{border-color:#ffffff1f;background-color:color-mix(in srgb,#1c1f1e 70%,transparent);box-shadow:0 8px 30px #00000059,inset 0 1px 0 #ffffff1a}
+  .nav button{flex:1;width:auto;height:100%;gap:4px;border-radius:999px;color:var(--text);background:none;box-shadow:none;backdrop-filter:none}
+  .nav button:hover{background:none;color:var(--text)}
+  .nav button svg{width:25px;height:25px;stroke-width:2.1}
+  .nav-label{font-size:11.5px;font-weight:600;letter-spacing:-.01em}
+  .nav button.active{color:var(--accent);background:color-mix(in srgb,var(--text) 8%,transparent);box-shadow:none;backdrop-filter:none}
+  .nav button.active .nav-label{font-weight:650}
+  .nav button::after{display:none}
+  body.light .nav button,body.light .nav button:hover{color:#1d1d1f}
+  body.light .nav button.active{color:var(--accent);background:#0000000f}
+}
