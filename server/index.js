@@ -123,7 +123,7 @@ const social=createSocial({db,one,all,run,fail,now,id,membership,requirePermissi
 const profiles=createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,social,isAdmin:adminAccess.isAdmin});
 const ai=createAI({db,one,all,run,fail,now,id,rate,membership,family,vip,data,storage});
 const polls=createPolls({db,one,all,run,fail,now,id,rate,membership,requirePermission,family,privacy,broadcast,emit});
-const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,emit,broadcast,data,storage});
+const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,broadcast,data,storage});
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
 migrate(db);
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});

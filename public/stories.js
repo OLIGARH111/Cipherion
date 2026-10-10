@@ -16,7 +16,7 @@ export const storyBackground=d=>GRADIENTS[d?.gradient]?`linear-gradient(160deg,$
 const STORY_TYPES='image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm';
 // Like Telegram and VK: a new story starts from the photo picker, the editor opens with the chosen media.
 // The input is clicked synchronously so browsers treat it as part of the user's tap.
-export function newStory(){const input=document.createElement('input');input.type='file';input.accept=STORY_TYPES;input.multiple=true;input.hidden=true;document.body.append(input);
+export function newStory(){if(!context?.state?.user?.vip){toast('Публиковать истории можно только с Cipherion VIP');return;}const input=document.createElement('input');input.type='file';input.accept=STORY_TYPES;input.multiple=true;input.hidden=true;document.body.append(input);
  const done=()=>input.remove();input.addEventListener('cancel',done);input.onchange=guard(async()=>{const files=[...input.files];done();if(files.length)await storyEditor({files});});input.click();}
 export async function storyEditor({files:initial=[]}={}){modal('Новая история',`<form id="story-editor" class="story-composer">
  <div class="sc-stage story-editor-preview">
