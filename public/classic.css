@@ -1,0 +1,164 @@
+/*
+  Classic Cipherion shell (as in 5b4310d): a navigation rail on the left, the chat list and the
+  workspace on one liquid-glass panel; on phones a floating glass bar at the bottom.
+  Loaded last. The Settings screen is styled in settings.css and is not touched here.
+  Avatars stay perfectly round everywhere (border-radius from cipherion.css).
+*/
+
+/* ================= Shell ================= */
+#app>.shell{padding:max(18px,env(safe-area-inset-top,0px)) 18px 18px 0}
+.shell{position:relative;display:grid;grid-template-columns:80px 330px minmax(0,1fr);height:100%;max-width:1800px;margin:auto;gap:0;background:none}
+body.glass-ui .shell{background:none}
+
+/* ================= Rail ================= */
+.rail{display:flex;flex-direction:column;align-items:center;gap:25px;padding-top:12px;min-height:0}
+.rail .brand img{width:39px;height:39px}
+.nav{display:flex;flex-direction:column;position:relative;gap:12px;padding:6px;border-radius:23px}
+.nav button{position:relative;width:49px;height:49px;border-radius:17px;z-index:1;color:var(--nav-foreground,var(--muted));transition:color .25s,background .3s,box-shadow .3s}
+.nav button:hover{background:var(--hover);color:var(--text)}
+.nav button.active{color:var(--accent);background:var(--hover);box-shadow:inset 0 1px 1px #ffffff35,0 4px 15px #0001;backdrop-filter:blur(var(--blur))}
+.nav button svg{width:22px;height:22px}
+.nav-label{display:none}
+.nav button::after{content:"";position:absolute;left:-6px;top:50%;width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--accent);box-shadow:0 0 10px var(--accent);transform:translateY(-50%) scaleY(0);transition:transform .35s var(--ease-spring,cubic-bezier(.3,1.4,.5,1))}
+.nav button.active::after{transform:translateY(-50%) scaleY(1)}
+@media(prefers-reduced-motion:no-preference){.nav button.active svg{animation:nav-pop .45s var(--ease-spring,cubic-bezier(.3,1.4,.5,1))}}
+@keyframes nav-pop{40%{transform:scale(1.18) translateY(-1px)}}
+.account{display:inline-flex;align-items:center;justify-content:center;background:none;padding:0;border-radius:50%}
+.rail .account{margin-top:auto;padding:5px}
+.rail .account .avatar{width:37px;height:37px;font-size:13px}
+.account:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.account[aria-expanded=true] .avatar{box-shadow:0 0 0 2px var(--accent)}
+
+/* ================= Glass panel: chat list ================= */
+.side{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid var(--line);border-radius:24px 0 0 24px;background:var(--surface);backdrop-filter:blur(var(--blur));overflow:hidden}
+.workspace{position:relative;min-width:0;min-height:0;border:1px solid var(--line);border-left:0;border-radius:0 24px 24px 0;overflow:hidden;background:color-mix(in srgb,var(--bg) 35%,transparent)}
+body.glass-ui .workspace{background:color-mix(in srgb,var(--bg) 35%,transparent)}
+body:not(.glass-ui) .side{background:var(--ci-side);backdrop-filter:none}
+body:not(.glass-ui) .workspace{background:var(--ci-chat)}
+
+.side-header{padding:25px 22px 15px;flex-shrink:0}
+.side-header .row{margin-bottom:22px;align-items:flex-start}
+.side-header h1{font-size:29px;font-weight:560;letter-spacing:-1px;line-height:1.2}
+.count-label{font-size:12px;color:var(--muted);margin-top:4px}
+.side-actions{display:flex;align-items:center;gap:4px;margin-top:4px}
+.mobile-account{display:none}
+.mobile-account .avatar{width:32px;height:32px;font-size:12px}
+
+.side .search svg{left:14px;width:18px;height:18px}
+.side .search input{height:44px;padding:0 14px 0 42px!important;font-size:13px;border-radius:14px!important;background:var(--input)!important;border:1px solid var(--line)!important}
+.side .search input:focus{border-color:color-mix(in srgb,var(--accent) 55%,transparent)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)!important;background:var(--input)!important}
+
+.side .filters{display:flex;flex-wrap:wrap;gap:6px 7px;margin-top:17px}
+.side .filters #custom-folders{display:contents}
+.side .filters .chip{padding:6px 12px;border:1px solid transparent;border-radius:9px;background:transparent;font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}
+.side .filters .chip.active{background:var(--hover);color:var(--accent);border-color:var(--line)}
+
+.stories-strip{gap:12px;padding:6px 22px 10px}
+.stories-strip:empty{display:none}
+.story-bubble .avatar{font-size:18px}
+.story-bubble small{color:var(--muted)}
+
+/* ================= Chat rows ================= */
+.side .chat-list{flex:1;min-height:0;overflow-y:auto;padding:5px 11px 14px}
+.side .chat-item{height:auto;gap:12px;margin:0 0 3px;padding:14px 11px;border-radius:15px;background:transparent}
+.side .chat-item:hover{background:var(--hover)}
+.side .chat-item.selected{background:linear-gradient(110deg,color-mix(in srgb,var(--accent) 11%,transparent),var(--hover));box-shadow:inset 0 0 0 1px var(--line)}
+.side .chat-item.selected::before{left:0;top:14px;bottom:14px;width:3px;border-radius:3px;box-shadow:none;animation:bar-in .35s var(--ease-spring,cubic-bezier(.3,1.4,.5,1))}
+@keyframes bar-in{from{transform:scaleY(0)}}
+.side .chat-item .avatar{width:47px;height:47px;font-size:15px}
+.side .chat-item.selected .avatar{box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.side .online-dot{width:13px;height:13px;border-width:2px;border-color:var(--bg)}
+.side .chat-info{gap:4px}
+.side .chat-title{font-size:13px;font-weight:600;line-height:1.35}
+.side .chat-title>svg{width:13px;height:13px}
+.side .chat-title .vip-badge{font-size:12px}
+.side .chat-meta{font-size:10px}
+.side .chat-item.unread .chat-meta{color:var(--muted)}
+.side .chat-preview{font-size:12px;line-height:1.4}
+.side .chat-item.unread .chat-preview{color:var(--text);opacity:.85}
+.side .chat-item .badge{min-width:18px;height:18px;padding:0 5px;display:inline-grid;place-items:center;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:650;line-height:1;box-shadow:0 2px 10px color-mix(in srgb,var(--accent) 35%,transparent)}
+.side .chat-item.muted .badge{background:color-mix(in srgb,var(--muted) 70%,transparent);box-shadow:none}
+.side .pin-icon svg{width:14px;height:14px}
+.side .muted-icon svg{width:12px;height:12px}
+.side .tick svg{width:15px;height:11px}
+.side .empty-list{padding:40px 18px;font-size:12px}
+
+/* Connection status at the bottom of the list */
+.side-foot{display:flex;align-items:center;gap:8px;padding:16px 22px;border-top:1px solid var(--line);color:var(--muted);font-size:10px;letter-spacing:.4px;flex-shrink:0}
+.shell[data-connection=offline] .side-foot .dot{background:var(--ci-gold,#e8c46a);box-shadow:0 0 8px var(--ci-gold,#e8c46a);animation:ci-blink 1.2s ease-in-out infinite}
+
+/* ================= Empty workspace ================= */
+.workspace>.empty{position:relative;isolation:isolate}
+.empty h2{font-size:24px;font-weight:500;letter-spacing:-.5px;line-height:1.35}
+.empty .primary{margin-top:6px}
+
+/* ================= Pages: AI, calls, contacts ================= */
+.panel-page:not(.settings-page){background:none}
+.calls-page>.primary{margin-bottom:12px}
+.call-history .history-row{gap:14px}
+.call-history .history-row .avatar{width:44px;height:44px;font-size:15px}
+.call-history .history-row h3{font-size:14px;font-weight:600}
+.call-history .history-row small{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:12px;color:var(--muted)}
+.call-history .history-row small svg{width:14px;height:14px}
+.call-history .history-row.missed h3,.call-history .history-row.missed small svg{color:var(--ci-danger,#f06a6a)}
+.call-history .history-row>.icon-button{color:var(--accent)}
+.ai-page{background:none}
+
+/* ================= Widths ================= */
+@media(min-width:1500px){
+  #app>.shell{grid-template-columns:95px 380px minmax(0,1fr);padding:28px 28px 28px 0}
+  .side-header{padding:30px}
+  .stories-strip{padding-inline:30px}
+}
+@media(min-width:701px) and (max-width:1000px){
+  #app>.shell{grid-template-columns:66px 290px minmax(0,1fr);padding:10px 10px 10px 0}
+  .nav button{width:46px;height:46px}
+  .panel-page:not(.settings-page){padding:25px}
+}
+
+/* ================= Phones: list, then the chat slides over it ================= */
+@media(max-width:700px){
+  #app>.shell{display:block;position:relative;height:100%;overflow:hidden;padding:0!important}
+  /* Floating glass navigation bar */
+  .rail{position:absolute;z-index:7;left:calc(15px + env(safe-area-inset-left,0px));right:calc(15px + env(safe-area-inset-right,0px));bottom:calc(15px + env(safe-area-inset-bottom,0px));height:62px;display:block;padding:0;border-radius:23px;transition:transform .25s var(--ci-ease,ease),opacity .25s,visibility 0s}
+  .rail>.brand,.rail>.account{display:none}
+  .nav{flex-direction:row;justify-content:space-around;gap:0;height:100%;padding:6px;border:1px solid var(--line);background-color:color-mix(in srgb,var(--bg) 75%,transparent);box-shadow:0 10px 40px #0004,inset 0 1px 0 #ffffff15;backdrop-filter:blur(var(--blur)) saturate(140%)}
+  body.light .nav{box-shadow:0 10px 30px #1e3c2e1f,inset 0 1px 0 #ffffff80}
+  .nav button{width:19%;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0}
+  .nav button svg{width:21px;height:21px}
+  .nav-label{display:block;font-size:9px;line-height:1}
+  .nav button.active .nav-label{font-weight:650}
+  .nav button::after{left:50%;top:auto;bottom:-3px;width:18px;height:3px;border-radius:3px 3px 0 0;transform:translateX(-50%) scaleX(0)}
+  .nav button.active::after{transform:translateX(-50%) scaleX(1)}
+  .show-chat .rail{transform:translateY(calc(100% + 30px));opacity:0;visibility:hidden;transition:transform .25s var(--ci-ease,ease),opacity .2s,visibility 0s linear .25s}
+
+  .side{position:absolute;inset:0;display:flex!important;border:0;border-radius:0;background:transparent!important;backdrop-filter:none!important;padding-top:env(safe-area-inset-top,0px);transition:transform .25s var(--ci-ease,ease)}
+  .side-header{padding:24px calc(24px + env(safe-area-inset-right,0px)) 10px calc(24px + env(safe-area-inset-left,0px))}
+  .side-header .row{margin-bottom:20px}
+  .side-header h1{font-size:28px}
+  .mobile-account{display:inline-flex}
+  .side .search input{height:48px;font-size:16px;border-radius:16px!important}
+  .stories-strip{padding:8px 24px 6px}
+  .side-foot{display:none}
+  .side .chat-list{padding:6px 14px calc(100px + env(safe-area-inset-bottom,0px))}
+  .side .chat-item{padding:15px 10px}
+  .side .chat-item .avatar{width:52px;height:52px;font-size:17px}
+  .side .chat-title{font-size:14px}
+  .side .chat-meta{font-size:11px}
+  .side .chat-preview{font-size:13px}
+  .side .chat-item.selected{background:none;box-shadow:none}
+  .side .chat-item.selected::before{display:none}
+
+  .workspace{display:block!important;position:absolute;inset:0;z-index:5;border:0;border-radius:0;padding-top:env(safe-area-inset-top,0px);background:radial-gradient(ellipse at 12% 0%,var(--glow),transparent 55%),radial-gradient(ellipse at 95% 85%,var(--glow),transparent 45%),var(--bg)!important;transform:translateX(100%);visibility:hidden;box-shadow:-6px 0 24px rgba(0,0,0,.25);transition:transform .25s var(--ci-ease,ease),visibility 0s linear .25s}
+  .show-chat .workspace{transform:none;visibility:visible;transition:transform .25s var(--ci-ease,ease),visibility 0s}
+  .show-chat .side{transform:translateX(-22%)}
+  .show-page .workspace{transform:none;visibility:visible;transition:none;box-shadow:none;padding-top:0}
+  .show-page .side{visibility:hidden}
+  .workspace.dragging{transition:none!important}
+  .mobile-back{display:inline-flex}
+  .panel-page:not(.settings-page){padding:calc(27px + env(safe-area-inset-top,0px)) calc(23px + env(safe-area-inset-right,0px)) calc(100px + env(safe-area-inset-bottom,0px)) calc(23px + env(safe-area-inset-left,0px))}
+  .show-page .ai-page{padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  #toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+  body:has(.show-chat) #toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+}
+@media(prefers-reduced-motion:reduce){.rail,.side,.workspace{transition:none!important}.nav button.active svg,.side .chat-item.selected::before{animation:none!important}}
