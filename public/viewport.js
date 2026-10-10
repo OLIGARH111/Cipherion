@@ -4,8 +4,9 @@ const root = document.documentElement;
 const viewport = window.visualViewport;
 let frame, probe;
 const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
-// iOS 26 home-screen apps report innerHeight/visualViewport short by the bottom safe area,
-// leaving an empty band under the app. 100lvh still measures the whole screen.
+// iOS 26 home-screen apps stop the page above the home indicator (100lvh still measures the
+// whole screen). The system already keeps that strip free, so the app must not add the
+// bottom safe-area inset a second time.
 function largeViewport() {
   if (!probe) {
     probe = document.createElement('div');
@@ -21,11 +22,10 @@ function update() {
   const visible = viewport?.height || window.innerHeight;
   const editing = document.activeElement?.matches('input, textarea, [contenteditable="true"]');
   const keyboard = Boolean(editing && window.innerHeight - visible > 120);
-  const height = !keyboard && standalone() ? Math.max(visible, window.innerHeight, largeViewport()) : visible;
-  const top = keyboard ? viewport?.offsetTop || 0 : 0;
-  root.style.setProperty('--viewport-height', `${height}px`);
-  root.style.setProperty('--viewport-top', `${top}px`);
+  root.style.setProperty('--viewport-height', `${visible}px`);
+  root.style.setProperty('--viewport-top', `${viewport?.offsetTop || 0}px`);
   root.classList.toggle('keyboard-open', keyboard);
+  root.classList.toggle('short-viewport', !keyboard && standalone() && largeViewport() - Math.max(visible, window.innerHeight) > 20);
 }
 function schedule() {
   if (frame === undefined) frame = requestAnimationFrame(update);

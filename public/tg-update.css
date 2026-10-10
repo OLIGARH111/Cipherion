@@ -130,3 +130,9 @@ body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page
   body.light .nav button,body.light .nav button:hover{color:#1d1d1f}
   body.light .nav button.active{color:var(--accent);background:#0000000f}
 }
+
+/* iOS 26 home-screen app: the page already ends above the home indicator. */
+@media(max-width:700px){
+  .short-viewport .rail{bottom:10px}
+  .short-viewport .composer-wrap{padding-bottom:8px}
+}
