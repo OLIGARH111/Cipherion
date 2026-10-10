@@ -38,7 +38,7 @@
 .draft-label{color:var(--ci-danger,#e5534b);font-weight:550}
 
 /* ---------- Global search ---------- */
-.side.searching .folder-tabs,.side.searching .stories-strip{display:none}
+.side.searching .filters,.side.searching .stories-strip{display:none}
 .search-tabs{position:sticky;top:0;z-index:2;display:flex;gap:6px;padding:6px 10px 8px;overflow-x:auto;scrollbar-width:none;background:var(--ci-side,var(--bg))}
 .search-tabs::-webkit-scrollbar{display:none}
 .search-tabs .chip{flex:none}
@@ -69,9 +69,6 @@
 button.primary.danger{background:var(--ci-danger,#e5534b);border-color:transparent;color:#fff}
 
 /* ---------- Calls ---------- */
-.calls-page .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.calls-page .page-head .primary{width:auto;display:inline-flex;align-items:center;gap:8px;padding-inline:16px}
-.calls-page .page-head .primary svg{width:18px;height:18px}
 .call-picks{display:grid;gap:2px;max-height:60vh;overflow:auto;margin-top:8px}
 .call-pick{display:flex;align-items:center;gap:4px;padding:6px 4px 6px 8px;border-radius:14px}
 .call-pick:hover{background:var(--ci-hover,var(--ci-pill))}
