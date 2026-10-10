@@ -93,6 +93,9 @@ export function saveAction(fn) {
   finally{pending=false;controls.forEach((c,i)=>{c.disabled=old[i];c.removeAttribute('aria-busy');});}
  };
 }
+function plural(n,forms){const a=n%10,b=n%100;return forms[b>=11&&b<=14?2:a===1?0:a>=2&&a<=4?1:2];}
+// «в сети» / «был(а) 5 минут назад»; without lastSeen (hidden by privacy) falls back to «был(а) недавно».
+export function lastSeenText(user,at=Date.now()){if(user?.online)return 'в сети';const seen=Number(user?.lastSeen);if(!seen)return 'был(а) недавно';const minutes=Math.max(0,Math.floor((at-seen)/60000));if(minutes<1)return 'был(а) только что';if(minutes<60)return `был(а) ${minutes} ${plural(minutes,['минуту','минуты','минут'])} назад`;const hours=Math.floor(minutes/60);if(hours<24)return `был(а) ${hours} ${plural(hours,['час','часа','часов'])} назад`;const days=Math.floor(hours/24);return `был(а) ${days} ${plural(days,['день','дня','дней'])} назад`;}
 export function peopleCount(n,channel=false){const forms=channel?['подписчик','подписчика','подписчиков']:['участник','участника','участников'];const a=n%10,b=n%100;return `${n} ${forms[b>=11&&b<=14?2:a===1?0:a>=2&&a<=4?1:2]}`;}
 // Lost legacy uploads remain a recoverable UI state, not a broken image.
 if(typeof document!=='undefined')document.addEventListener('error',event=>{const el=event.target;if(!el?.matches?.('img,video,audio')||!el.getAttribute('src')?.startsWith('/api/media/'))return;if(el.parentElement?.classList.contains('avatar')){el.replaceWith(document.createTextNode('?'));return;}const placeholder=document.createElement('span');placeholder.className='media-unavailable';placeholder.textContent='Медиа недоступно';el.replaceWith(placeholder);},true);

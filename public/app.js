@@ -5,7 +5,7 @@ import {createAccountSessionManager} from './accounts.js';
 import {emailAuthView} from './email-auth.js';
 import {activeAccount,accountEpoch} from './account-context.js';
 import {accountURL,accountFetch,draftKey} from './account-context.js';
-import {peopleCount} from './ui.js';
+import {peopleCount,lastSeenText} from './ui.js';
 import './viewport.js';
 import {bindStickerEffects} from './sticker-effects.js';
 import {createSync} from './sync.js';
@@ -175,7 +175,7 @@ function chatContextMenu(chatId,x,y){
     else if(action==='delete')deleteChat(c);}));
 }
 export async function refresh(){const ticket=accountEpoch();const chats=await api('/chats');if(ticket!==accountEpoch())return;for(const chat of chats)for(const member of chat.members){const previous=state.chats.find(c=>c.id===chat.id)?.members.find(m=>m.user_id===member.user_id);member.read_at=Math.max(member.read_at||0,previous?.read_at||0);member.delivered_at=Math.max(member.delivered_at||0,previous?.delivered_at||0);}state.chats=chats;renderChats();if(state.chat&&!selected()){state.chat=null;empty();$('.shell')?.classList.remove('show-chat');}else setStatus();}
-function chatStatus(c){if(c.kind==='saved')return 'заметки и пересылки';if(c.kind==='direct'){const p=chatPeer(c);return p?.online?'<span class="online">в сети</span>':'был(а) недавно';}const online=c.members.filter(m=>m.online&&m.user_id!==state.user.id).length;return esc(peopleCount(c.members.length,c.kind==='channel'))+(c.kind==='group'&&online?`, ${online} в сети`:'');}
+function chatStatus(c){if(c.kind==='saved')return 'заметки и пересылки';if(c.kind==='direct'){const p=chatPeer(c);return p?.online?'<span class="online">в сети</span>':esc(lastSeenText(p));}const online=c.members.filter(m=>m.online&&m.user_id!==state.user.id).length;return esc(peopleCount(c.members.length,c.kind==='channel'))+(c.kind==='group'&&online?`, ${online} в сети`:'');}
 function setStatus(){const t=$('#chat-status'),c=selected();if(t&&c&&!typingNow.has(c.id))t.innerHTML=chatStatus(c);}
 export async function openChat(chatId){
   if(state.recording){toast('Завершите или отмените запись');return;}
@@ -472,7 +472,7 @@ function newCallDialog(){
     const q=$('#call-search').value.trim().toLowerCase(),chats=callable().filter(c=>c.title.toLowerCase().includes(q));
     const known=new Set(state.chats.filter(c=>c.kind==='direct').map(c=>chatPeer(c)?.user_id));
     const extra=people.filter(u=>!known.has(u.id));
-    $('#call-picks').innerHTML=(chats.length?`<div class="search-section">${q?'Контакты':'Недавние контакты'}</div>${chats.map(c=>row('call-chat',c.id,c.title,chatAvatar(c),c.kind==='group'?peopleCount(c.members.length):chatPeer(c)?.online?'в сети':(chatPeer(c)?.username?'@'+chatPeer(c).username:''))).join('')}`:'')
+    $('#call-picks').innerHTML=(chats.length?`<div class="search-section">${q?'Контакты':'Недавние контакты'}</div>${chats.map(c=>row('call-chat',c.id,c.title,chatAvatar(c),c.kind==='group'?peopleCount(c.members.length):chatPeer(c)?.online?'в сети':chatPeer(c)?.lastSeen?lastSeenText(chatPeer(c)):(chatPeer(c)?.username?'@'+chatPeer(c).username:''))).join('')}`:'')
       +(extra.length?`<div class="search-section">Глобальный поиск</div>${extra.map(u=>row('call-user',u.id,u.name,avatar(u.name,u.avatar),u.username?'@'+u.username:'')).join('')}`:'')
       +(!chats.length&&!extra.length?`<div class="empty-list">${icon('search')}${q?'Никого не найдено':'Найдите человека по имени или username'}</div>`:'');
     document.querySelectorAll('[data-call-chat]').forEach(b=>b.onclick=guard(async()=>{$('#modal').close();await calls.start(state.chats.find(c=>c.id===b.dataset.callChat),b.dataset.video==='1');}));
