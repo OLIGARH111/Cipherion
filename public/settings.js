@@ -4,6 +4,7 @@ import {saveAction} from './ui.js';
 import {notificationSettings} from './notifications.js';
 import {adminAccessPage} from './promos.js';
 import {privacyPage} from './privacy.js';
+import {devicesPage} from './devices.js';
 import {$,esc,icon,avatar,button,api,upload,modal,guard,toast,asSheet} from './ui.js';
 import {editExtendedProfile,editProfile,extendedProfile} from './profiles.js';
 import {storyArchive,storyPreferences} from './stories.js';
@@ -33,7 +34,7 @@ function toggle(label,key,s,detail=''){return `<label class="setting-row"><div>$
 function bindToggles(state,save){document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=guard(async()=>{state.settings[el.dataset.setting]=el.checked;await save();}));}
 const sections=[
  [['people','#2f7de1','Аккаунты','Переключение и добавление','accounts'],['star','#8a56d8','Cipherion VIP','Подписка, подарки и возможности','vip'],['shield','#6f7b85','Администрирование','Управление Cipherion','admin-access']],
- [['bell','#e0444b','Уведомления','Звуки и ваш ритм общения','notifications'],['lock','#6f7b85','Конфиденциальность','Блокировки и защита','privacy'],['chat','#2b9a5a','Чаты','Ввод текста и анимации','chats'],['palette','#5662d8','Оформление','Темы, фон чата, ночной режим','appearance'],['screen','#d9730d','Устройства','Активные сессии','devices'],['database','#1a95a3','Данные и память','Файлы и локальные данные','storage'],['language','#8a56d8','Язык','Русский','language']],
+ [['bell','#e0444b','Уведомления','Звуки и ваш ритм общения','notifications'],['lock','#6f7b85','Конфиденциальность','Блокировки и защита','privacy'],['chat','#2b9a5a','Чаты','Ввод текста и анимации','chats'],['palette','#5662d8','Оформление','Темы, фон чата, ночной режим','appearance'],['screen','#d9730d','Устройства','Где выполнен вход в аккаунт','devices'],['database','#1a95a3','Данные и память','Файлы и локальные данные','storage'],['language','#8a56d8','Язык','Русский','language']],
  [['history','#d9730d','Архив историй','Ваши истории спустя 24 часа','story-archive'],['image','#d6457e','Настройки историй','Близкие друзья и уведомления','story-settings'],['palette','#d6457e','Оформление профиля','Фон, emoji-паттерн и рамка','extended-profile']],
  [['ai','#5662d8','AI','Модель, разрешения и память','ai'],['heart','#e0444b','Семья и дети','Правила и защита ребёнка','family']],
  [['info','#2f7de1','О Cipherion','Версия и возможности','about']]
@@ -49,7 +50,7 @@ export function settingsPage(state,save,logout){const u=state.user;$('.workspace
     if(key==='appearance')appearance(state,save);
     if(key==='notifications')await notificationSettings();
     if(key==='chats'){modal('Чаты',`${toggle('Отправлять по Enter','enter',s,'Shift + Enter всегда добавляет новую строку')}${toggle('Анимации интерфейса','animations',s)}${toggle('Эффекты профиля','profileEffects',s)}<p class="note">Закрепление, архив и уведомления отдельного чата доступны в меню ⋯ его заголовка.</p>`);bindToggles(state,save);}
-    if(key==='devices'){const sessions=await api('/sessions');modal('Активные устройства',sessions.map(session=>`<div class="person">${icon('screen')}<div><h3>${session.current?'Это устройство':'Авторизованное устройство'}</h3><small>${esc(session.agent)}</small><small>Активность: ${new Date(session.active).toLocaleString('ru')}</small></div>${session.current?'':button('close','Завершить сессию',`data-session="${session.id}"`)}</div>`).join('')+'<button class="secondary danger" id="end-others">Завершить все другие сессии</button>');document.querySelectorAll('[data-session]').forEach(btn=>btn.onclick=guard(async()=>{if(confirm('Завершить эту сессию?')){await api('/sessions','DELETE',{id:btn.dataset.session});btn.closest('.person').remove();}}));$('#end-others').onclick=guard(async()=>{if(confirm('Выйти на всех других устройствах?')){await api('/sessions','DELETE',{id:'all'});$('#modal').close();toast('Другие сессии завершены');}});}
+    if(key==='devices'){await devicesPage();return;}
     if(key==='privacy'){await privacyPage();return;}
     if(key==='storage'){modal('Данные и память','<p class="note">Файлы хранятся на сервере. Действующий лимит размера файла отображается при загрузке и определяется сервером. Медиа загружаются при открытии чата, аудио и видео не воспроизводятся автоматически.</p><button class="secondary" id="clear-drafts">Очистить локальные черновики</button>');$('#clear-drafts').onclick=()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('accounts/'+activeAccount()+'/draft:'))sessionStorage.removeItem(key);toast('Черновики удалены');};}
     if(key==='ai'){const config=await api('/me');modal('Распознавание речи',`<p class="note">${config.transcription?'Сервис подключён.':'Сервис пока не подключён администратором.'} Кнопка «Расшифровать» доступна под голосовыми сообщениями и видео-кружочками. Запись передаётся провайдеру только после вашего подтверждения.</p><p class="muted">Автоматического доступа ИИ к чатам, контактам и файлам нет. В этом выпуске ИИ-ассистент и память ИИ не подключены.</p>`);}

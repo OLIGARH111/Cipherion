@@ -1,0 +1,103 @@
+/* Telegram-style touches: stories above search, full-screen video notes, privacy and devices lists. */
+
+/* Stories strip sits between the title row and the search field. */
+.side-header .stories-strip{margin:-8px -22px 10px;padding:4px 22px 6px}
+.side-header .row{margin-bottom:14px}
+@media(max-width:700px){
+  .side-header .stories-strip{margin:-6px calc(-24px - env(safe-area-inset-right,0px)) 10px calc(-24px - env(safe-area-inset-left,0px));padding:4px calc(24px + env(safe-area-inset-right,0px)) 6px calc(24px + env(safe-area-inset-left,0px))}
+}
+
+/* ---------- Video notes in the chat ---------- */
+.round-note{position:relative;display:block;width:220px;height:220px;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.round-note video.round{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;background:#0006}
+.round-note:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.round-duration,.round-muted{position:absolute;bottom:10px;padding:2px 8px;border-radius:10px;background:#0009;color:#fff;font-size:12px;font-variant-numeric:tabular-nums;line-height:18px}
+.round-duration{left:14px}
+.round-duration:empty{display:none}
+.round-muted{right:14px;display:grid;place-items:center;padding:3px;width:24px;height:24px;border-radius:50%}
+.round-muted svg{width:14px;height:14px}
+@media(max-width:700px){.round-note{width:200px;height:200px}}
+
+/* ---------- Shared ring + stage for recorder and viewer ---------- */
+.round-recorder,.round-viewer{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:calc(20px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,#000 72%,transparent);backdrop-filter:blur(18px) saturate(120%);-webkit-backdrop-filter:blur(18px) saturate(120%);color:#fff;touch-action:none}
+.round-stage{position:relative;width:min(86vw,62vh,520px);aspect-ratio:1;border-radius:50%}
+.round-stage video{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#111;box-shadow:0 20px 60px #0008}
+.round-ring{position:absolute;inset:-9px;width:calc(100% + 18px);height:calc(100% + 18px);transform:rotate(-90deg);pointer-events:none}
+.round-ring circle{fill:none;stroke:#ffffff2e;stroke-width:1.6}
+.round-ring .round-progress{stroke:var(--accent,#83d9b5);stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .25s linear}
+.round-info{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.round-info small{max-width:320px;color:#ffffffb0;font-size:13px}
+
+/* Recorder */
+.round-recorder{animation:round-in .22s ease-out}
+.round-recorder .round-live{transform:scaleX(-1)}
+.round-recorder .record-time{color:#fff;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.round-actions{display:flex;align-items:center;justify-content:center;gap:28px}
+.round-actions .icon-button{width:58px;height:58px;border-radius:50%;background:#ffffff1f;color:#fff}
+.round-actions .icon-button svg{width:24px;height:24px}
+.round-actions #cancel-record{background:#ff5b5b33;color:#ff9c9c}
+.round-actions #send-record{width:66px;height:66px;background:var(--accent,#83d9b5);color:#062016}
+.round-recorder.locked #lock-record{opacity:.35;pointer-events:none}
+body.round-recording{overflow:hidden}
+
+/* Viewer */
+.round-viewer{opacity:0;transition:opacity .2s ease}
+.round-viewer.open{opacity:1}
+.round-viewer .round-stage{cursor:pointer;transform:scale(.6);transition:transform .25s cubic-bezier(.2,.9,.3,1.2)}
+.round-viewer.open .round-stage{transform:none}
+.round-viewer .round-ring{pointer-events:none}
+.round-viewer .round-ring circle{stroke-width:2.2}
+.round-state{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;background:#0008;opacity:0;transition:opacity .15s;pointer-events:none}
+.round-state::before{content:"";position:absolute;left:27px;top:21px;border-style:solid;border-width:13px 0 13px 21px;border-color:transparent transparent transparent #fff}
+.round-viewer.paused .round-state{opacity:1}
+.round-time{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.round-viewer .round-info{flex-direction:row;gap:12px}
+.round-viewer .round-speed{min-width:46px;background:#ffffff24;color:#fff;border:0}
+.round-close{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;width:44px;height:44px;border-radius:50%;background:#ffffff1f;color:#fff}
+@keyframes round-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.round-recorder,.round-viewer,.round-viewer .round-stage{animation:none;transition:none}}
+
+/* ---------- VIP text badge ---------- */
+.vip-badge.vip-text{padding:1px 5px;border-radius:6px;font-size:max(10px,.66em);font-weight:800;letter-spacing:.06em;line-height:1.5;vertical-align:.18em;color:#1d1400;background:linear-gradient(135deg,#ffe28a,#f2b53c);font-family:inherit}
+
+/* ---------- Telegram-style list pages (privacy, devices) ---------- */
+.tg-page{display:flex;flex-direction:column;gap:6px}
+.tg-page .settings-group{margin-bottom:6px}
+.tg-page .group-caption{margin-top:12px}
+.tg-hint{margin:2px 14px 10px;color:var(--muted);font-size:13px;line-height:1.4}
+.tg-value{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent);font-size:14.5px}
+.tg-back{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;margin:0 0 6px -6px;padding:6px 10px;border:0;border-radius:12px;background:none;color:var(--accent);font-size:15px}
+.tg-back svg{width:18px;height:18px}
+.tg-choice{display:flex;align-items:center;gap:14px;width:100%;min-height:50px;padding:6px 16px;border:0;background:none;color:var(--text);font-size:15.5px;text-align:left;position:relative;cursor:pointer}
+.tg-choice+.tg-choice::before{content:"";position:absolute;top:0;left:50px;right:0;height:1px;background:var(--ci-line,var(--line))}
+.tg-choice:hover{background:var(--ci-hover)}
+.tg-choice input{position:absolute;opacity:0;pointer-events:none}
+.tg-radio{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center}
+.tg-choice input:checked+.tg-radio{border-color:var(--accent)}
+.tg-choice input:checked+.tg-radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.tg-choice input:focus-visible+.tg-radio{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}
+.tg-person{display:flex;align-items:center;gap:12px;min-height:54px;padding:6px 14px;position:relative}
+.tg-person+.tg-person::before{content:"";position:absolute;top:0;left:62px;right:0;height:1px;background:var(--ci-line,var(--line))}
+.tg-person .avatar{width:38px;height:38px;font-size:14px;flex:none}
+.tg-person>div{flex:1;min-width:0}
+.tg-person b,.tg-person small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tg-person small{color:var(--muted);font-size:13px}
+.tg-person .chip{flex:none}
+.tg-search{display:flex;gap:8px;padding:10px 14px}
+.tg-search input{flex:1;min-width:0}
+.tg-switch{display:flex;align-items:center;gap:14px;width:100%;min-height:54px;padding:6px 14px;position:relative}
+.tg-switch+.tg-switch::before,.settings-group .tg-switch+.settings-row::before,.settings-group .settings-row+.tg-switch::before{content:"";position:absolute;top:0;left:14px;right:0;height:1px;background:var(--ci-line,var(--line))}
+.tg-switch span{flex:1}
+.tg-switch input[type=checkbox]{flex:none;width:46px;height:28px}
+.device-icon{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,color-mix(in srgb,var(--c,#2f7de1) 70%,#fff),var(--c,#2f7de1) 65%)}
+.device-icon svg{width:22px;height:22px;stroke-width:2}
+.device-row{display:flex;align-items:center;gap:12px;min-height:66px;padding:8px 14px;position:relative}
+.device-row+.device-row::before{content:"";position:absolute;top:0;left:68px;right:0;height:1px;background:var(--ci-line,var(--line))}
+.device-row>div{flex:1;min-width:0}
+.device-row b{display:block;font-size:15.5px}
+.device-row small{display:block;color:var(--muted);font-size:13px;line-height:1.35}
+.device-row .online{color:var(--accent)}
+.tg-danger{width:100%;min-height:50px;padding:6px 16px;border:0;background:none;color:var(--ci-danger,#e0444b);font-size:15.5px;text-align:left}
+.tg-danger:hover{background:var(--ci-hover)}
+/* Lists must stay readable over the Liquid Glass background. */
+body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page) header{background:var(--bg)!important}

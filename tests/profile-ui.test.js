@@ -55,5 +55,5 @@ test('profile editor previews name and VIP badge, preserves form on errors and s
  assert.equal(requests.filter(r=>r.url==='/api/me'&&r.data).length,0);
  settingsPage(state,async()=>{},async()=>{});$('#view-my-profile').click();await until(()=>$('#profile-edit-all'));
  assert.match($('#modal h2').textContent,/Ваш профиль/);assert.equal($('#modal .vip-badge').textContent,'👑');
- assert.equal(vipBadge({vip:false,vipBadge:'👑'}),'');assert.match(vipBadge({vip:true,vipBadge:'<img>'}),/✦/);
+ assert.equal(vipBadge({vip:false,vipBadge:'👑'}),'');assert.match(vipBadge({vip:true,vipBadge:'<img>'}),/>VIP</);
 });
