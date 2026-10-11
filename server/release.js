@@ -22,6 +22,8 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
   ? Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])) : value;
 export function messageFingerprint(chat, body) {
   const payload={chat,kind:body.kind || 'text',body:String(body.body ?? '').trim().slice(0,4000),media:body.media || null,reply:body.reply || null,poll:body.poll || null};
+  // Only present for encrypted messages, so fingerprints of plaintext requests are unchanged.
+  if(body.e2e!=null)payload.e2e=typeof body.e2e==='string'?body.e2e:JSON.stringify(body.e2e);
   return createHash('sha256').update(JSON.stringify(canonical(payload))).digest('hex');
 }
 export function vipState(grants, clock) {
