@@ -251,6 +251,7 @@ body.glass-ui .conversation{background:transparent}
 .message-footer .tick.read{color:color-mix(in srgb,var(--accent) 85%,#fff)}
 body.light .message-footer .tick.read{color:var(--ci-meta-out)}
 .footer-pin svg{width:12px;height:12px;transform:rotate(45deg)}
+.footer-e2e{display:inline-flex;opacity:.7}.footer-e2e svg{width:11px;height:11px}
 .edited{margin-right:2px;font-style:italic}
 .send-status{display:inline-flex;align-items:center;gap:3px}
 .send-status.failed{color:var(--ci-danger);font-weight:600}

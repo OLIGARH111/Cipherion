@@ -49,12 +49,16 @@ export const tone = name => { let h = 0; for (const ch of String(name || '')) h 
 export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}" data-tone="${tone(name)}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc(initials(name))}</span>`;
 export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
+// A response filter (end-to-end decryption) sees every JSON result before callers do.
+let responseFilter=null;
+export function setResponseFilter(fn){responseFilter=fn;}
 async function requestJSON(url,options,account=activeAccount()) {
   const ticket=accountEpoch();
   let response;
   try{response=await accountFetch(url,options,account);}catch(error){if(error.name==='AbortError')throw error;throw new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');}
   let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502});}
   if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status});}
+  if(responseFilter)result=await responseFilter(result,account);
   if(ticket!==accountEpoch())throw new DOMException('Аккаунт переключён','AbortError');return result;
 }
 export async function api(path, method='GET', data, signal, account=activeAccount()) {

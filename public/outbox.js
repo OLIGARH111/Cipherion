@@ -1,8 +1,10 @@
 import {api,upload} from './ui.js';
+const sealable=new Set(['text','photo','video','file','voice','round']);
 let connection;
 function database(){return connection ||= new Promise((resolve,reject)=>{const r=indexedDB.open('cipherion-outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('messages',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>{connection=null;reject(r.error);};});}
 async function transaction(mode,action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('messages',mode);const r=action(tx.objectStore('messages'));tx.oncomplete=()=>resolve(r?.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-export function createOutbox(user,onChange){
+// `encrypt(chat,text)` resolves to extra payload fields ({e2e,emoji}) or null for plaintext.
+export function createOutbox(user,onChange,encrypt=null){
  const request=(path,method,data,signal)=>api(path,method,data,signal,user);
  const memory=new Map(),saving=new Map();let busy=null,disposed=false,lastCreated=0;
  const notify=event=>{if(disposed)return;try{Promise.resolve(onChange(event)).catch(()=>{});}catch{}};
@@ -18,8 +20,10 @@ export function createOutbox(user,onChange){
    try{
     await save(item);
     if(item.file){const media=await upload(item.file,user);item.payload.media=media.id;delete item.file;await save(item);}
+    // Encrypt once and keep the envelope: a retry must repeat the identical request.
+    if(encrypt&&!item.sealed&&!item.payload.sticker&&sealable.has(item.payload.kind||'text')&&String(item.payload.body||'').trim()){const sealed=await encrypt(item.chat,item.payload.body.trim());item.sealed=true;if(sealed)Object.assign(item.payload,sealed);await save(item);}
     let message=await request(item.payload.forward?'/messages/'+item.payload.forward+'/forward':item.payload.sticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{
-      ...item.payload,...((item.payload.sticker||item.payload.forward)?{chat:item.chat}:{}),clientMessageId:item.id,clientId:item.id
+      ...item.payload,...(item.payload.e2e?{body:undefined}:{}),...((item.payload.sticker||item.payload.forward)?{chat:item.chat}:{}),clientMessageId:item.id,clientId:item.id
     },AbortSignal.timeout(30000));
     if(!message.chat_id)message=await request('/messages/'+message.id);
     // Merge the acknowledgement before removing the durable request.
