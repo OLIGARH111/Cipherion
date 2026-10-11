@@ -27,10 +27,10 @@ import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,dayKey,day
 import { createCalls } from './calls.js';
 import { groupPanel } from './groups.js';
 import {schedulePage} from './social.js';
-import {aiPage,familyPage,foldersPage} from './extensions.js';
+import {aiPage,familyPage} from './extensions.js';
 import {chatDraft,saveDraft,flushDrafts,forgetDraft,bindMessageGestures,heartBurst,bindFileInput,confirmFiles} from './chat-extras.js';
 
-export const state={user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',filter:'all',reply:null,editing:null,events:null,recording:null,mode:'voice'};
+export const state={user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,mode:'voice'};
 let outbox,synchronizer;
 const messagesByChat=new Map();
 const clearedAt=chat=>state.chats.find(c=>c.id===chat)?.cleared_at||0;
@@ -54,24 +54,27 @@ function resetAccount(){
  const pending=[outbox?.dispose(),synchronizer?.dispose()];calls?.dispose();calls=null;outbox=null;synchronizer=null;
  clearTimeout(refreshTimer);clearTimeout(searchTimer);chatGeneration++;messagesByChat.clear();pageCache.clear();
 closePopover();$('#modal')?.close();$('#modal')?.classList.remove('sheet');document.querySelectorAll('.story-viewer,.story-overlay,.profile-effect').forEach(e=>e.remove());
- Object.assign(state,{user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',filter:'all',reply:null,editing:null,events:null,recording:null,sendSticker:null,selection:null,find:null,unseen:0,loading:false});typingNow.clear();
+ Object.assign(state,{user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,sendSticker:null,selection:null,find:null,unseen:0,loading:false});typingNow.clear();
  window.speechSynthesis?.cancel();window.dispatchEvent(new Event('account-change'));app.replaceChildren();return Promise.allSettled(pending);
 }
 const accountManager=createAccountSessionManager({deactivate:resetAccount,canSwitch:()=>!calls?.busy()&&!state.recording,activate:async id=>{await resetAccount();if(!id){auth();return;}try{await boot();}catch(e){if(e.status===401){auth();toast('Сессия этого аккаунта истекла. Другие аккаунты остаются доступны.');}else throw e;}}});
 state.accounts=accountManager;
 async function connectBackgroundAccounts(){const ticket=accountEpoch(),list=await accountManager.refresh();if(ticket!==accountEpoch())return;for(const a of list){if(a.user.id===state.user.id)continue;const ev=new EventSource(accountURL('/api/events',a.user.id));backgroundEvents.set(a.user.id,ev);ev.addEventListener('message',()=>{if(ticket===accountEpoch())toast('Новое сообщение — '+a.user.name);});ev.addEventListener('call',e=>{if(ticket!==accountEpoch())return;const call=JSON.parse(e.data);if(call.state!=='ringing')return;if(calls?.busy()){toast('Входящий звонок — '+a.user.name);return;}modal('Звонок — '+a.user.name,`<p>${esc(call.name)} звонит вашему аккаунту ${esc(a.user.name)}.</p><button class="primary" id="switch-call-account">Открыть звонок</button>`);$('#switch-call-account').onclick=guard(async()=>{$('#modal').close();await accountManager.switchTo(a.user.id);await calls.event(call);});});}}
-const folderTabs=[['all','Все'],['direct','Личные'],['group','Группы'],['channel','Каналы'],['unread','Непрочитанные'],['archived','Архив']];
 const calm=()=>!!globalThis.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches||document.body.classList.contains('no-motion');
-function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTML=`<main class="shell"><aside class="rail"><div class="brand"><img src="/brand/icon-192-99e4c7990351.png" alt="Cipherion"></div><nav class="nav" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="icon-button ${state.tab===key?'active':''}" data-tab="${key}" title="${title}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav><button class="account" id="main-menu" title="Профиль и меню" aria-label="Профиль и меню" aria-haspopup="menu" aria-expanded="false">${me}</button></aside><aside class="side" aria-label="Чаты"><div class="side-header"><div class="row between"><div><h1>Cipherion<span style="color:var(--accent)">.</span></h1><p class="count-label">Ваши разговоры, в одном месте</p></div><div class="side-actions">${button('edit','Новый чат','id="new-chat"')}</div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="search">${icon('search')}<input id="chat-search" type="search" placeholder="Поиск по чатам" aria-label="Поиск по чатам, людям и сообщениям" autocomplete="off" enterkeyhint="search"></div><div class="filters" role="tablist" aria-label="Папки чатов">${folderTabs.map(([key,title])=>`<button class="chip ${state.filter===key?'active':''}" role="tab" aria-selected="${state.filter===key}" data-filter="${key}">${title}</button>`).join('')}<button class="chip" id="manage-folders" title="Настроить папки">Папки +</button><span id="custom-folders"></span></div></div><div class="chat-list"></div><div class="side-foot" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div></aside><section class="workspace"></section></main>`;
+function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTML=`<main class="shell"><aside class="rail"><div class="brand"><img src="/brand/icon-192-99e4c7990351.png" alt="Cipherion"></div><nav class="nav" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="icon-button ${state.tab===key?'active':''}" data-tab="${key}" title="${title}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav><button class="account" id="main-menu" title="Профиль и меню" aria-label="Профиль и меню" aria-haspopup="menu" aria-expanded="false">${me}</button></aside><aside class="side" aria-label="Чаты"><div class="side-header"><div class="row between"><div><h1>Cipherion<span style="color:var(--accent)">.</span></h1><p class="count-label">Ваши разговоры, в одном месте</p></div><div class="side-actions">${button('search','Поиск','id="open-search" aria-expanded="false" aria-controls="side-search"')}${button('edit','Новый чат','id="new-chat"')}</div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="search side-search" id="side-search" hidden>${icon('search')}<input id="chat-search" type="search" placeholder="Поиск" aria-label="Поиск по чатам, людям и сообщениям" autocomplete="off" enterkeyhint="search"><button type="button" class="search-cancel" id="close-search">Отмена</button></div></div><div class="chat-list"></div><div class="side-foot" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div></aside><section class="workspace"></section></main>`;
   document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=guard(()=>navigate(el.dataset.tab)));
-  document.querySelectorAll('.account').forEach(el=>el.onclick=()=>mainMenu(el));$('#new-chat').onclick=()=>newChat();$('#manage-folders').onclick=()=>foldersPage(state,saveSettings,renderChats);$('#chat-search').oninput=searchInput;
-  $('#chat-search').onkeydown=e=>{if(e.key==='Escape'&&e.target.value){e.preventDefault();e.stopPropagation();e.target.value='';searchInput();}else if(e.key==='Enter'){e.preventDefault();$('.chat-list [data-chat]')?.click();}};
-  document.querySelectorAll('[data-filter]').forEach(el=>el.onclick=()=>setFilter(el.dataset.filter));
+  document.querySelectorAll('.account').forEach(el=>el.onclick=()=>mainMenu(el));$('#new-chat').onclick=()=>newChat();$('#chat-search').oninput=searchInput;
+  $('#open-search').onclick=()=>openSearch();$('#close-search').onclick=()=>closeSearch();
+  $('#chat-search').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(e.target.value){e.target.value='';searchInput();}else closeSearch();}else if(e.key==='Enter'){e.preventDefault();$('.chat-list [data-chat]')?.click();}};
+  // Stories and the title stay pinned above the list: only .chat-list scrolls. iOS may still scroll an
+  // overflow:hidden column when an input gets focus, so snap it back.
+  const side=$('.side');side.addEventListener('scroll',()=>{if(side.scrollTop)side.scrollTop=0;});
   swipeBack($('.workspace'),()=>!!$('.shell')?.classList.contains('show-chat'),()=>closeChat());
   const list=$('.chat-list');list.oncontextmenu=e=>{const item=e.target.closest('[data-chat]');if(!item)return;e.preventDefault();chatContextMenu(item.dataset.chat,e.clientX,e.clientY);};longPress(list,'[data-chat]',(e,item)=>chatContextMenu(item.dataset.chat,e.clientX,e.clientY));
   renderChats();empty();
 }
-function setFilter(key){state.filter=key;document.querySelectorAll('[data-filter]').forEach(e=>{e.classList.toggle('active',e.dataset.filter===key);e.setAttribute('aria-selected',String(e.dataset.filter===key));});renderChats();}
+function openSearch(){const box=$('#side-search');if(!box)return;box.hidden=false;$('.side')?.classList.add('search-open');$('#open-search')?.setAttribute('aria-expanded','true');$('#chat-search').focus();}
+function closeSearch(){const box=$('#side-search'),input=$('#chat-search');if(!box)return;const had=!!input.value;input.value='';input.blur();box.hidden=true;$('.side')?.classList.remove('search-open');$('#open-search')?.setAttribute('aria-expanded','false');if(had)searchInput();$('#open-search')?.focus({preventScroll:true});}
 function setConnection(online){const el=$('#connection');if(el)el.textContent=online?'На связи':'Восстанавливаем соединение…';$('.shell')?.setAttribute('data-connection',online?'online':'offline');}
 function mainMenu(anchor=$('#main-menu')){
   const u=state.user,dark=!document.body.classList.contains('light');anchor.setAttribute('aria-expanded','true');
@@ -101,12 +104,10 @@ function chatItem(c,pins=state.settings.pins||[]){
 }
 function renderChats(){
   const target=$('.chat-list');if(!target)return;const q=($('#chat-search')?.value||'').trim().toLowerCase();
-  if($('#custom-folders')){$('#custom-folders').innerHTML=(state.settings.folders||[]).map(f=>`<button class="chip ${state.filter===f.id?'active':''}" role="tab" aria-selected="${state.filter===f.id}" data-custom-folder="${f.id}">${esc(f.name)}</button>`).join('');document.querySelectorAll('[data-custom-folder]').forEach(el=>el.onclick=()=>setFilter(el.dataset.customFolder));}
   $('.side')?.classList.toggle('searching',!!q);
   if(q){renderSearch(target,q);return;}
-  const archived=state.settings.archived||[];const pins=state.settings.pins||[];
-  let chats=state.chats.filter(c=>(state.filter==='archived'?archived.includes(c.id):!archived.includes(c.id))&&(state.filter!=='unread'||c.unread)&&(!['direct','group','channel'].includes(state.filter)||c.kind===state.filter));
-  const folder=(state.settings.folders||[]).find(f=>f.id===state.filter);if(folder)chats=chats.filter(c=>folder.rule==='manual'?folder.chats.includes(c.id):folder.rule==='unread'?c.unread:folder.rule==='recent'?(c.last?.created||c.created)>Date.now()-86400000:c.kind===folder.rule);
+  // One list without folders or an archive: every chat is shown, pinned ones first.
+  const pins=state.settings.pins||[];const chats=[...state.chats];
   chats.sort((a,b)=>Number(pins.includes(b.id))-Number(pins.includes(a.id)));
   target.innerHTML=chats.length?chats.map(c=>chatItem(c,pins)).join(''):`<div class="empty-list">${icon('chat')}Здесь появятся ваши разговоры.<br>Нажмите на карандаш, чтобы начать.</div>`;
   target.querySelectorAll('[data-chat]').forEach(el=>el.onclick=guard(()=>openChat(el.dataset.chat)));
@@ -158,8 +159,8 @@ async function openChatAt(chatId,messageId){
 }
 async function openSaved(){const chat=await api('/chats/saved','POST',{});if(!state.chats.some(c=>c.id===chat.id))await refresh();if(state.tab!=='chat')await navigate('chat');await openChat(chat.id);}
 function chatContextMenu(chatId,x,y){
-  const c=state.chats.find(c=>c.id===chatId);if(!c)return;const pins=state.settings.pins||[],archived=state.settings.archived||[],mine=c.members.find(m=>m.user_id===state.user.id),muted=chatMuted(c);
-  const items=[['open','chat','Открыть'],['pin','pin',pins.includes(c.id)?'Открепить':'Закрепить'],['archive','archive',archived.includes(c.id)?'Вернуть из архива':'В архив'],['mute',muted?'bell':'mute',muted?'Включить звук':'Без звука']];
+  const c=state.chats.find(c=>c.id===chatId);if(!c)return;const pins=state.settings.pins||[],mine=c.members.find(m=>m.user_id===state.user.id),muted=chatMuted(c);
+  const items=[['open','chat','Открыть'],['pin','pin',pins.includes(c.id)?'Открепить':'Закрепить'],['mute',muted?'bell':'mute',muted?'Включить звук':'Без звука']];
   if(c.unread&&c.last)items.push(['read','check','Отметить прочитанным']);
   items.push(['clear','eraser','Очистить историю']);
   if(['direct','saved'].includes(c.kind))items.push(['delete','trash','Удалить чат']);
@@ -167,7 +168,7 @@ function chatContextMenu(chatId,x,y){
   const el=popover({x,y,className:'chat-ctx',label:'Действия с чатом',html:items.map(([action,ic,label])=>menuItem(`data-chat-action="${action}"`,icon(ic),label,['manage','leave','delete'].includes(action)?'data-danger':'')).join('')});
   el.querySelectorAll('[data-chat-action]').forEach(b=>b.onclick=guard(async()=>{const action=b.dataset.chatAction;closePopover();
     if(action==='open')await openChat(c.id);
-    else if(action==='pin'||action==='archive'){const key=action==='pin'?'pins':'archived',values=state.settings[key]||[];state.settings[key]=values.includes(c.id)?values.filter(v=>v!==c.id):[...values,c.id];await saveSettings();renderChats();toast(action==='pin'?(values.includes(c.id)?'Чат откреплён':'Чат закреплён'):(values.includes(c.id)?'Чат возвращён из архива':'Чат перемещён в архив'));}
+    else if(action==='pin'){const values=state.settings.pins||[];state.settings.pins=values.includes(c.id)?values.filter(v=>v!==c.id):[...values,c.id];await saveSettings();renderChats();toast(values.includes(c.id)?'Чат откреплён':'Чат закреплён');}
     else if(action==='mute'){await api('/chat-mute','POST',{chat:c.id,duration:muted?'off':'forever'});await refresh();toast(muted?'Уведомления включены':'Уведомления выключены');}
     else if(action==='read'){await api(`/chats/${c.id}/read`,'POST',{message:c.last.id});await refresh();}
     else if(action==='leave'){if(confirm(`Покинуть «${c.title}»?`)){await api('/communities/'+c.id+'/leave','POST',{});await refresh();}}
@@ -392,7 +393,7 @@ function markTab(tab){document.querySelectorAll('[data-tab]').forEach(el=>{const
 // Keyboard: Esc closes menus/search/selection/reply and then the chat; Ctrl+F searches.
 document.addEventListener('keydown',e=>{
   if(!state.user||!$('.shell'))return;const dialogOpen=document.querySelector('dialog[open]');
-  if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.code==='KeyF'){if(dialogOpen)return;e.preventDefault();if(state.chat&&state.tab==='chat')openFind();else $('#chat-search')?.focus();return;}
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.code==='KeyF'){if(dialogOpen)return;e.preventDefault();if(state.chat&&state.tab==='chat')openFind();else openSearch();return;}
   if(e.key!=='Escape'||e.defaultPrevented||dialogOpen||popoverOpen()||state.recording||$('.composer-ai-panel'))return;
   if(emojiPanelOpen()){closeEmojiPanel();$('#emoji')?.focus();return;}
   if(state.find){closeFind();return;}
@@ -408,10 +409,10 @@ function createPoll(){pollEditor(state.chat,loadMessages).catch(e=>toast(e.messa
 export function newChat(defaultKind='direct'){return createChatDialog(defaultKind,{refresh,openChat});}
 
 function chatMenu(){
-  const c=selected();if(!c)return;const mine=c.members.find(m=>m.user_id===state.user.id),archived=(state.settings.archived||[]).includes(c.id),pinned=(state.settings.pins||[]).includes(c.id),anchor=$('#chat-menu'),saved=c.kind==='saved';
+  const c=selected();if(!c)return;const mine=c.members.find(m=>m.user_id===state.user.id),pinned=(state.settings.pins||[]).includes(c.id),anchor=$('#chat-menu'),saved=c.kind==='saved';
   const items=[];
   if(!saved)items.push(['extended-view','info',c.kind==='direct'?'Профиль':'Статистика сообщества'],['mute-chat',chatMuted(c)?'bell':'mute','Уведомления…']);
-  items.push(['pin-chat','pin',pinned?'Открепить чат':'Закрепить чат'],['archive-chat','archive',archived?'Вернуть из архива':'Архивировать']);
+  items.push(['pin-chat','pin',pinned?'Открепить чат':'Закрепить чат']);
   if(!(c.kind==='channel'&&!c.canPost))items.push(['schedule-chat','clock','Запланировать сообщение']);
   items.push(['find-in-chat','search','Поиск по чату'],['select-messages','select','Выбрать сообщения']);
   if(c.kind==='direct')items.push(['block-user','lock','Заблокировать собеседника']);
@@ -425,7 +426,7 @@ function chatMenu(){
   const on=(id,fn)=>{const b=menu.querySelector('#'+id);if(b)b.onclick=guard(async()=>{closePopover();await fn();});};
   on('extended-view',async()=>{if(c.kind==='direct')await asSheet(()=>extendedProfile(c.members.find(m=>m.user_id!==state.user.id).user_id));else{const data=await api('/statistics?chat='+c.id);modal('Статистика сообщества',`<h3>${data.members} участников · ${data.messages} сообщений</h3>${data.days.map(d=>`<p>${esc(d.day)}: ${d.count}</p>`).join('')}`);}});
   on('schedule-chat',()=>schedulePage(c.id,$('#draft')?.value||''));
-  for(const [el,key]of [['archive-chat','archived'],['pin-chat','pins']])on(el,async()=>{const values=state.settings[key]||[];state.settings[key]=values.includes(c.id)?values.filter(v=>v!==c.id):[...values,c.id];await saveSettings();renderChats();});
+  for(const [el,key]of [['pin-chat','pins']])on(el,async()=>{const values=state.settings[key]||[];state.settings[key]=values.includes(c.id)?values.filter(v=>v!==c.id):[...values,c.id];await saveSettings();renderChats();});
   on('mute-chat',()=>muteChat(c.id,c.title));
   on('find-in-chat',()=>openFind());
   on('select-messages',()=>enterSelection(null));

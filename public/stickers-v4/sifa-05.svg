@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><style>
+.a{transform-box:fill-box;transform-origin:center;animation-timing-function:ease-in-out;animation-iteration-count:infinite}
+.bob{animation-name:bob;animation-duration:2.4s}.shadow{animation-name:shadow;animation-duration:2.4s}
+.hop{animation-name:hop;animation-duration:1s;transform-origin:50% 100%}.jump{animation-name:jump;animation-duration:.9s;transform-origin:50% 100%}
+.breathe{animation-name:breathe;animation-duration:3.4s;transform-origin:50% 100%}.blink{animation-name:blink;animation-duration:3.8s}
+.pulse{animation-name:pulse;animation-duration:1s}.beat{animation-name:beat;animation-duration:.8s}
+.twinkle{animation-name:twinkle;animation-duration:1.6s}.rise{animation-name:rise;animation-duration:2.6s;animation-timing-function:ease-out}
+.wave{animation-name:wave;animation-duration:.6s}.hug{animation-name:hug;animation-duration:1.6s}
+.shake{animation-name:shake;animation-duration:.22s}.laugh{animation-name:laugh;animation-duration:.42s}
+.jitter{animation-name:jitter;animation-duration:.18s;animation-timing-function:steps(2)}
+.drip{animation-name:drip;animation-duration:1.1s;animation-timing-function:ease-in}
+.stream{animation-name:stream;animation-duration:.5s;animation-timing-function:linear}
+.puddle{animation-name:puddle;animation-duration:1.4s}
+.spin{animation-name:spin;animation-duration:7s;animation-timing-function:linear}.sway{animation-name:sway;animation-duration:2.4s}
+.flicker{animation-name:flicker;animation-duration:.5s;transform-origin:50% 100%}
+.steam{animation-name:steam;animation-duration:1.6s;animation-timing-function:ease-out}
+.bow{animation-name:bow;animation-duration:2.6s;transform-origin:50% 100%}
+.pop{animation-name:pop;animation-duration:2.2s}.fall{animation-name:fall;animation-duration:2s;animation-timing-function:linear}
+.coin{animation-name:coin;animation-duration:1.7s;animation-timing-function:ease-in}
+.flip{animation-name:flip;animation-duration:.9s}
+.stretch{animation-name:stretch;animation-duration:1.4s;transform-origin:50% 100%}
+.tilt{animation-name:tilt;animation-duration:2.8s;transform-origin:50% 100%}
+.sip{animation-name:sip;animation-duration:2.4s}
+.thumb{animation-name:thumb;animation-duration:1.4s}
+.ring{animation-name:ring;animation-duration:1.8s;animation-timing-function:ease-out}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+@keyframes shadow{0%,100%{transform:scaleX(1);opacity:.2}50%{transform:scaleX(.84);opacity:.12}}
+@keyframes hop{0%,100%{transform:translateY(0) scale(1,1)}12%{transform:translateY(0) scale(1.08,.92)}45%{transform:translateY(-34px) scale(.96,1.05)}75%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes jump{0%,100%{transform:translateY(0) scale(1,1)}15%{transform:translateY(0) scale(1.1,.88)}50%{transform:translateY(-58px) scale(.94,1.08) rotate(-4deg)}80%{transform:translateY(0) scale(1.06,.94)}}
+@keyframes breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.04,.96)}}
+@keyframes blink{0%,88%,100%{transform:scaleY(1)}93%{transform:scaleY(.08)}}
+@keyframes pulse{0%,100%{transform:scale(1)}30%{transform:scale(1.18)}55%{transform:scale(.96)}}
+@keyframes beat{0%,100%{transform:scale(1)}20%{transform:scale(1.22)}40%{transform:scale(.95)}60%{transform:scale(1.12)}}
+@keyframes twinkle{0%,100%{transform:scale(.3) rotate(0);opacity:.15}50%{transform:scale(1) rotate(30deg);opacity:1}}
+@keyframes rise{0%{transform:translateY(30px) scale(.4);opacity:0}25%{opacity:1}100%{transform:translateY(-170px) scale(1.1);opacity:0}}
+@keyframes wave{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(30deg)}}
+@keyframes hug{0%,100%{transform:rotate(0)}45%,60%{transform:rotate(-58deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px) rotate(-1deg)}75%{transform:translateX(9px) rotate(1deg)}}
+@keyframes laugh{0%,100%{transform:rotate(-5deg) translateY(0)}50%{transform:rotate(5deg) translateY(-10px)}}
+@keyframes jitter{0%{transform:translate(-2px,1px)}50%{transform:translate(2px,-1px)}100%{transform:translate(-1px,-2px)}}
+@keyframes drip{0%{transform:translateY(0) scale(.6);opacity:0}20%{opacity:1}100%{transform:translateY(80px) scale(1);opacity:0}}
+@keyframes stream{to{stroke-dashoffset:-96}}
+@keyframes puddle{0%,100%{transform:scale(1,1)}50%{transform:scale(1.12,1.2)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sway{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(10deg)}}
+@keyframes flicker{0%,100%{transform:scale(1,1) skewX(0)}33%{transform:scale(.92,1.1) skewX(4deg)}66%{transform:scale(1.05,.94) skewX(-4deg)}}
+@keyframes steam{0%{transform:translateY(10px) scale(.6);opacity:0}30%{opacity:.9}100%{transform:translateY(-80px) scale(1.2);opacity:0}}
+@keyframes bow{0%,15%,100%{transform:rotate(0)}40%,70%{transform:rotate(16deg) translateY(10px)}}
+@keyframes pop{0%{transform:scale(0) rotate(-20deg);opacity:0}16%{transform:scale(1.2) rotate(6deg);opacity:1}26%,84%{transform:scale(1) rotate(0);opacity:1}100%{transform:scale(1);opacity:0}}
+@keyframes fall{0%{transform:translateY(-80px) rotate(0);opacity:0}12%{opacity:1}100%{transform:translateY(420px) rotate(300deg);opacity:0}}
+@keyframes coin{0%{transform:translateY(-90px) rotateY(0);opacity:0}10%{opacity:1}100%{transform:translateY(430px);opacity:.2}}
+@keyframes flip{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.1)}}
+@keyframes stretch{0%,100%{transform:scale(1,1)}20%{transform:scale(.9,1.16) translateY(-10px)}35%{transform:scale(1.05,.95)}50%{transform:scale(1,1)}}
+@keyframes tilt{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes sip{0%,55%,100%{transform:rotate(0) translate(0,0)}70%,85%{transform:rotate(-24deg) translate(-14px,-22px)}}
+@keyframes thumb{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(-12deg) scale(1.1)}50%{transform:rotate(0) scale(1)}}
+@keyframes ring{0%{transform:scale(.6);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style><defs><radialGradient id="cb" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#f2fff8"/><stop offset=".5" stop-color="#9ff0cd"/><stop offset="1" stop-color="#43b98e"/></radialGradient>
+<radialGradient id="cr" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#fff1ee"/><stop offset=".5" stop-color="#ff9f8f"/><stop offset="1" stop-color="#e2453f"/></radialGradient>
+<linearGradient id="cw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9f6dc"/><stop offset="1" stop-color="#4cbf93"/></linearGradient>
+<linearGradient id="bk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd66b"/><stop offset="1" stop-color="#ff9a3c"/></linearGradient>
+<linearGradient id="lf" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2fa36f"/><stop offset="1" stop-color="#8ee86b"/></linearGradient>
+<radialGradient id="hrt" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ffc9db"/><stop offset=".55" stop-color="#ff5d8f"/><stop offset="1" stop-color="#d9306b"/></radialGradient>
+<radialGradient id="gold" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff6c4"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#e09a12"/></radialGradient>
+<linearGradient id="fire" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff3d5a"/><stop offset=".5" stop-color="#ff9124"/><stop offset="1" stop-color="#ffe45c"/></linearGradient>
+<linearGradient id="fire2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb02e"/><stop offset="1" stop-color="#fff7b8"/></linearGradient>
+<linearGradient id="tear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d4f2ff"/><stop offset="1" stop-color="#5bc2ff"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3f5c"/><stop offset="1" stop-color="#0d1020"/></linearGradient></defs><g class="a sway" style="transform-box:view-box;transform-origin:110px 140px;"><path d="M96 96A60 60 0 1 0 156 186A50 50 0 0 1 96 96Z" fill="#ffe08a"/></g><g class="a twinkle" style=""><g transform="translate(176 70) scale(0.5)"><path d="M0-24C3-4 4-3 24 0 4 3 3 4 0 24-3 4-4 3-24 0-4-3-3-4 0-24Z" fill="#ffe08a"/></g></g><g class="a twinkle" style="animation-delay:0.4s;"><g transform="translate(50 230) scale(0.4)"><path d="M0-24C3-4 4-3 24 0 4 3 3 4 0 24-3 4-4 3-24 0-4-3-3-4 0-24Z" fill="#ffe08a"/></g></g><g class="a twinkle" style="animation-delay:0.8s;"><g transform="translate(460 90) scale(0.45)"><path d="M0-24C3-4 4-3 24 0 4 3 3 4 0 24-3 4-4 3-24 0-4-3-3-4 0-24Z" fill="#ffe08a"/></g></g><g class="a breathe" style="animation-duration:2.4s;"><ellipse cx="256" cy="462" rx="116" ry="14" fill="#1d6b50"/></g><g class="a breathe" style=""><g fill="url(#bk)" stroke="#d9781e" stroke-width="5"><ellipse cx="212" cy="448" rx="32" ry="14"/><ellipse cx="300" cy="448" rx="32" ry="14"/></g><g transform="rotate(38 256 156)"><path d="M256 156q-4-26 6-48" fill="none" stroke="#2fa36f" stroke-width="8" stroke-linecap="round"/><path d="M262 112c-34-30-70-8-72 6 26 14 56 16 72-6Z" fill="url(#lf)" stroke="#23875a" stroke-width="4" stroke-linejoin="round"/><path d="M262 110c22-38 64-34 70-20-18 22-48 32-70 20Z" fill="url(#lf)" stroke="#23875a" stroke-width="4" stroke-linejoin="round"/></g><path d="M256 150C340 150 392 226 392 316C392 400 332 448 256 448S120 400 120 316C120 226 172 150 256 150Z" fill="url(#cb)" stroke="#2c8f6a" stroke-width="7" stroke-linejoin="round"/><ellipse cx="256" cy="372" rx="86" ry="66" fill="#fff" opacity=".55"/><ellipse cx="196" cy="198" rx="30" ry="16" fill="#fff" opacity=".7" transform="rotate(-30 196 198)"/><ellipse cx="180" cy="318" rx="22" ry="12" fill="#ffa3c0" opacity="0.8"/><ellipse cx="332" cy="318" rx="22" ry="12" fill="#ffa3c0" opacity="0.8"/><path d="M195 268Q212 286 229 268" fill="none" stroke="#17302a" stroke-width="7" stroke-linecap="round"/><path d="M283 268Q300 286 317 268" fill="none" stroke="#17302a" stroke-width="7" stroke-linecap="round"/><path d="M236 298Q256 286 276 298Q256 306 236 298Z" fill="url(#bk)" stroke="#d9781e" stroke-width="5" stroke-linejoin="round"/><ellipse cx="256" cy="320" rx="14" ry="16" fill="#c2323f" stroke="#d9781e" stroke-width="5"/><ellipse cx="132" cy="334" rx="30" ry="54" transform="rotate(18 132 334)" fill="url(#cw)" stroke="#2c8f6a" stroke-width="6"/><g transform="translate(512 0) scale(-1 1)"><ellipse cx="132" cy="334" rx="30" ry="54" transform="rotate(18 132 334)" fill="url(#cw)" stroke="#2c8f6a" stroke-width="6"/></g><path d="M300 176Q352 70 430 136L392 190Z" fill="#7f6bd8" stroke="#5b49b0" stroke-width="5" stroke-linejoin="round"/><path d="M300 176q46 18 92 14" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".9"/><circle cx="434" cy="132" r="17" fill="#fff" stroke="#d4cce6" stroke-width="4"/><g class="a pulse" style="animation-duration:3.4s;"><circle cx="282" cy="336" r="16" fill="#d4f2ff" stroke="#8fd6ff" stroke-width="3" opacity=".85"/></g></g><g class="a rise" style=""><text x="360" y="200" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-weight="900" font-size="36" fill="#7f6bd8" stroke="#fff" stroke-width="6" paint-order="stroke">z</text></g><g class="a rise" style="animation-delay:0.7s;"><text x="386" y="186" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-weight="900" font-size="46" fill="#7f6bd8" stroke="#fff" stroke-width="6" paint-order="stroke">z</text></g><g class="a rise" style="animation-delay:1.4s;"><text x="412" y="172" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-weight="900" font-size="56" fill="#7f6bd8" stroke="#fff" stroke-width="6" paint-order="stroke">z</text></g></svg>
