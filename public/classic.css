@@ -48,10 +48,6 @@ body:not(.glass-ui) .workspace{background:var(--ci-chat)}
 .side .search input{height:44px;padding:0 14px 0 42px!important;font-size:13px;border-radius:14px!important;background:var(--input)!important;border:1px solid var(--line)!important}
 .side .search input:focus{border-color:color-mix(in srgb,var(--accent) 55%,transparent)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)!important;background:var(--input)!important}
 
-.side .filters{display:flex;flex-wrap:wrap;gap:6px 7px;margin-top:17px}
-.side .filters #custom-folders{display:contents}
-.side .filters .chip{padding:6px 12px;border:1px solid transparent;border-radius:9px;background:transparent;font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}
-.side .filters .chip.active{background:var(--hover);color:var(--accent);border-color:var(--line)}
 
 .stories-strip{gap:12px;padding:6px 22px 10px}
 .stories-strip:empty{display:none}

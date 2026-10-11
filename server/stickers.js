@@ -1,4 +1,5 @@
 import {normalizeStickerAnimation} from './sticker-animation.js';
+import legend from '../public/stickers-v4/packs.json' with {type:'json'};
 import {readFile,writeFile,mkdir,unlink} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {inflateSync,deflateSync} from 'node:zlib';
@@ -32,10 +33,13 @@ export function createStickers({db,one,all,run,fail,now,id,data,storage,rate,mem
  // so people see them in the panel without searching; removing a pack afterwards is respected.
  const v3=[['mimi','Облачко Мими','Анимированные · Нежный пушистый персонаж на каждый день',['Привет','Люблю','Ахаха','Плачу','Злюсь','Сплю','Спасибо','Ура','Кофе','Супер','Думаю','Обнимаю'],'👋 ❤️ 😂 😢 😡 😴 🙏 🎉 ☕ 👍 🤔 🤗'],['aura','Аура','Анимированные · Эстетика: свет, цветы, закаты и сердца',['Сердце','Спокойной ночи','Вау','Красиво','Для тебя','Лёгкость','Мечтаю','Уют','Огонь','Бесценно','Письмо тебе','Доброе утро'],'💖 🌙 ✨ 🌅 🌸 🦋 🌈 🕯️ 🔥 💎 💌 ☕'],['words','Слова','Анимированные · Переливающиеся надписи для быстрых ответов',['Привет!','Спасибо','Люблю','Обнимаю','Скучаю','Ахахах','Вау!','Ок','Доброе утро','Сладких снов','Ура!','Ты супер'],'👋 🙏 ❤️ 🤗 🥺 😂 😮 👌 ☀️ 🌙 🎉 💪']];
  db.exec('CREATE TABLE IF NOT EXISTS featured_offered(user_id TEXT,pack_id TEXT,PRIMARY KEY(user_id,pack_id))');
- const featured=v3.map(([slug])=>'v3-'+slug);
+ // Legendary pack «Сифа» (scripts/build-legend-stickers.js) — listed first and offered to everyone like the v3 packs.
+ run("INSERT OR IGNORE INTO sticker_packs VALUES('v4-sifa',NULL,'sticker','Сифа','Легендарные · Мятный цыплёнок Cipherion: живые эмоции на каждый день','public',20,20,0)");
+ legend.sifa.forEach(({label,emoji},n)=>run('INSERT OR IGNORE INTO stickers VALUES(?,?,?,?,?,?,0)','v4-sifa-'+n,'v4-sifa',label,emoji,n,'/stickers-v4/sifa-'+String(n).padStart(2,'0')+'.svg'));
+ const featured=['v4-sifa',...v3.map(([slug])=>'v3-'+slug)];
  v3.forEach(([slug,title,description,labels,emoji],i)=>{const key='v3-'+slug;run("INSERT OR IGNORE INTO sticker_packs VALUES(?,NULL,'sticker',?,?,'public',?,?,0)",key,title,description,10-i,10-i);const marks=emoji.split(' ');labels.forEach((label,n)=>run('INSERT OR IGNORE INTO stickers VALUES(?,?,?,?,?,?,0)',key+'-'+n,key,label,marks[n]||'',n,'/stickers-v3/'+slug+'-'+String(n).padStart(2,'0')+'.svg'));});
  function offerFeatured(u){for(const key of featured)if(!one('SELECT 1 FROM featured_offered WHERE user_id=? AND pack_id=?',u,key)){run('INSERT OR IGNORE INTO featured_offered VALUES(?,?)',u,key);run('INSERT OR IGNORE INTO user_packs VALUES(?,?)',u,key);}}
- const stillOf=src=>src?.startsWith('/stickers-v2/dev-')||src?.startsWith('/stickers-v3/')?src.replace('.svg','-still.svg'):null;
+ const stillOf=src=>src?.startsWith('/stickers-v2/dev-')||src?.startsWith('/stickers-v3/')||src?.startsWith('/stickers-v4/')?src.replace('.svg','-still.svg'):null;
  function pack(key,u){const p=one('SELECT * FROM sticker_packs WHERE id=? AND blocked=0',key);if(!p||p.visibility!=='public'&&p.author!==u)fail(404,'Набор недоступен');return p;}
  function item(key,u){const s=one('SELECT * FROM stickers WHERE id=? AND deleted=0',key);if(!s)fail(404,'Стикер недоступен');pack(s.pack_id,u);return s;}
  function manage(key,u){const p=pack(key,u);if(p.author!==u)fail(403,'Только автор набора');return p;}
