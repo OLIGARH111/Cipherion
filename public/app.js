@@ -68,10 +68,23 @@ function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTM
   $('#chat-search').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(e.target.value){e.target.value='';searchInput();}else closeSearch();}else if(e.key==='Enter'){e.preventDefault();$('.chat-list [data-chat]')?.click();}};
   // Stories and the title stay pinned above the list: only .chat-list scrolls. iOS may still scroll an
   // overflow:hidden column when an input gets focus, so snap it back.
-  const side=$('.side');side.addEventListener('scroll',()=>{if(side.scrollTop)side.scrollTop=0;});
+  const side=$('.side');side.addEventListener('scroll',()=>{if(side.scrollTop)side.scrollTop=0;});pinSideHeader(side);
   swipeBack($('.workspace'),()=>!!$('.shell')?.classList.contains('show-chat'),()=>closeChat());
   const list=$('.chat-list');list.oncontextmenu=e=>{const item=e.target.closest('[data-chat]');if(!item)return;e.preventDefault();chatContextMenu(item.dataset.chat,e.clientX,e.clientY);};longPress(list,'[data-chat]',(e,item)=>chatContextMenu(item.dataset.chat,e.clientX,e.clientY));
   renderChats();empty();
+}
+// iOS rubber-bands the whole page when the chat list is pulled past its top or bottom (or when the header
+// is dragged), so the title and stories slid along with the finger. Vertical drags are only allowed to
+// scroll the chat list itself; horizontal drags (the stories strip) are untouched.
+function pinSideHeader(side){
+  let x=0,y=0;
+  side.addEventListener('touchstart',e=>{x=e.touches[0].clientX;y=e.touches[0].clientY;},{passive:true});
+  side.addEventListener('touchmove',e=>{
+    if(e.touches.length!==1||!e.cancelable)return;const dx=e.touches[0].clientX-x,dy=e.touches[0].clientY-y;if(Math.abs(dy)<=Math.abs(dx))return;
+    const list=e.target.closest('.chat-list');if(!list){e.preventDefault();return;}
+    const top=list.scrollTop<=0,bottom=list.scrollTop+list.clientHeight>=list.scrollHeight-1;
+    if((top&&dy>0)||(bottom&&dy<0))e.preventDefault();
+  },{passive:false});
 }
 function openSearch(){const box=$('#side-search');if(!box)return;box.hidden=false;$('.side')?.classList.add('search-open');$('#open-search')?.setAttribute('aria-expanded','true');$('#chat-search').focus();}
 function closeSearch(){const box=$('#side-search'),input=$('#chat-search');if(!box)return;const had=!!input.value;input.value='';input.blur();box.hidden=true;$('.side')?.classList.remove('search-open');$('#open-search')?.setAttribute('aria-expanded','false');if(had)searchInput();$('#open-search')?.focus({preventScroll:true});}
@@ -279,9 +292,11 @@ function renderMessages(scroll){
   if(renderedKeys&&!scroll&&!nearBottom)for(const m of state.messages)if(!renderedKeys.has(messageKey(m))&&m.user_id!==state.user.id)state.unseen=(state.unseen||0)+1;
   renderedKeys=new Set(state.messages.map(messageKey));
   let html=state.messages.length>=60?'<button class="chip older" id="older">Загрузить предыдущие</button>':'';
-  if(!state.messages.length)html+=state.loading?skeleton():`<div class="chat-empty" data-key="chat-empty"><span>${kind==='channel'?'Здесь пока нет публикаций':kind==='saved'?'Сохраняйте здесь заметки, файлы и пересланные сообщения — они доступны на всех ваших устройствах':'Сообщений пока нет — напишите первым 👋'}</span></div>`;
+  // Deleted messages simply disappear from the history (no "message deleted" placeholder).
+  const shown=state.messages.filter(m=>!m.deleted);
+  if(!shown.length)html+=state.loading?skeleton():`<div class="chat-empty" data-key="chat-empty"><span>${kind==='channel'?'Здесь пока нет публикаций':kind==='saved'?'Сохраняйте здесь заметки, файлы и пересланные сообщения — они доступны на всех ваших устройствах':'Сообщений пока нет — напишите первым 👋'}</span></div>`;
   let lastDay='';
-  state.messages.forEach((m,i)=>{const day=dayKey(m.created);if(day!==lastDay){html+=`<div class="date-divider" data-key="day:${day}"><span>${dayLabel(m.created)}</span></div>`;lastDay=day;}html+=messageHTML(m,{first:!sameRun(state.messages[i-1],m),last:!sameRun(m,state.messages[i+1]),kind,others});});
+  shown.forEach((m,i)=>{const day=dayKey(m.created);if(day!==lastDay){html+=`<div class="date-divider" data-key="day:${day}"><span>${dayLabel(m.created)}</span></div>`;lastDay=day;}html+=messageHTML(m,{first:!sameRun(shown[i-1],m),last:!sameRun(m,shown[i+1]),kind,others});});
   reconcileMessages(box,html);
   box.querySelectorAll('.retry-send').forEach(el=>el.onclick=guard(()=>outbox.retry(el.dataset.clientId)));
   if(scroll||nearBottom)box.scrollTop=box.scrollHeight;else box.scrollTop=previous;

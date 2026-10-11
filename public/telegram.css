@@ -47,7 +47,8 @@
 .side.search-open .side-header>.row,.side.search-open .stories-strip{display:none}
 /* Title and stories stay at the top; only the chat rows scroll under them. */
 .side{overflow:hidden}
-.side-header{position:relative;z-index:2;flex-shrink:0}
+.side-header{position:relative;z-index:2;flex-shrink:0;touch-action:pan-x}
+.side .chat-list{-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 .search-tabs{position:sticky;top:0;z-index:2;display:flex;gap:6px;padding:6px 10px 8px;overflow-x:auto;scrollbar-width:none;background:var(--ci-side,var(--bg))}
 .search-tabs::-webkit-scrollbar{display:none}
 .search-tabs .chip{flex:none}
@@ -94,3 +95,10 @@ button.primary.danger{background:var(--ci-danger,#e5534b);border-color:transpare
 @media (max-width:700px){
   .conversation-header .header-actions #chat-find{display:none}
 }
+/* Profile appearance is a VIP feature: lock screen shown instead of the studio. */
+.vip-locked{text-align:center}
+.vip-locked .vip-lock-icon{font-size:44px;line-height:1;margin:6px 0 10px}
+.vip-locked p{color:var(--muted);margin:0 0 10px}
+.vip-locked p b{color:var(--text,inherit);font-size:17px}
+.vip-locked form{margin-top:16px;gap:8px}
+.vip-locked input{flex:1;min-width:0}
