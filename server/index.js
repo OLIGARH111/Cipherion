@@ -15,7 +15,7 @@ import {createChatTools} from './chat-tools.js';
 import {createRecovery} from './recovery.js';
 import {createReadStream} from 'node:fs';
 import { createPrivacy } from './privacy.js';
-import { createSecurity } from './security.js';
+import { createSecurity, clientAddress } from './security.js';
 import http from 'node:http';
 import { rtcConfiguration, rtcConfigurationAsync, managedTurnConfigured } from './turn.js';
 import { createFamily } from './family.js';
@@ -161,8 +161,9 @@ const server = http.createServer(async (req, res) => {
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
     const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
     if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
-    rate(req.socket.remoteAddress, 600);
     const user = accounts.authenticate(req);
+    // Signed-in traffic is limited per account, so one busy user can't block everyone behind the same network.
+    rate(user ? 'user:' + user.id : clientAddress(req), 600);
     let b = {};
     if (!['GET', 'HEAD'].includes(req.method) && path !== '/api/media') {
       if (!(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'Ожидается JSON');
@@ -175,7 +176,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/auth' && req.method === 'POST') {
       if(b.register&&emailAuth.enabled)fail(410,'Создайте аккаунт через подтверждение email');
       accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);
-      rate('auth:' + req.socket.remoteAddress, 20, 900_000);
+      rate('auth:' + clientAddress(req), 20, 900_000);
       const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
       if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 10 || password.length > 256) fail(400, 'Username: 3–32 латинских символа. Пароль: 10–256 символов.');
       if (b.register && username.length < 5) fail(400, 'Username: от 5 до 32 латинских букв, цифр или _');

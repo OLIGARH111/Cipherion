@@ -1,5 +1,6 @@
 import {createMailer} from './mail.js';
 import {hashPassword} from './recovery.js';
+import {clientAddress} from './security.js';
 import {randomInt,createHmac,timingSafeEqual} from 'node:crypto';
 export const normalizeEmail=value=>String(value||'').trim().normalize('NFKC').toLowerCase();
 export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,env=process.env}) {
@@ -21,7 +22,7 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
   const email=validateEmail(purpose==='security'?user.email:b.email);
   if(!['register','login','recovery','change','security'].includes(purpose))fail(400,'Некорректное действие');
   if(purpose==='change'&&!user)fail(401,'Войдите в аккаунт');
-  rate('email-ip:'+req.socket.remoteAddress,15,3600000);rate('email:'+email,8,3600000);
+  rate('email-ip:'+clientAddress(req),15,3600000);rate('email:'+email,8,3600000);
   const existing=one('SELECT * FROM users WHERE normalized_email=? AND email_verified=1',email);
   const firstName=String(b.firstName||'').trim(),lastName=String(b.lastName||'').trim();
   if(purpose==='register'&&(!firstName||!lastName||firstName.length>80||lastName.length>80))fail(400,'Укажите имя и фамилию (до 80 символов)');
@@ -41,7 +42,7 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
   if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:ready(),passwordRegistration:!enabled});return true;}
   if(path==='/api/auth/email/start'&&req.method==='POST'){json(await issue(req,b,user));return true;}
   if(path!=='/api/auth/email/confirm'||req.method!=='POST')return false;
-  if(!ready())fail(503,'Подтверждение email пока недоступно');rate('email-confirm:'+req.socket.remoteAddress,30,600000);
+  if(!ready())fail(503,'Подтверждение email пока недоступно');rate('email-confirm:'+clientAddress(req),30,600000);
   const r=one('SELECT * FROM email_challenges WHERE id=?',String(b.challengeId));
   if(!r||r.used!==null||r.expires<=now()||r.attempts>=5)fail(400,'Код истёк или уже использован. Запросите новый.');
   if(['change','security'].includes(r.purpose)&&r.user_id!==user?.id)fail(403,'Нет доступа к подтверждению');
