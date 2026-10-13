@@ -1,4 +1,5 @@
 import {randomBytes,scryptSync,timingSafeEqual,createHash} from 'node:crypto';
+import {clientAddress} from './security.js';
 // Password recovery without email: a one-time recovery key shown to the user once.
 // Only a salted scrypt hash is stored; using the key rotates it and ends every session.
 const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -26,7 +27,7 @@ export function createRecovery({db,one,run,fail,now,rate,accounts,publicUser,sec
   }
   async function route({path,req,res,b,user,json}){
     if(path==='/api/auth/password-reset'&&req.method==='POST'){
-      rate('reset:'+req.socket.remoteAddress,10,900_000);
+      rate('reset:'+clientAddress(req),10,900_000);
       const username=String(b.username??'').trim().toLowerCase(),key=normalizeKey(b.key);
       rate('reset-account:'+createHash('sha256').update(username).digest('hex'),5,900_000);
       if(!validPassword(b.password))fail(400,'Новый пароль: от 10 до 256 символов');

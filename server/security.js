@@ -2,6 +2,9 @@ import {randomBytes,createHmac,createHash,scryptSync,timingSafeEqual} from 'node
 const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 function encode(bytes){let bits='';for(const b of bytes)bits+=b.toString(2).padStart(8,'0');return bits.match(/.{1,5}/g).map(b=>alphabet[parseInt(b.padEnd(5,'0'),2)]).join('');}
 function decode(text){const bits=[...text].map(c=>alphabet.indexOf(c).toString(2).padStart(5,'0')).join('');return Buffer.from(bits.match(/.{8}/g).map(b=>parseInt(b,2)));}
+// Behind Render's proxy every request arrives from the proxy's own address, so per-IP limits were
+// shared by all users at once. There the real client is the first X-Forwarded-For entry.
+export function clientAddress(req){const forwarded=process.env.TRUST_PROXY==='1'||process.env.RENDER==='true'?String(req.headers['x-forwarded-for']||'').split(',')[0].trim():'';return forwarded||req.socket.remoteAddress||'';}
 export function totp(secret,time=Date.now()){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(time/30000)));const h=createHmac('sha1',decode(secret)).update(counter).digest(),offset=h[19]&15;return String((h.readUInt32BE(offset)&0x7fffffff)%1000000).padStart(6,'0');}
 const digest=s=>createHash('sha256').update(String(s)).digest('hex');
 export function createSecurity({db,one,all,run,fail,now,privacy,rate}){

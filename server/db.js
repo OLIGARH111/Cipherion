@@ -28,6 +28,32 @@ export function retryTransient(db){
   };
   return db;
 }
+// Rendering one chat list re-reads the same rows (privacy rules, blocks, profiles) hundreds of times.
+// With remote Turso every read is a blocking network round trip, so the whole server froze for
+// seconds. Identical SELECTs are answered from memory until the current task ends or anything writes.
+const READ=/^\s*(?:SELECT|WITH)\b/i,WRITE=/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i;
+const cacheable=params=>params.every(v=>v===null||v===undefined||['string','number','boolean'].includes(typeof v));
+const copy=row=>row&&typeof row==='object'?{...row}:row;
+export function cacheReads(db){
+  const prepare=db.prepare.bind(db),exec=db.exec.bind(db),cache=new Map();let scheduled=false;
+  const clear=()=>{cache.clear();};
+  const remember=(key,value)=>{cache.set(key,value);if(!scheduled){scheduled=true;setImmediate(()=>{scheduled=false;clear();});}};
+  db.exec=sql=>{clear();return exec(sql);};
+  db.prepare=sql=>{
+    const text=String(sql),reads=READ.test(text)&&!WRITE.test(text);let statement;
+    const real=()=>statement||=prepare(text);
+    const read=(method,params)=>{
+      if(!reads||!cacheable(params)){clear();return real()[method](...params);}
+      const key=method+'\u0000'+text+'\u0000'+JSON.stringify(params);
+      if(!cache.has(key)){const value=real()[method](...params);remember(key,method==='all'?value.map(copy):copy(value));}
+      const value=cache.get(key);return method==='all'?value.map(copy):copy(value);
+    };
+    const target={get:(...p)=>read('get',p),all:(...p)=>read('all',p),run:(...p)=>{clear();return real().run(...p);}};
+    // Anything else (iterate, columns, driver options) goes straight to the real statement.
+    return new Proxy(target,{get:(t,key)=>{if(key in t)return t[key];if(!reads)clear();const s=real(),v=s[key];return typeof v==='function'?v.bind(s):v;}});
+  };
+  return db;
+}
 export function database(directory) {
   mkdirSync(directory, { recursive: true });
   const config=databaseConfig();
@@ -57,7 +83,7 @@ export function database(directory) {
     CREATE TABLE IF NOT EXISTS blocks(user_id TEXT, target TEXT, PRIMARY KEY(user_id,target));
     CREATE TABLE IF NOT EXISTS calls(id TEXT PRIMARY KEY, chat_id TEXT REFERENCES chats(id), user_id TEXT REFERENCES users(id), video INTEGER, created INTEGER, ended INTEGER, status TEXT);
   `);
-  return db;
+  return cacheReads(db);
 }
 
 

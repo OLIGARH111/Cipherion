@@ -31,7 +31,7 @@ export function createOutbox(user,onChange,encrypt=null){
     await transaction('readwrite',s=>s.delete(item.id));memory.delete(item.id);saving.delete(item.id);
    }catch(e){
     item.error=e.message||'Не отправлено';item.transient=!e.status||e.status>=500||e.status===429;
-    await save(item).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';});
+    await save(item).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';item.transient=false;});
     notify({type:'pending',item});
     if(item.transient)break;
    }
@@ -45,7 +45,7 @@ export function createOutbox(user,onChange,encrypt=null){
    const item={id:crypto.randomUUID(),user,chat,payload:{...payload},...(file?{file}:{}),created:(lastCreated=Math.max(Date.now(),lastCreated+1))};
    if(!navigator.onLine){item.error='Нет подключения. Отправим при восстановлении связи.';item.transient=true;}
    memory.set(item.id,item);notify({type:'pending',item});
-   return save(item).then(()=>{online();return item;}).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';notify({type:'pending',item});return item;});
+   return save(item).then(()=>{online();return item;}).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';item.transient=false;notify({type:'pending',item});return item;});
   },
   remove:async(id)=>{await ready;await saving.get(id)?.catch(()=>{});await transaction('readwrite',s=>s.delete(id));memory.delete(id);saving.delete(id);}
  };

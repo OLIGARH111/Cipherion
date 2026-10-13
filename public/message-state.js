@@ -47,9 +47,11 @@ export function reconcileMessages(box,html){
   }
   for(const el of [...box.children])if(!keep.has(el))el.remove();
 }
+// Network and server hiccups are retried automatically, so they keep the clock instead of a red error;
+// only failures that need the user (validation, local storage) show «Не отправлено».
 export function optimisticMessage(item){
   return {id:'local:'+item.id,clientMessageId:item.id,client_id:item.id,user_id:item.user,chat_id:item.chat,
     kind:item.payload.sticker?'sticker':item.payload.kind||'text',body:item.payload.body||item.payload.sticker||'',
-    forwarded:item.payload.forwarded,reply_id:item.payload.reply,created:item.created,pending:true,status:item.error?'failed':'sending',error:item.error,
+    forwarded:item.payload.forwarded,reply_id:item.payload.reply,created:item.created,pending:true,status:item.error&&!item.transient?'failed':'sending',error:item.transient?null:item.error,waiting:item.transient?item.error:null,
     attachmentName:item.file?.name};
 }
