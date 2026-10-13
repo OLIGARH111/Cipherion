@@ -8,7 +8,7 @@ dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};dom.wi
 Object.defineProperty(globalThis,'indexedDB',{value:indexedDB});Object.defineProperty(navigator,'onLine',{configurable:true,value:true,writable:true});
 globalThis.matchMedia=()=>({matches:false,addEventListener(){}});globalThis.IntersectionObserver=class{observe(){}unobserve(){}};globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);
 const timers=[];const originalInterval=globalThis.setInterval;globalThis.setInterval=(...args)=>{const timer=originalInterval(...args);timers.push(timer);return timer;};
-class Events extends dom.window.EventTarget{constructor(){super();Events.current=this;}close(){}emit(type,payload){this.dispatchEvent(new dom.window.MessageEvent(type,{data:JSON.stringify(payload)}));}}
+class Events extends dom.window.EventTarget{constructor(url){super();this.url=url;Events.current=this;(Events.all||=[]).push(this);}close(){}emit(type,payload){this.dispatchEvent(new dom.window.MessageEvent(type,{data:JSON.stringify(payload)}));}}
 globalThis.EventSource=Events;
 const chat={id:'chat',kind:'direct',title:'Bob',members:[{user_id:'alice',name:'Alice'},{user_id:'bob',name:'Bob'}],unread:0};
 const pending=[],requests=[];let history=[],historyWait=null,app,accounts=[{user:{id:'alice',name:'Alice'},unread:0}],aliceChats=[chat],bobWait=null;
@@ -65,4 +65,14 @@ test('actual channel removes the whole composer; account switches clear the old 
  assert.equal(document.querySelector('#app').textContent,'');assert.deepEqual(app.state.messages,[]);assert.deepEqual(app.state.chats,[]);
  resolve(response({user:{id:'bob',name:'Bob'},settings:{},iceServers:[]}));await switching;bobWait=null;assert.equal(app.state.user.id,'bob');assert.deepEqual(app.state.chats.map(c=>c.id),['bob-chat']);assert.doesNotMatch(document.querySelector('#app').textContent,/Broadcast/);
  await app.state.accounts.switchTo('alice');assert.equal(app.state.user.id,'alice');assert.ok(app.state.chats.some(c=>c.id==='chat'));await app.openChat('chat');assert.ok(document.querySelector('#composer'));assert.equal(document.querySelectorAll('article.message').length,12);
+});
+
+test('typing ends as soon as that person\'s message arrives; a closed realtime stream reopens itself',async()=>{
+ const main=()=>Events.all.filter(e=>!e.url.includes('account=bob')).at(-1),status=()=>document.querySelector('#chat-status').textContent;
+ main().emit('typing',{chat:'chat',user:'bob',name:'Bob'});assert.match(status(),/печатает/);
+ const m={id:'from-bob',chat_id:'chat',user_id:'bob',kind:'text',body:'hi',created:Date.now()+500};history.push(m);
+ main().emit('message',{chat:'chat',id:m.id,message:m});await until(()=>!/печатает/.test(status()));
+ // An HTTP error (e.g. 502 during a deploy) leaves EventSource CLOSED for good: the app must reopen it.
+ const dead=main();dead.readyState=2;dead.onerror();assert.match(document.querySelector('#connection').textContent,/Восстанавливаем/);
+ for(let i=0;i<60&&main()===dead;i++)await new Promise(r=>setTimeout(r,50));assert.notEqual(main(),dead);main().emit('ready',{});assert.equal(document.querySelector('#connection').textContent,'На связи');
 });

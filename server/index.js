@@ -254,7 +254,9 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/events' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
       if (!streams.has(user.id)) streams.set(user.id, new Set());
-      if (streams.get(user.id).size >= 6) { res.end(); return; }
+      // A phone that switches networks leaves half-open streams behind until TCP gives up. Refusing new
+      // streams at the limit locked the live device out of realtime updates, so drop the oldest one instead.
+      for (const old of streams.get(user.id)) { if (streams.get(user.id).size < 6) break; streams.get(user.id).delete(old); old.destroy(); }
       res.sessionId = user.session.id; streams.get(user.id).add(res); res.write('event: ready\ndata: {}\n\n');
       const heartbeat = setInterval(() => {
         try { if (!one('SELECT id FROM sessions WHERE id=? AND expires>?', user.session.id, now())) { res.end(); return; } }
