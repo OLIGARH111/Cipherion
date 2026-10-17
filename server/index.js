@@ -24,10 +24,11 @@ import { createSocial } from './social.js';
 import { createAI } from './ai.js';
 import { createE2E } from './e2e.js';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { readFile, open, unlink, mkdir } from 'node:fs/promises';
+import { open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database, databaseConfig } from './db.js';
+import { createStaticFiles, encodingFor, compress, etagMatches } from './http-cache.js';
 import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -114,7 +115,7 @@ function endCall(call, status = 'ended') {
   broadcast(call.chat, 'call', { ...call, participants: [...call.participants], state: status });
   liveCalls.delete(call.id);
 }
-const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null};}});
@@ -137,12 +138,18 @@ const chatTools=createChatTools({db,one,all,run,fail,now,id,clean,membership,fam
 const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
 let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
+const staticFiles = createStaticFiles();
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
-  const json = (value, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); };
+  const json = (value, status = 200) => {
+    let body = Buffer.from(JSON.stringify(value));const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Vary': 'Accept-Encoding' };
+    const encoding = body.length > 1024 && encodingFor(req.headers['accept-encoding'], headers['Content-Type']);
+    if (encoding) { body = compress(body, encoding, true); headers['Content-Encoding'] = encoding; }
+    res.writeHead(status, { ...headers, 'Content-Length': body.length }); res.end(body);
+  };
   try {
     const url = new URL(req.url, 'http://localhost'); const path = url.pathname;
     if (path === '/health' && req.method === 'GET') {
@@ -154,9 +161,10 @@ const server = http.createServer(async (req, res) => {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
       const file = resolve(root, 'public', path === '/' ? 'index.html' : '.' + decodeURIComponent(path));
       if (!file.startsWith(resolve(root, 'public') + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) fail(404, 'Не найдено');
-      const content = await readFile(file).catch(() => fail(404, 'Не найдено'));
-      res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': /^\/brand\/icon-\d+-[a-f0-9]+\.png$/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache' });
-      return res.end(req.method === 'HEAD' ? undefined : content);
+      // Hashed icons never change; bundled sticker art changes only with a new versioned folder;
+      // everything else is revalidated by ETag, which costs a tiny 304 instead of the whole file.
+      const cacheControl = /^\/brand\/icon-\d+-[a-f0-9]+\.png$/.test(path) ? 'public, max-age=31536000, immutable' : /^\/stickers(-v\d+)?\//.test(path) ? 'public, max-age=604800' : 'no-cache';
+      return await staticFiles.serve(req, res, file, { type: mime[extname(file)] || 'application/octet-stream', cacheControl }).catch(error => error.code === 'ENOENT' || error.code === 'EISDIR' || error.code === 'ENOTDIR' ? fail(404, 'Не найдено') : Promise.reject(error));
     }
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
     const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
@@ -443,7 +451,10 @@ const server = http.createServer(async (req, res) => {
       if(family.child(user.id)&&media.user_id!==user.id&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Медиа ограничены семейными настройками');
       const safe=/^(image\/(png|jpeg|webp|gif)|audio\/(webm|ogg|mpeg|mp4|wav)|video\/(webm|mp4|ogg))$/.test(media.type);
       const mediaPath=resolve(data,'media',mediaId);const byteLength=media.size;
-      res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');
+      // Media bytes never change for an id: devices keep a private copy for a day, then a 304 re-checks access.
+      const etag=`"m-${mediaId}"`;res.setHeader('ETag',etag);res.setHeader('Cache-Control','private, max-age=86400');
+      if(etagMatches(req.headers['if-none-match'],etag)){res.writeHead(304);return res.end();}
+      res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');
       const range=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range||'');
       if(range){const start=Number(range[1]),end=Math.min(range[2]?Number(range[2]):byteLength-1,byteLength-1);if(start>end || start>=byteLength){res.writeHead(416,{'Content-Range':`bytes */${byteLength}`});return res.end();}const stream=await storage.get('media',mediaId,`bytes=${start}-${end}`);res.writeHead(206,{'Content-Range':`bytes ${start}-${end}/${byteLength}`,'Content-Length':end-start+1});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);}
       const stream=await storage.get('media',mediaId);res.setHeader('Content-Length',byteLength);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);

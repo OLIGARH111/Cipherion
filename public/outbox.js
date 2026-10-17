@@ -1,4 +1,5 @@
 import {api,upload} from './ui.js';
+import {compressPhoto} from './media-compress.js';
 const sealable=new Set(['text','photo','video','file','voice','round']);
 let connection;
 function database(){return connection ||= new Promise((resolve,reject)=>{const r=indexedDB.open('cipherion-outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('messages',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>{connection=null;reject(r.error);};});}
@@ -19,7 +20,8 @@ export function createOutbox(user,onChange,encrypt=null){
    attempted.add(item.id);delete item.error;notify({type:'pending',item});
    try{
     await save(item);
-    if(item.file){const media=await upload(item.file,user);item.payload.media=media.id;delete item.file;await save(item);}
+    // Photos are shrunk before upload; files sent as «Файл» keep their original bytes.
+    if(item.file){const media=await upload(item.payload.kind==='photo'?await compressPhoto(item.file):item.file,user);item.payload.media=media.id;delete item.file;await save(item);}
     // Encrypt once and keep the envelope: a retry must repeat the identical request.
     if(encrypt&&!item.sealed&&!item.payload.sticker&&sealable.has(item.payload.kind||'text')&&String(item.payload.body||'').trim()){const sealed=await encrypt(item.chat,item.payload.body.trim());item.sealed=true;if(sealed)Object.assign(item.payload,sealed);await save(item);}
     let message=await request(item.payload.forward?'/messages/'+item.payload.forward+'/forward':item.payload.sticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{
