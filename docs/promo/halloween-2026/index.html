@@ -11,7 +11,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#05030a;overflow:hidden}
 body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
-.emo,.av,.ib,.tab .i{font-family:"Noto Color Emoji",Inter,sans-serif}
+.emo,.av{font-family:"Noto Color Emoji",Inter,sans-serif}
 .viewport{position:fixed;inset:0;display:grid;place-items:center}
 .stage{position:relative;width:540px;height:960px;overflow:hidden;flex:none;
   background:radial-gradient(90% 50% at 82% 6%,#ff8a2b24,transparent 60%),radial-gradient(90% 55% at 0% 100%,#6d28d955,transparent 62%),linear-gradient(#140b20,#07040c 70%)}
@@ -47,34 +47,49 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
 .pill b{color:#ffc58a}
 
 /* ---------- телефон (3D) ---------- */
-.p3d-wrap{position:absolute;left:121px;top:196px;width:298px;height:620px;perspective:1500px;z-index:10}
+.p3d-wrap{position:absolute;left:121px;top:196px;width:298px;height:620px;perspective:1600px;z-index:10}
+.pshadow{position:absolute;left:150px;top:790px;width:240px;height:46px;border-radius:50%;background:radial-gradient(closest-side,#000c,#0000);filter:blur(6px);z-index:9}
 .phone3d{position:absolute;inset:0;transform-style:preserve-3d}
-.face{position:absolute;inset:0;border-radius:50px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
-.front{transform:translateZ(5px);background:linear-gradient(160deg,#f59a5a,#d9611f 50%,#b9501a);padding:3px;box-shadow:0 40px 80px -30px #000}
-.bezel{width:100%;height:100%;border-radius:47px;background:#040306;padding:6px}
-.screen{position:relative;width:100%;height:100%;border-radius:41px;overflow:hidden;background:#000}
+.face{position:absolute;inset:0;border-radius:52px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+/* корпус: слои алюминия между стеклом и крышкой дают толщину со скруглёнными углами */
+.slice{position:absolute;inset:0;border-radius:52px;background:#c4561d;box-shadow:inset 0 0 0 2px #e3783a}
+.side{position:absolute;top:50px;width:28px;height:520px;border-radius:14px;transform:rotateY(90deg);
+  background:linear-gradient(90deg,#9c3f15,#e2732f 22%,#ffb27c 50%,#e2732f 78%,#9c3f15)}
+.side.l{left:-14px}.side.r{left:284px}
+.hbtn{position:absolute;left:7px;right:7px;border-radius:7px;background:linear-gradient(90deg,#b14d1b,#ffbd8c 50%,#b14d1b);box-shadow:0 0 0 1px #7f3510aa}
+.hbtn.cc{background:linear-gradient(90deg,#3a1a0a,#8a4a2a 50%,#3a1a0a);box-shadow:0 0 0 1.5px #e8823f}
+.edgebtn{position:absolute;width:3px;border-radius:2px;background:linear-gradient(90deg,#ffb27c,#c25a1e)}
+.front{transform:translateZ(14px);background:linear-gradient(160deg,#ffae74,#e46d2b 35%,#c9561d 70%,#f08a48);padding:3px;box-shadow:0 0 0 .5px #7a2f0d}
+.bezel{width:100%;height:100%;border-radius:49px;background:#020203;padding:6px;box-shadow:inset 0 0 0 1px #1d1b1f}
+.screen{position:relative;width:100%;height:100%;border-radius:43px;overflow:hidden;background:#000}
 .island{position:absolute;top:9px;left:50%;width:82px;height:24px;margin-left:-41px;border-radius:14px;background:#000;z-index:60}
+.island::after{content:"";position:absolute;right:13px;top:8px;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#2b3350,#07080c 70%)}
 .glare{position:absolute;inset:0;z-index:59;pointer-events:none;background:linear-gradient(115deg,transparent 30%,#ffffff22 45%,transparent 60%);opacity:0}
-.side{position:absolute;top:44px;width:10px;height:532px;border-radius:5px;transform:rotateY(90deg);background:linear-gradient(#f39456,#cf5a1d 50%,#a9471a)}
-.side.l{left:-5px}.side.r{left:293px}
 
-.back{transform:rotateY(180deg) translateZ(5px);overflow:hidden;
-  background:radial-gradient(120% 55% at 25% 0%,#ffae74,transparent 60%),linear-gradient(165deg,#f2853f,#e2672a 45%,#c4501b);
-  box-shadow:inset 0 0 0 2px #ffc39255,inset 0 0 0 4px #b54914,inset 0 -30px 60px #8a330f44}
-.plateau{position:absolute;left:9px;right:9px;top:9px;height:134px;border-radius:42px;
-  background:linear-gradient(172deg,#f99a5a,#e06a2a 65%,#cf5d22);box-shadow:0 7px 16px #6b240a77,inset 0 2px 1px #ffd2ad99,inset 0 -3px 5px #9c3a1066}
-.lens{position:absolute;width:58px;height:58px;border-radius:50%;
-  background:radial-gradient(circle,#04050a 0 28%,#16203a 29% 37%,#05060a 38% 52%,#3d424d 53% 57%,#17181e 58% 68%,#ef8a4a 69% 78%,#b4511b 79%);box-shadow:0 3px 6px #0009}
-.lens::after{content:"";position:absolute;left:31%;top:29%;width:15%;height:11%;border-radius:50%;background:#8da2ff66;filter:blur(1px)}
-.l1{left:14px;top:9px}.l2{left:14px;top:68px}.l3{left:72px;top:38px}
-.flash{position:absolute;right:30px;top:24px;width:19px;height:19px;border-radius:50%;background:radial-gradient(#fffbe9,#efe1b2 55%,#9c8a5b 70%,#d06a2c 72%)}
-.lidar{position:absolute;right:30px;top:92px;width:19px;height:19px;border-radius:50%;background:radial-gradient(#2a2d36,#0b0c10 60%,#d06a2c 72%)}
-.mic{position:absolute;right:38px;top:65px;width:5px;height:5px;border-radius:50%;background:#7a2c0c}
-.panel{position:absolute;left:9px;right:9px;top:152px;bottom:9px;border-radius:42px;
-  background:linear-gradient(170deg,#ef7e3a,#dc632a 60%,#c95520);box-shadow:inset 0 1px 0 #ffc59a55,inset 0 0 0 1px #b04a1a66}
-.logo{position:absolute;left:50%;top:342px;width:84px;margin-left:-42px;animation:glow 2.2s ease-in-out infinite}
-@keyframes glow{0%,100%{filter:drop-shadow(0 0 4px #ffcf9a88)}50%{filter:drop-shadow(0 0 16px #ffe1b8)}}
-.backlabel{position:absolute;left:0;right:0;bottom:44px;text-align:center;font-size:9px;letter-spacing:.2em;color:#8f3c13aa;font-weight:700}
+.back{transform:rotateY(180deg) translateZ(14px);overflow:hidden;
+  background:radial-gradient(130% 60% at 20% 0%,#ffa266,transparent 60%),linear-gradient(165deg,#f4843f,#e76c2b 45%,#d55d21 80%,#c8531c);
+  box-shadow:inset 0 0 0 1.5px #ffc79a99,inset 0 0 0 3.5px #c4561d,inset 0 -40px 70px #8a330f33}
+/* плато камер на всю ширину, заподлицо с рамкой */
+.plateau{position:absolute;left:0;right:0;top:0;height:170px;border-radius:52px 52px 24px 24px/52px 52px 20px 20px;
+  background:linear-gradient(176deg,#ffa060,#f07a34 45%,#e4692a);
+  box-shadow:0 7px 12px -3px #5e1f0699,inset 0 0 0 1.5px #ffc79a88,inset 0 -2px 2px #a8421588,inset 0 3px 4px #ffd8b866}
+.lens{position:absolute;width:72px;height:72px;border-radius:50%;
+  background:radial-gradient(circle,#030407 0 22%,#12182b 23% 30%,#040508 31% 44%,#3a3e48 45% 47%,#0b0c10 48% 62%,#55301c 63% 65%,transparent 66%),
+    conic-gradient(from 210deg,#ffc08f,#c9561c,#f4924f,#a9461a,#ffc08f);
+  box-shadow:0 5px 9px #4a1a0599,0 1px 0 #ffd4b0 inset}
+.lens::before{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7b8cff99,transparent 40%),radial-gradient(circle at 65% 70%,#b06bff55,transparent 45%)}
+.lens::after{content:"";position:absolute;left:36%;top:33%;width:9%;height:7%;border-radius:50%;background:#fff;opacity:.75;filter:blur(.6px)}
+.l1{left:12px;top:12px}.l2{left:12px;top:86px}.l3{left:78px;top:49px}
+.cflash{position:absolute;right:28px;top:26px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,#fff9e3 0 35%,#e9dcb0 36% 58%,#a89566 59% 66%,#c66222 67%);box-shadow:0 1px 2px #5e1f0688}
+.lidar{position:absolute;right:28px;top:118px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,#1d2029 0 45%,#08090c 46% 64%,#c66222 66%);box-shadow:0 1px 2px #5e1f0688}
+.mic{position:absolute;right:36px;top:80px;width:6px;height:6px;border-radius:50%;background:#6e280b;box-shadow:inset 0 1px 1px #000}
+/* стеклянная вставка Ceramic Shield с логотипом */
+.panel{position:absolute;left:12px;right:12px;top:186px;bottom:12px;border-radius:42px;
+  background:linear-gradient(170deg,#f58a45,#ea712f 55%,#dc6326);box-shadow:inset 0 0 0 1px #ffd0a866,inset 0 2px 3px #ffffff30,0 0 0 1px #a8461a55}
+.panel::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(160deg,#ffffff1f,transparent 35%)}
+.logo{position:absolute;left:50%;top:352px;width:82px;margin-left:-41px;animation:glow 2.2s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 3px #ffcf9a88)}50%{filter:drop-shadow(0 0 14px #ffe1b8)}}
+.sheen{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:5;background:linear-gradient(100deg,transparent 42%,#fff3 50%,transparent 58%);background-size:300% 100%;mix-blend-mode:screen}
 
 /* ---------- приложение внутри экрана (макет 360×774, масштаб 0.7778) ---------- */
 .inner{position:absolute;left:0;top:0;width:360px;height:774px;transform:scale(.77778);transform-origin:0 0;font-size:15px;line-height:1.35;
@@ -99,7 +114,8 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
 .side-header h2 i{font-style:normal;color:var(--accent)}
 .side-header small{display:block;color:var(--muted);font-size:12.5px}
 .icons{display:flex;gap:8px}
-.ib{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:15px}
+.ib{width:38px;height:38px;display:grid;place-items:center;color:var(--text)}
+.ib svg{width:24px;height:24px}
 .stories{display:flex;gap:12px;padding:10px 16px}
 .story{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);width:58px;flex:none}
 .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;background:conic-gradient(var(--accent),#c084fc,var(--accent))}
@@ -113,7 +129,7 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
 .banner b{display:block;font-size:14.5px}
 .banner span{font-size:12px;color:#e9d5ffcc}
 .banner .x{margin-left:auto;align-self:flex-start;color:var(--muted);font-size:13px}
-.list{flex:1;overflow:hidden;padding:0 8px}
+.list{flex:1;overflow:hidden;padding:0 8px 90px}
 .item{display:flex;gap:12px;padding:9px 10px;border-radius:16px;align-items:center}
 .av{width:50px;height:50px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;color:#fff;position:relative;font-size:17px}
 .av .hat{position:absolute;top:-15px;left:50%;transform:translateX(-50%) rotate(-8deg);font-size:21px}
@@ -124,10 +140,15 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
 .prev{font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .unread{min-width:21px;height:21px;border-radius:11px;background:var(--accent);color:var(--on-accent);font-size:11.5px;font-weight:700;display:grid;place-items:center;padding:0 6px}
 .vip{font-size:10px;font-weight:800;padding:1px 5px;border-radius:6px;background:linear-gradient(90deg,var(--accent),#c084fc);color:#1b0a00;margin-left:5px;vertical-align:2px}
-.tabbar{margin:8px 12px 14px;border-radius:28px;display:flex;justify-content:space-around;padding:8px 6px;flex:none}
-.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:var(--muted);padding:4px 10px;border-radius:16px}
-.tab .i{font-size:19px;line-height:1.1}
-.tab.on{color:var(--accent);background:var(--hover)}
+/* нижняя панель — как в приложении (public/cipherion.css, мобильная ширина) */
+.rnav{position:absolute;left:14px;right:14px;bottom:12px;height:68px;padding:5px;display:flex;justify-content:space-around;gap:2px;z-index:5;border-radius:999px;
+  background:rgba(28,31,30,.86);border:1px solid #ffffff1f;box-shadow:0 8px 30px #00000059,inset 0 1px 0 #ffffff1a}
+.rbtn{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:999px;color:#e0ece7}
+.rbtn svg{width:25px;height:25px;display:block}
+.rbtn span{font-size:11.5px;font-weight:600;letter-spacing:-.01em;line-height:1}
+.rbtn.on{background:#e0ece714;color:var(--accent)}
+.rbtn.on span{font-weight:700}
+.rbtn.on::after{content:"";position:absolute;left:50%;bottom:1px;width:18px;height:3px;margin-left:-9px;border-radius:3px 3px 0 0;background:var(--accent);box-shadow:0 0 10px var(--accent)}
 
 .dim{position:absolute;inset:0;background:#05020bcc;z-index:6;opacity:0}
 .sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;border-radius:32px 32px 40px 40px;padding:10px 20px 22px;display:flex;flex-direction:column;background:#1b1027f2;border:1px solid #ffffff14;transform:translateY(105%)}
@@ -275,14 +296,16 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
     <div class="pill" id="hPill"><span class="emo">🎃</span><span>Событие <b>с 1 ноября по 30 ноября</b> включительно</span></div>
   </header>
 
+  <div class="pshadow" id="pshadow"></div>
   <div class="p3d-wrap"><div class="phone3d" id="phone">
-    <div class="side l"></div><div class="side r"></div>
+    <div class="side l"><div class="hbtn" style="top:72px;height:30px"></div><div class="hbtn" style="top:128px;height:52px"></div><div class="hbtn" style="top:192px;height:52px"></div></div>
+    <div class="side r"><div class="hbtn" style="top:140px;height:78px"></div><div class="hbtn cc" style="top:300px;height:56px"></div></div>
     <div class="face back" id="back">
+      <div class="panel"></div>
       <div class="plateau">
         <div class="lens l1"></div><div class="lens l2"></div><div class="lens l3"></div>
-        <div class="flash"></div><div class="lidar"></div><div class="mic"></div>
+        <div class="cflash"></div><div class="lidar"></div><div class="mic"></div>
       </div>
-      <div class="panel"></div>
       <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
         <defs>
           <linearGradient id="pm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1df"/><stop offset=".35" stop-color="#ffc58f"/><stop offset=".55" stop-color="#e2762f"/><stop offset=".8" stop-color="#ffd7b0"/><stop offset="1" stop-color="#f19a58"/></linearGradient>
@@ -299,9 +322,9 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
           <path d="M27 69q23 16 46 0l-4 9-5-4-5 6-5-5-5 5-5-6-5 4z"/>
         </g>
       </svg>
-      <div class="backlabel">CIPHERION · HALLOWEEN</div>
+      <div class="sheen" id="sheenBack"></div>
     </div>
-    <div class="face front"><div class="bezel"><div class="screen">
+    <div class="face front"><div class="edgebtn" style="left:-2px;top:122px;height:30px"></div><div class="edgebtn" style="left:-2px;top:178px;height:52px"></div><div class="edgebtn" style="left:-2px;top:242px;height:52px"></div><div class="edgebtn" style="right:-2px;top:190px;height:78px"></div><div class="edgebtn" style="right:-2px;top:350px;height:56px"></div><div class="bezel"><div class="screen">
       <div class="island"></div><div class="glare" id="glare"></div>
       <div class="inner plain" id="inner">
 
@@ -314,7 +337,7 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
             <div class="status"><span>21:13</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
             <div class="side-header">
               <div><h2>Cipherion<i>.</i></h2><small><span class="spooky">Жуткие разговоры, в одном месте <span class="emo">🦇</span></span><span class="plain-only">Ваши разговоры, в одном месте</span></small></div>
-              <div class="icons"><div class="ib glass">🔍</div><div class="ib glass">✏️</div></div>
+              <div class="icons"><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div></div>
             </div>
             <div class="stories">
               <div class="story hw spooky"><div class="ring"><div>🎃</div></div>Хэллоуин</div>
@@ -331,11 +354,11 @@ body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text)
               <div class="item"><div class="av" style="background:#be185d">К</div><div class="meta"><div class="row"><span class="name">Катя</span><span class="time">18:02</span></div><div class="row"><span class="prev">Сладость или гадость? <span class="emo">🍬</span></span></div></div></div>
               <div class="item"><div class="av" style="background:#334155">★</div><div class="meta"><div class="row"><span class="name">Избранное</span><span class="time">пн</span></div><div class="row"><span class="prev">Список костюмов</span></div></div></div>
             </div>
-            <nav class="tabbar glass">
-              <div class="tab on"><span class="i">💬</span>Чаты</div>
-              <div class="tab"><span class="i">✨</span>AI</div>
-              <div class="tab"><span class="i">📞</span>Звонки</div>
-              <div class="tab"><span class="i">⚙️</span>Настройки</div>
+            <nav class="rnav">
+              <div class="rbtn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0ZM7 9h9M7 13h6"/></svg><span>Чаты</span></div>
+              <div class="rbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM4 12h16M12 3c-6 5-6 13 0 18 6-5 6-13 0-18"/></svg><span>AI</span></div>
+              <div class="rbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3l2 5-2 2a16 16 0 0 0 6 6l2-2Z"/></svg><span>Звонки</span></div>
+              <div class="rbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/></svg><span>Настройки</span></div>
             </nav>
           </div>
           <div class="dim" id="dim"></div>
@@ -459,6 +482,9 @@ let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
 // звёзды
 (()=>{let h='';for(let i=0;i<70;i++)h+=`<i class="star" style="left:${(rnd()*540).toFixed(0)}px;top:${(rnd()*720).toFixed(0)}px;opacity:${(.3+rnd()*.6).toFixed(2)};animation-delay:-${(rnd()*3).toFixed(2)}s;transform:scale(${(.6+rnd()).toFixed(2)})"></i>`;$('stars').innerHTML=h;})();
 
+// толщина корпуса: слои алюминия между экраном и крышкой
+(()=>{const ph=$('phone');for(let z=-12;z<=12;z+=2){const d=document.createElement('div');d.className='slice';d.style.transform=`translateZ(${z}px)`;ph.prepend(d);}})();
+
 // частицы «Сладость!»
 const CANDY=['🍬','🍭','🍫','🧁','🍪'];
 const parts=Array.from({length:24},(_,i)=>({e:CANDY[i%5],a:-Math.PI/2+(rnd()-.5)*2.2,v:330+rnd()*260,r:(rnd()-.5)*540,s:.8+rnd()*.6,d:rnd()*.25}));
@@ -502,6 +528,8 @@ function render(t){
   else if(t<36.2){ry=360+Math.sin((t-5)*.9)*2.2*P(t,5,1,E.lin);rx=2+Math.sin((t-5)*.7)*1.2;ty=Math.sin((t-5)*1.1)*3;}
   else{const e=P(t,36.2,1.6,E.inOut);ry=360+180*e+Math.sin((t-36)*1.5)*8*P(t,37.8,.8,E.lin);rx=2+6*e;sc=1-.06*e;ty=-6*e;}
   $('phone').style.transform=`translateY(${ty}px) scale(${sc}) rotateX(${rx}deg) rotateY(${ry}deg)`;
+  $('sheenBack').style.backgroundPosition=`${50+(ry-180)*1.4}% 0`;
+  $('pshadow').style.cssText=`opacity:${(1-ty/520)*(.75+.25*Math.abs(Math.cos(ry*Math.PI/180)))};transform:scaleX(${sc*(.8+.2*Math.abs(Math.cos(ry*Math.PI/180)))})`;
   const turn=Math.abs(Math.sin(ry*Math.PI/180));
   $('glare').style.cssText=`opacity:${turn*.9};background-position:${ry}px 0`;
 

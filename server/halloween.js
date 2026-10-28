@@ -2,13 +2,13 @@
 // Ghost messages vanish GHOST_SECONDS after someone other than the author reads them.
 export const GHOST_SECONDS=60;
 
-// Season window in Moscow time: 29 October – 3 November inclusive.
+// Season window in Moscow time: 1 – 30 November inclusive.
 // HALLOWEEN=on|off overrides it (for testing on a staging server).
 export function halloweenSeason(time=Date.now(),env=process.env){
   if(env.HALLOWEEN==='on')return true;
   if(env.HALLOWEEN==='off')return false;
   const d=new Date(time+3*3600_000),month=d.getUTCMonth(),day=d.getUTCDate();
-  return (month===9&&day>=29)||(month===10&&day<=3);
+  return month===10&&day>=1&&day<=30;
 }
 
 export const OUTCOMES={

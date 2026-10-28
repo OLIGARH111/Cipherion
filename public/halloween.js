@@ -36,7 +36,7 @@ function banner(state,save){
   const show=halloweenActive(state,state.settings)&&state.settings.halloweenBanner!==YEAR&&header;
   if(!show){old?.remove();return;}
   if(old)return;
-  header.insertAdjacentHTML('beforeend',`<div class="hw-banner" role="button" tabindex="0" aria-label="Хэллоуин в Cipherion: что нового"><span class="hw-banner-pumpkin" aria-hidden="true">🎃</span><span class="hw-banner-text"><b>Тыквенная неделя</b><small>Темы, призрачные сообщения и игра «Сладость или гадость»</small></span><button type="button" class="hw-banner-close" aria-label="Скрыть баннер">✕</button></div>`);
+  header.insertAdjacentHTML('beforeend',`<div class="hw-banner" role="button" tabindex="0" aria-label="Хэллоуин в Cipherion: что нового"><span class="hw-banner-pumpkin" aria-hidden="true">🎃</span><span class="hw-banner-text"><b>Тыквенный ноябрь</b><small>Темы, призрачные сообщения и игра «Сладость или гадость»</small></span><button type="button" class="hw-banner-close" aria-label="Скрыть баннер">✕</button></div>`);
   const el=document.querySelector('.hw-banner');
   el.onclick=guard(async e=>{if(e.target.closest('.hw-banner-close')){e.stopPropagation();state.settings.halloweenBanner=YEAR;el.remove();await save();return;}whatsNew(state,save);});
   el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();el.click();}};
@@ -50,7 +50,7 @@ export function maybeWhatsNew(state,save){
 export function whatsNew(state,save){
   const s=state.settings,themed=HALLOWEEN_THEMES.includes(s.theme);
   const feature=(icon,title,text)=>`<div class="hw-feature"><span aria-hidden="true">${icon}</span><div><b>${title}</b><small>${text}</small></div></div>`;
-  const el=modal('Хэллоуин в Cipherion',`<div class="hw-news"><div class="hw-news-hero" aria-hidden="true">🎃</div><p class="hw-news-lead">Сезонное обновление до 3 ноября включительно</p>
+  const el=modal('Хэллоуин в Cipherion',`<div class="hw-news"><div class="hw-news-hero" aria-hidden="true">🎃</div><p class="hw-news-lead">Событие с 1 ноября по 30 ноября включительно</p>
     ${feature('🌙','Темы «Ночь тыкв» и «Зелье»','Тыквенный или ядовито-зелёный акцент, туман и летучие мыши. Отключается в настройках.')}
     ${feature('👻','Призрачные сообщения','Нажмите 👻 рядом с полем ввода: сообщение исчезнет через минуту после прочтения.')}
     ${feature('🍬','«Сладость или гадость»','Мини-игра в личных чатах и группах — в меню 📎.')}
@@ -67,7 +67,7 @@ export function whatsNew(state,save){
 // ---------- Settings ----------
 export function halloweenSettings(state,save){
   const s=state.settings,row=(key,title,detail,value)=>`<label class="setting-row"><div>${title}<small>${detail}</small></div><input type="checkbox" data-hw="${key}" ${value?'checked':''}></label>`;
-  modal('🎃 Хэллоуин',`<div class="settings-group">${row('halloween','Хэллоуин-оформление','Баннер, летучие мыши и туман до 3 ноября',s.halloween!==false)}${row('halloweenFx','Летучие мыши и туман','Анимация на фоне приложения',s.halloweenFx!==false)}${row('ghostMessages','Принимать призрачные сообщения','Собеседник увидит, когда вы открыли такое сообщение: с этого момента идёт минута',s.ghostMessages!==false)}</div>
+  modal('🎃 Хэллоуин',`<div class="settings-group">${row('halloween','Хэллоуин-оформление','Баннер, летучие мыши и туман до 30 ноября',s.halloween!==false)}${row('halloweenFx','Летучие мыши и туман','Анимация на фоне приложения',s.halloweenFx!==false)}${row('ghostMessages','Принимать призрачные сообщения','Собеседник увидит, когда вы открыли такое сообщение: с этого момента идёт минута',s.ghostMessages!==false)}</div>
     <h3 class="group-caption">Темы</h3><div class="hw-theme-row">${HALLOWEEN_THEMES.map(name=>`<button type="button" class="hw-theme-card ${s.theme===name?'selected':''}" data-hw-theme="${esc(name)}"><span>${name==='Зелье'?'🧪':'🎃'}</span>${esc(name)}</button>`).join('')}</div>
     <button class="secondary" id="hw-news">Что нового</button>`);
   document.querySelectorAll('[data-hw]').forEach(el=>el.onchange=guard(async()=>{s[el.dataset.hw]=el.checked;await save();}));

@@ -8,15 +8,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHalloween, halloweenSeason, GHOST_SECONDS } from '../server/halloween.js';
 import { halloweenActive } from '../public/halloween.js';
 
-test('season covers 29 October – 3 November in Moscow time and can be forced', () => {
+test('season covers 1 – 30 November in Moscow time and can be forced', () => {
   const at = s => Date.parse(s);
-  assert.equal(halloweenSeason(at('2026-10-28T20:59:00Z'), {}), false);
-  assert.equal(halloweenSeason(at('2026-10-28T21:00:00Z'), {}), true);
-  assert.equal(halloweenSeason(at('2026-10-31T12:00:00Z'), {}), true);
-  assert.equal(halloweenSeason(at('2026-11-03T20:59:00Z'), {}), true);
-  assert.equal(halloweenSeason(at('2026-11-03T21:00:00Z'), {}), false);
+  assert.equal(halloweenSeason(at('2026-10-31T20:59:00Z'), {}), false);
+  assert.equal(halloweenSeason(at('2026-10-31T21:00:00Z'), {}), true);
+  assert.equal(halloweenSeason(at('2026-11-15T12:00:00Z'), {}), true);
+  assert.equal(halloweenSeason(at('2026-11-30T20:59:00Z'), {}), true);
+  assert.equal(halloweenSeason(at('2026-11-30T21:00:00Z'), {}), false);
   assert.equal(halloweenSeason(at('2026-07-01T00:00:00Z'), { HALLOWEEN: 'on' }), true);
-  assert.equal(halloweenSeason(at('2026-10-31T00:00:00Z'), { HALLOWEEN: 'off' }), false);
+  assert.equal(halloweenSeason(at('2026-11-15T00:00:00Z'), { HALLOWEEN: 'off' }), false);
 });
 
 test('client season respects the server flag and the user switch', () => {
