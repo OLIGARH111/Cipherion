@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cipherion — Хэллоуин</title>
+<style>
+:root{
+  --bg:#0a0710;--text:#efe6f5;--muted:#a294b3;
+  --pumpkin:#ff8a2b;--pumpkin2:#ffb34d;--on-pumpkin:#2a1200;
+  --violet:#8b5cf6;--slime:#9be15d;--emerald:#83d9b5;
+  --surface:#1c122aa8;--line:#e9d5ff17;--hover:#ffffff0d;--input:#0b061366;
+  --radius:22px;
+}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100dvh;padding:20px 16px 40px;overflow-x:hidden}
+.top{max-width:1100px;margin:0 auto 18px}
+.top h1{font-size:22px;letter-spacing:-.02em}
+.top h1 span{color:var(--pumpkin)}
+.top p{color:var(--muted);font-size:13px;margin-top:4px}
+.badge-draft{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:#ff8a2b22;color:var(--pumpkin2);border:1px solid #ff8a2b44;margin-left:6px;vertical-align:middle}
+.switcher{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.switcher button{font:inherit;font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 13px;cursor:pointer}
+.switcher button[aria-pressed=true]{background:var(--pumpkin);color:var(--on-pumpkin);border-color:transparent;font-weight:600}
+.toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+.toggle input{accent-color:var(--pumpkin);width:18px;height:18px}
+
+.stage{max-width:1100px;margin:0 auto;display:flex;gap:28px;flex-wrap:wrap;justify-content:center}
+.screen{display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.on{display:flex}
+.caption{max-width:340px;font-size:13px;color:var(--muted);text-align:center}
+.caption b{color:var(--text)}
+
+/* phone */
+.phone{position:relative;width:min(360px,100%);height:740px;border-radius:44px;padding:10px;background:#1a1322;box-shadow:0 0 0 1px #ffffff14,0 30px 80px -20px #000,0 0 90px -30px var(--glowc,#ff8a2b66)}
+.view{position:relative;height:100%;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;background:var(--app-bg)}
+.notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:96px;height:26px;border-radius:20px;background:#000;z-index:20}
+.status{display:flex;justify-content:space-between;padding:12px 26px 4px;font-size:12px;font-weight:600;position:relative;z-index:5}
+
+/* themes */
+body{--app-bg:radial-gradient(120% 70% at 85% -10%,#ff8a2b30,transparent 60%),radial-gradient(90% 60% at -10% 110%,#6d28d955,transparent 60%),linear-gradient(#140b1f,#0b0712);--accent:var(--pumpkin);--on-accent:var(--on-pumpkin)}
+body.plain{--app-bg:radial-gradient(120% 70% at 85% -10%,#255c4955,transparent 60%),linear-gradient(#0e1d1b,#0b1716);--accent:var(--emerald);--on-accent:#12382c;--surface:#152620a8;--line:#b2e7cc13;--glowc:#83d9b544}
+body.plain .spooky{display:none!important}
+
+/* ambient spooky layer */
+.fog{position:absolute;inset:auto -40% 0 -40%;height:45%;pointer-events:none;z-index:1;background:radial-gradient(40% 50% at 30% 80%,#c4b5fd18,transparent 70%),radial-gradient(35% 45% at 70% 90%,#ffffff12,transparent 70%);animation:drift 14s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translateX(18%)}}
+.bat{position:absolute;width:26px;z-index:2;opacity:.75;animation:fly 9s linear infinite;pointer-events:none}
+.bat svg{width:100%;fill:#05030a;filter:drop-shadow(0 0 6px #ff8a2b55)}
+.bat svg{animation:flap .28s ease-in-out infinite alternate;transform-origin:center}
+@keyframes flap{to{transform:scaleY(.55)}}
+@keyframes fly{0%{transform:translate(-40px,0)}50%{transform:translate(200px,-30px)}100%{transform:translate(420px,10px)}}
+.moon{position:absolute;top:52px;right:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#ffe7b8,#ffb34d 55%,#ff8a2b00 72%);opacity:.18;filter:blur(1px);z-index:0}
+
+.content{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;min-height:0}
+.glass{background:var(--surface);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);border:1px solid var(--line)}
+
+/* chat list */
+.side-header{padding:8px 18px 6px;display:flex;justify-content:space-between;align-items:center}
+.side-header h2{font-size:26px;letter-spacing:-.03em}
+.side-header h2 i{font-style:normal;color:var(--accent)}
+.side-header small{display:block;color:var(--muted);font-size:12px}
+.icons{display:flex;gap:8px}
+.ib{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:15px}
+.stories{display:flex;gap:12px;padding:10px 18px;overflow:hidden}
+.story{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);width:58px;flex:none}
+.story .ring{width:56px;height:56px;border-radius:50%;padding:2.5px;background:conic-gradient(var(--accent),#c084fc,var(--accent))}
+.story .ring>div{width:100%;height:100%;border-radius:50%;border:2.5px solid #140b1f;display:grid;place-items:center;font-size:22px;font-weight:700;color:#fff}
+body.plain .story .ring>div{border-color:#0e1d1b}
+.story.hw .ring{background:conic-gradient(#ff8a2b,#ffd166,#9be15d,#8b5cf6,#ff8a2b);animation:spin 6s linear infinite}
+.story.hw .ring>div{background:#1b0f05;animation:spin 6s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.banner{margin:6px 14px 8px;border-radius:20px;padding:14px 14px 14px 16px;display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,#ff8a2b33,#6d28d944);border:1px solid #ff8a2b44;position:relative;overflow:hidden}
+.banner .p{font-size:36px;filter:drop-shadow(0 0 12px #ff8a2b99);animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px) rotate(-6deg)}}
+.banner b{display:block;font-size:14px}
+.banner span{font-size:12px;color:#e9d5ffcc}
+.banner .x{margin-left:auto;align-self:flex-start;color:var(--muted);font-size:14px}
+
+.list{flex:1;overflow:hidden;padding:0 8px}
+.item{display:flex;gap:12px;padding:9px 10px;border-radius:16px;align-items:center}
+.item:hover{background:var(--hover)}
+.av{width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;color:#fff;position:relative}
+.av .hat{position:absolute;top:-13px;left:50%;transform:translateX(-50%) rotate(-8deg);font-size:20px}
+.meta{flex:1;min-width:0}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:11px;color:var(--muted)}
+.prev{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unread{min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 6px}
+.vip{font-size:10px;font-weight:800;padding:1px 5px;border-radius:6px;background:linear-gradient(90deg,#ff8a2b,#c084fc);color:#1b0a00;margin-left:4px;vertical-align:2px}
+body.plain .vip{background:linear-gradient(90deg,#83d9b5,#5eead4);color:#0b2a20}
+
+.tabbar{margin:8px 12px 12px;border-radius:26px;display:flex;justify-content:space-around;padding:8px 6px;position:relative;z-index:4}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:var(--muted);padding:4px 10px;border-radius:16px}
+.tab .i{font-size:19px;line-height:1}
+.tab.on{color:var(--accent);background:var(--hover)}
+
+/* chat screen */
+.chat-head{display:flex;align-items:center;gap:10px;padding:8px 14px 10px;margin:0 10px;border-radius:22px}
+.chat-head .back{color:var(--accent);font-size:20px}
+.chat-head .av{width:38px;height:38px;font-size:14px}
+.chat-head b{display:block;font-size:15px}
+.chat-head small{color:var(--slime);font-size:12px}
+body.plain .chat-head small{color:var(--emerald)}
+.msgs{flex:1;padding:12px 12px 4px;display:flex;flex-direction:column;gap:6px;overflow:hidden;justify-content:flex-end}
+.day{align-self:center;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:99px;margin:4px 0}
+.m{max-width:78%;padding:8px 12px 6px;border-radius:18px;font-size:14px;position:relative}
+.m .t{font-size:10px;color:var(--muted);float:right;margin:6px 0 -2px 10px}
+.m.in{align-self:flex-start;border-bottom-left-radius:6px}
+.m.out{align-self:flex-end;margin-bottom:12px;background:linear-gradient(135deg,var(--accent),#ff6a3d);color:var(--on-accent);border-bottom-right-radius:6px}
+body.plain .m.out{background:var(--accent)}
+.m.out .t{color:#2a120099}
+.react{position:absolute;bottom:-14px;left:10px;font-size:13px;padding:1px 6px;border-radius:99px;background:#2a1838;border:1px solid var(--line)}
+.ghost{align-self:flex-start;display:flex;gap:8px;align-items:center;border-bottom-left-radius:6px;border-style:dashed!important;border-color:#c4b5fd55!important;background:#c4b5fd10!important;color:#e9d5ff;animation:fade 3.2s ease-in-out infinite}
+.ghost .g{font-size:18px}
+.ghost small{display:block;font-size:10.5px;color:#c4b5fdaa}
+@keyframes fade{50%{opacity:.45;filter:blur(.4px)}}
+.sticker{align-self:flex-end;font-size:84px;line-height:1;filter:drop-shadow(0 6px 16px #ff8a2b55);animation:wiggle 2.2s ease-in-out infinite}
+@keyframes wiggle{25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+.trick{align-self:center;width:88%;border-radius:20px;padding:12px;text-align:center;background:linear-gradient(160deg,#ff8a2b22,#6d28d933);border:1px solid #ff8a2b44}
+.trick b{font-size:14px}
+.trick p{font-size:12px;color:var(--muted);margin:4px 0 10px}
+.trick .btns{display:flex;gap:8px;justify-content:center}
+.btn{font:inherit;font-size:13px;font-weight:600;border:0;border-radius:99px;padding:8px 14px;cursor:pointer}
+.btn.p{background:var(--accent);color:var(--on-accent)}
+.btn.s{background:#ffffff14;color:var(--text);border:1px solid var(--line)}
+.composer{margin:6px 10px 12px;border-radius:26px;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;position:relative;z-index:4}
+.composer .in{flex:1;color:var(--muted);font-size:14px}
+.composer .send{width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:800}
+.spellbar{display:flex;gap:6px;padding:0 12px;overflow:hidden}
+.spell{font-size:11.5px;padding:5px 10px;border-radius:99px;white-space:nowrap;color:#f5e9ff}
+
+/* sheet / whats new */
+.dim{position:absolute;inset:0;background:#05020bcc;z-index:6}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;border-radius:30px 30px 34px 34px;padding:10px 18px 18px;max-height:92%;overflow:hidden;display:flex;flex-direction:column}
+.grab{width:40px;height:5px;border-radius:3px;background:#ffffff33;align-self:center;margin-bottom:10px}
+.hero{text-align:center;padding:0 0 6px}
+.hero .big{font-size:44px;filter:drop-shadow(0 0 22px #ff8a2bbb)}
+.hero h3{font-size:21px;margin-top:4px;letter-spacing:-.02em}
+.hero p{font-size:12.5px;color:var(--muted)}
+.feat{display:flex;gap:12px;padding:7px 4px;align-items:flex-start;border-top:1px solid var(--line)}
+.feat .fi{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none;background:#ff8a2b1f}
+.feat b{font-size:13.5px;display:block}
+.feat span{font-size:11.5px;line-height:1.35;color:var(--muted)}
+.until{font-size:11px;color:var(--pumpkin2);text-align:center;margin:8px 0}
+
+/* settings */
+.sec{padding:4px 16px}
+.sec h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:12px 4px 8px}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.th{border-radius:16px;height:96px;position:relative;overflow:hidden;border:2px solid transparent;display:flex;align-items:flex-end;padding:7px;font-size:11px;font-weight:600}
+.th.sel{border-color:var(--accent)}
+.th .new{position:absolute;top:6px;right:6px;font-size:9px;font-weight:800;background:var(--accent);color:var(--on-accent);padding:1px 5px;border-radius:5px}
+.card{border-radius:18px;padding:4px 0;margin-bottom:6px}
+.opt{display:flex;align-items:center;gap:12px;padding:10px 14px;font-size:14px}
+.opt+.opt{border-top:1px solid var(--line)}
+.opt .oi{font-size:17px;width:22px;text-align:center}
+.opt .d{flex:1}
+.opt small{display:block;font-size:11.5px;color:var(--muted)}
+.sw{width:42px;height:25px;border-radius:13px;background:#ffffff22;position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:.2s}
+.sw.on{background:var(--accent)}
+.sw.on::after{left:20px}
+.frames{display:flex;gap:12px;padding:6px 4px 2px}
+.fr{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;color:var(--muted)}
+.fr .av{width:54px;height:54px;background:#7c3aed}
+.fr .f1{box-shadow:0 0 0 3px #ff8a2b,0 0 16px #ff8a2b99}
+.fr .f2{box-shadow:0 0 0 3px #9be15d,0 0 16px #9be15d88}
+.fr .f3{box-shadow:0 0 0 3px #c4b5fd,0 0 18px #8b5cf6aa}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (max-width:400px){.phone{height:700px;border-radius:38px;padding:7px}.view{border-radius:32px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Cipherion<span>.</span> — Хэллоуин <span class="badge-draft">Черновик</span></h1>
+  <p>Макет сезонного обновления, 29 октября – 3 ноября. Это только картинка: в коде ничего не менялось.</p>
+  <div class="switcher" role="group" aria-label="Экраны">
+    <button aria-pressed="true" data-s="list">Список чатов</button>
+    <button aria-pressed="false" data-s="chat">Чат</button>
+    <button aria-pressed="false" data-s="news">Что нового</button>
+    <button aria-pressed="false" data-s="set">Оформление</button>
+    <button aria-pressed="false" data-s="all">Все сразу</button>
+  </div>
+  <label class="toggle"><input type="checkbox" id="hw" checked> Хэллоуин включён (снимите, чтобы сравнить с обычной темой)</label>
+</header>
+
+<main class="stage">
+
+<!-- 1. LIST -->
+<section class="screen on" data-screen="list">
+<div class="phone"><div class="view">
+  <div class="notch"></div><div class="moon spooky"></div><div class="fog spooky"></div>
+  <div class="bat spooky" style="top:90px;animation-delay:-2s"><svg viewBox="0 0 64 28"><path d="M32 8c2-4 4-5 5-3l1 4c4-6 12-9 26-5-6 2-9 6-9 12-4-3-8-3-10 1-2-3-5-3-7 1-1-2-3-3-6-3s-5 1-6 3c-2-4-5-4-7-1-2-4-6-4-10-1 0-6-3-10-9-12 14-4 22-1 26 5l1-4c1-2 3-1 5 3z"/></svg></div>
+  <div class="bat spooky" style="top:210px;width:18px;animation-duration:12s;animation-delay:-7s"><svg viewBox="0 0 64 28"><path d="M32 8c2-4 4-5 5-3l1 4c4-6 12-9 26-5-6 2-9 6-9 12-4-3-8-3-10 1-2-3-5-3-7 1-1-2-3-3-6-3s-5 1-6 3c-2-4-5-4-7-1-2-4-6-4-10-1 0-6-3-10-9-12 14-4 22-1 26 5l1-4c1-2 3-1 5 3z"/></svg></div>
+  <div class="status"><span>21:13</span><span>●●● 🔋</span></div>
+  <div class="content">
+    <div class="side-header">
+      <div><h2>Cipherion<i>.</i></h2><small><span class="spooky">Жуткие разговоры, в одном месте 🦇</span><span class="plain-only">Ваши разговоры, в одном месте</span></small></div>
+      <div class="icons"><div class="ib glass">🔍</div><div class="ib glass">✎</div></div>
+    </div>
+    <div class="stories">
+      <div class="story hw spooky"><div class="ring"><div>🎃</div></div>Хэллоуин</div>
+      <div class="story"><div class="ring"><div style="background:#7c3aed">А</div></div>Алиса</div>
+      <div class="story"><div class="ring"><div style="background:#0f766e">М</div></div>Макс</div>
+      <div class="story"><div class="ring"><div style="background:#be185d">К</div></div>Катя</div>
+      <div class="story"><div class="ring"><div style="background:#b45309">Д</div></div>Дима</div>
+    </div>
+    <div class="banner spooky">
+      <div class="p">🎃</div>
+      <div><b>Тыквенная неделя</b><span>Тема «Ночь тыкв», стикеры и призрачные сообщения</span></div>
+      <div class="x">✕</div>
+    </div>
+    <div class="list">
+      <div class="item"><div class="av" style="background:#7c3aed">А<span class="hat spooky">🧙</span></div><div class="meta"><div class="row"><span class="name">Алиса<span class="vip">VIP</span></span><span class="time">21:12</span></div><div class="row"><span class="prev">👻 Призрачное сообщение</span><span class="unread">2</span></div></div></div>
+      <div class="item"><div class="av" style="background:#0f766e">М</div><div class="meta"><div class="row"><span class="name">Макс</span><span class="time">20:47</span></div><div class="row"><span class="prev">🎃 Стикер</span></div></div></div>
+      <div class="item"><div class="av" style="background:#b45309">🏚</div><div class="meta"><div class="row"><span class="name">Вечеринка 31.10</span><span class="time">19:30</span></div><div class="row"><span class="prev">Катя: костюмы обязательны!</span><span class="unread">14</span></div></div></div>
+      <div class="item"><div class="av" style="background:#be185d">К</div><div class="meta"><div class="row"><span class="name">Катя</span><span class="time">18:02</span></div><div class="row"><span class="prev">Сладость или гадость? 🍬</span></div></div></div>
+      <div class="item"><div class="av" style="background:#334155">★</div><div class="meta"><div class="row"><span class="name">Избранное</span><span class="time">пн</span></div><div class="row"><span class="prev">Список костюмов</span></div></div></div>
+    </div>
+    <nav class="tabbar glass">
+      <div class="tab on"><span class="i">💬</span>Чаты</div>
+      <div class="tab"><span class="i">✨</span>AI</div>
+      <div class="tab"><span class="i">📞</span>Звонки</div>
+      <div class="tab"><span class="i">⚙️</span>Настройки</div>
+    </nav>
+  </div>
+</div></div>
+<p class="caption"><b>Список чатов.</b> Тыквенно-фиолетовая тема, летучие мыши и туман на фоне, сезонная история «Хэллоуин» и баннер, который можно закрыть. У VIP — шляпа ведьмы на аватаре.</p>
+</section>
+
+<!-- 2. CHAT -->
+<section class="screen" data-screen="chat">
+<div class="phone"><div class="view">
+  <div class="notch"></div><div class="fog spooky"></div>
+  <div class="bat spooky" style="top:140px;width:20px;animation-delay:-4s"><svg viewBox="0 0 64 28"><path d="M32 8c2-4 4-5 5-3l1 4c4-6 12-9 26-5-6 2-9 6-9 12-4-3-8-3-10 1-2-3-5-3-7 1-1-2-3-3-6-3s-5 1-6 3c-2-4-5-4-7-1-2-4-6-4-10-1 0-6-3-10-9-12 14-4 22-1 26 5l1-4c1-2 3-1 5 3z"/></svg></div>
+  <div class="status"><span>21:13</span><span>●●● 🔋</span></div>
+  <div class="content">
+    <div class="chat-head glass"><span class="back">‹</span><div class="av" style="background:#7c3aed">А</div><div><b>Алиса <span class="vip">VIP</span></b><small>печатает заклинание…</small></div></div>
+    <div class="msgs">
+      <div class="day glass">Сегодня</div>
+      <div class="m in glass">Идёшь на вечеринку 31-го? 🕸<span class="t">21:02</span></div>
+      <div class="m out">Конечно! Костюм уже готов<span class="t">21:03 ✓✓</span><span class="react">🎃 2</span></div>
+      <div class="sticker spooky">🎃</div>
+      <div class="m in ghost glass spooky"><span class="g">👻</span><div>Угадай, кем я буду…<small>Исчезнет через 0:42</small></div></div>
+      <div class="trick spooky">
+        <b>🍬 Сладость или гадость?</b>
+        <p>Алиса предлагает сыграть. Победитель получает редкий стикер.</p>
+        <div class="btns"><button class="btn p">Сладость</button><button class="btn s">Гадость</button></div>
+      </div>
+    </div>
+    <div class="spellbar spooky">
+      <span class="spell glass">👻 Призрак</span><span class="spell glass">🕸 Паутина</span><span class="spell glass">🦇 Мыши</span><span class="spell glass">🍬 Игра</span>
+    </div>
+    <div class="composer glass"><span>📎</span><span class="in">Сообщение…</span><span>🎃</span><span class="send">➤</span></div>
+  </div>
+</div></div>
+<p class="caption"><b>Чат.</b> Новое: <b>призрачные сообщения</b> (исчезают через минуту после прочтения), анимированный набор стикеров, реакция 🎃, мини-игра «Сладость или гадость» и эффекты над полем ввода.</p>
+</section>
+
+<!-- 3. WHAT'S NEW -->
+<section class="screen" data-screen="news">
+<div class="phone"><div class="view">
+  <div class="notch"></div>
+  <div class="status"><span>21:13</span><span>●●● 🔋</span></div>
+  <div class="content" style="opacity:.5">
+    <div class="side-header"><div><h2>Cipherion<i>.</i></h2></div></div>
+  </div>
+  <div class="dim"></div>
+  <div class="sheet glass" style="background:#1a0f26ee">
+    <div class="grab"></div>
+    <div class="hero"><div class="big">🎃</div><h3>Хэллоуин в Cipherion</h3><p>Обновление на неделю — с 29 октября по 3 ноября</p></div>
+    <div class="feat"><div class="fi">🌙</div><div><b>Тема «Ночь тыкв»</b><span>Тыквенный акцент, туман и летучие мыши. Выключается в «Оформлении».</span></div></div>
+    <div class="feat"><div class="fi">👻</div><div><b>Призрачные сообщения</b><span>Исчезают через минуту после прочтения — у вас и у собеседника.</span></div></div>
+    <div class="feat"><div class="fi">🦇</div><div><b>12 стикеров и игра «Сладость или гадость»</b><span>Стикеры останутся у вас и после праздника.</span></div></div>
+        <div class="feat"><div class="fi">🧙</div><div><b>Рамки для аватара</b><span>Тыква, слизь и призрачное свечение. Шляпа ведьмы — для VIP.</span></div></div>
+    <p class="until">Тема выключится сама 4 ноября</p>
+    <button class="btn p" style="width:100%;padding:12px">Включить тему</button>
+    <button class="btn" style="background:none;color:var(--muted);margin-top:4px">Позже</button>
+  </div>
+</div></div>
+<p class="caption"><b>Что нового.</b> Показывается один раз при первом входе после обновления.</p>
+</section>
+
+<!-- 4. SETTINGS -->
+<section class="screen" data-screen="set">
+<div class="phone"><div class="view">
+  <div class="notch"></div><div class="fog spooky"></div>
+  <div class="status"><span>21:13</span><span>●●● 🔋</span></div>
+  <div class="content">
+    <div class="side-header"><div><h2 style="font-size:22px">Оформление</h2></div></div>
+    <div class="sec">
+      <h4>Тема</h4>
+      <div class="themes">
+        <div class="th sel" style="background:linear-gradient(160deg,#ff8a2b,#3b0764)"><span class="new">NEW</span>Ночь тыкв</div>
+        <div class="th" style="background:linear-gradient(160deg,#9be15d,#052e16)"><span class="new">NEW</span>Зелье</div>
+        <div class="th" style="background:linear-gradient(160deg,#83d9b5,#0b1716)">Изумруд</div>
+      </div>
+      <h4>Хэллоуин</h4>
+      <div class="card glass">
+        <div class="opt"><span class="oi">🦇</span><div class="d">Летучие мыши и туман<small>Анимация на фоне</small></div><span class="sw on"></span></div>
+        <div class="opt"><span class="oi">👻</span><div class="d">Призрачные сообщения<small>Разрешить отправлять мне</small></div><span class="sw on"></span></div>
+        <div class="opt"><span class="oi">🔊</span><div class="d">Жуткие звуки<small>Звук уведомлений «вой ветра»</small></div><span class="sw"></span></div>
+      </div>
+      <h4>Рамка аватара</h4>
+      <div class="frames">
+        <div class="fr"><div class="av f1">Я</div>Тыква</div>
+        <div class="fr"><div class="av f2">Я</div>Слизь</div>
+        <div class="fr"><div class="av f3">Я</div>Призрак</div>
+        <div class="fr"><div class="av" style="background:#7c3aed">Я<span class="hat">🧙</span></div>Ведьма <span class="vip" style="margin:0">VIP</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<p class="caption"><b>Оформление.</b> Две сезонные темы рядом с обычными, переключатели эффектов и рамки для аватара. Анимации отключаются при «уменьшении движения» в системе.</p>
+</section>
+
+</main>
+
+<script>
+const btns=[...document.querySelectorAll('.switcher button')],screens=[...document.querySelectorAll('.screen')];
+btns.forEach(b=>b.onclick=()=>{btns.forEach(x=>x.setAttribute('aria-pressed',x===b));const s=b.dataset.s;screens.forEach(el=>el.classList.toggle('on',s==='all'||el.dataset.screen===s));});
+const hw=document.getElementById('hw');
+const css=document.createElement('style');css.textContent='.plain-only{display:none}body.plain .plain-only{display:inline}';document.head.append(css);
+hw.onchange=()=>document.body.classList.toggle('plain',!hw.checked);
+</script>
+</body>
+</html>
