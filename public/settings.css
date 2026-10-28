@@ -46,3 +46,11 @@ body.glass-ui .settings-page>header.page-head{background:transparent}
   .panel-page.settings-page{padding-left:calc(12px + env(safe-area-inset-left,0px));padding-right:calc(12px + env(safe-area-inset-right,0px))}
   .settings-page>header.page-head{margin:0 -12px 6px;padding:14px 16px 8px}
 }
+.traffic-card{display:grid;gap:8px;margin-bottom:16px}
+.traffic-card h3,.traffic-card p{margin:0}
+.traffic-card progress{width:100%;height:10px}
+.traffic-card table{width:100%;border-collapse:collapse}
+.traffic-card td{padding:4px 0}
+.traffic-card td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.traffic-warn{color:#c98a12}
+.traffic-danger{color:#d64545}
