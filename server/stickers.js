@@ -3,6 +3,7 @@ import legend from '../public/stickers-v4/packs.json' with {type:'json'};
 import {readFile,writeFile,mkdir,unlink} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {inflateSync,deflateSync} from 'node:zlib';
+import {etagMatches} from './http-cache.js';
 // Decode the complete bounded raster; discard metadata and re-encode PNG chunks.
 function crc32(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
 function chunk(type,data){const name=Buffer.from(type),out=Buffer.alloc(12+data.length);out.writeUInt32BE(data.length);name.copy(out,4);data.copy(out,8);out.writeUInt32BE(crc32(Buffer.concat([name,data])),8+data.length);return out;}
@@ -73,7 +74,11 @@ export function createStickers({db,one,all,run,fail,now,id,data,storage,rate,mem
   else fail(405,'Метод не поддерживается');return true;
  }
  const file=/^\/api\/stickers\/([^/]+)\/file$/.exec(path);
- if(file&&req.method==='GET'){const child=family.child(user.id);if(child&&!JSON.parse(child.rules).media)fail(403,'Вложения ограничены семейными настройками');if(!attachment(file[1],user.id))fail(404,'Стикер недоступен');const s=one('SELECT * FROM stickers WHERE id=?',file[1]);if(s.source){res.writeHead(302,{Location:s.source,'Cache-Control':'private, no-store'});res.end();}else{const animation=one('SELECT mime FROM sticker_animation WHERE sticker_id=?',file[1]);const poster=animation&&url.searchParams.get('poster')==='1';const bytes=await storage.bytes('stickers',file[1]+(poster?'.png':''));res.writeHead(200,{'Content-Type':animation&&!poster?animation.mime:'image/png','Cache-Control':'private, no-store','Content-Length':bytes.length});res.end(bytes);}return true;}
+ if(file&&req.method==='GET'){const child=family.child(user.id);if(child&&!JSON.parse(child.rules).media)fail(403,'Вложения ограничены семейными настройками');if(!attachment(file[1],user.id))fail(404,'Стикер недоступен');const s=one('SELECT * FROM stickers WHERE id=?',file[1]);if(s.source){res.writeHead(302,{Location:s.source,'Cache-Control':'private, no-store'});res.end();}else{const animation=one('SELECT mime FROM sticker_animation WHERE sticker_id=?',file[1]);const poster=animation&&url.searchParams.get('poster')==='1';
+  // Sticker bytes are fixed per id and variant; access is re-checked above before any 304.
+  const etag=`"s-${file[1]}-${poster?'poster':animation?'animated':'still'}"`,cache={'Cache-Control':'private, max-age=86400','ETag':etag};
+  if(etagMatches(req.headers['if-none-match'],etag)){res.writeHead(304,cache);res.end();return true;}
+  const bytes=await storage.bytes('stickers',file[1]+(poster?'.png':''));res.writeHead(200,{...cache,'Content-Type':animation&&!poster?animation.mime:'image/png','Content-Length':bytes.length});res.end(bytes);}return true;}
  if(path==='/api/stickers/favorites'||path==='/api/stickers/recent'){
  const favorite=path.endsWith('favorites'),table=favorite?'sticker_favorites':'sticker_recent';if(req.method==='GET')json(all(`SELECT s.* FROM ${table} f JOIN stickers s ON s.id=f.sticker_id WHERE f.user_id=? ORDER BY ${favorite?'s.label':'f.used DESC'} LIMIT 200`,user.id).filter(s=>attachment(s.id,user.id)).map(view));else if(req.method==='DELETE'){run(`DELETE FROM ${table} WHERE user_id=? AND sticker_id=?`,user.id,b.id);json({ok:true});}else if(favorite&&req.method==='POST'){if(!attachment(b.id,user.id))fail(404,'Стикер недоступен');run('INSERT OR IGNORE INTO sticker_favorites VALUES(?,?)',user.id,b.id);json({ok:true});}else fail(405,'Метод не поддерживается');return true;
  }

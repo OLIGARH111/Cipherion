@@ -1,3 +1,4 @@
+import {compressPhoto} from './media-compress.js';
 import {vipBadge} from './ui.js';
 import {accountURL,accountFetch,draftKey,activeAccount} from './account-context.js';
 import {saveAction} from './ui.js';
@@ -90,7 +91,7 @@ export async function storyEditor({files:initial=[]}={}){modal('Новая ис�
  showTab('text',!initial.length);paint();requestAnimationFrame(paint);
  if(initial.length)await useFiles(initial);
 }
-function uploadProgress(file,onprogress){return new Promise((resolve,reject)=>{if(file.size>50*1024*1024)return reject(Error('Истории: файл до 50 МБ'));const xhr=new XMLHttpRequest();xhr.open('POST','/api/media');xhr.setRequestHeader('Content-Type',file.type);xhr.setRequestHeader('X-File-Name',encodeURIComponent(file.name));if(activeAccount())xhr.setRequestHeader('X-Cipherion-Account',activeAccount());xhr.upload.onprogress=e=>{if(e.lengthComputable)onprogress(e.loaded/e.total*100);};xhr.onerror=()=>reject(Error('Ошибка загрузки'));xhr.onload=()=>{try{const r=JSON.parse(xhr.responseText);xhr.status<300?resolve(r):reject(Error(r.error));}catch{reject(Error('Ошибка сервера'));}};xhr.send(file);});}
+async function uploadProgress(original,onprogress){const file=await compressPhoto(original);return new Promise((resolve,reject)=>{if(file.size>50*1024*1024)return reject(Error('Истории: файл до 50 МБ'));const xhr=new XMLHttpRequest();xhr.open('POST','/api/media');xhr.setRequestHeader('Content-Type',file.type);xhr.setRequestHeader('X-File-Name',encodeURIComponent(file.name));if(activeAccount())xhr.setRequestHeader('X-Cipherion-Account',activeAccount());xhr.upload.onprogress=e=>{if(e.lengthComputable)onprogress(e.loaded/e.total*100);};xhr.onerror=()=>reject(Error('Ошибка загрузки'));xhr.onload=()=>{try{const r=JSON.parse(xhr.responseText);xhr.status<300?resolve(r):reject(Error(r.error));}catch{reject(Error('Ошибка сервера'));}};xhr.send(file);});}
 export function showStories(list,start=0){if(!list.length){toast('Историй пока нет');return;}let generation=0;let index=start,elapsed=0,paused=false,stamp=performance.now(),frame,down,closed=false;const overlay=document.createElement('dialog');overlay.className='story-viewer';document.body.append(overlay);overlay.showModal();
  function close(){if(closed)return;closed=true;cancelAnimationFrame(frame);overlay.close();overlay.remove();refreshStories().catch(()=>{});}overlay.addEventListener('cancel',e=>{e.preventDefault();close();});
  function next(delta){index+=delta;if(index<0||index>=list.length)return close();render();}

@@ -573,7 +573,9 @@ accountManager.initialize().then(id=>id?boot():auth()).catch(error=>{if(error.st
 
 
 document.addEventListener('click',guard(async e=>{const el=e.target.closest('[data-open-profile]');if(el){e.preventDefault();e.stopPropagation();await extendedProfile(el.dataset.openProfile);}}));
-setInterval(()=>{if(!document.hidden&&state.user)refreshStories().catch(()=>{});},30000);
+// New stories from contacts are not pushed live: poll rarely, and catch up when the app is reopened.
+setInterval(()=>{if(!document.hidden&&state.user)refreshStories().catch(()=>{});},120000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.user)refreshStories().catch(()=>{});});
 async function newContact(){modal('Новый контакт','<form id="find-contact" class="row"><input name="q" required placeholder="Username"><button class="primary">Найти</button></form><div id="new-contact-results"></div>');$('#find-contact').onsubmit=guard(async e=>{e.preventDefault();const users=await api('/users?q='+encodeURIComponent(new FormData(e.currentTarget).get('q')));$('#new-contact-results').innerHTML=users.map(u=>`<div class="person"><button class="profile-name" data-open-profile="${u.id}">${esc(u.name)} @${esc(u.username)}</button><button class="chip" data-save-contact="${u.id}">Добавить</button></div>`).join('')||'<p>Пользователь не найден</p>';document.querySelectorAll('[data-save-contact]').forEach(b=>b.onclick=guard(async()=>{await api('/contacts','POST',{target:b.dataset.saveContact});toast('Контакт добавлен');b.disabled=true;}));});}
 
 
