@@ -29,6 +29,8 @@ import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database, databaseConfig } from './db.js';
 import { createStaticFiles, encodingFor, compress, etagMatches } from './http-cache.js';
+import { createTraffic } from './traffic.js';
+import { compressVideo } from './video-compress.js';
 import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,6 +120,7 @@ function endCall(call, status = 'ended') {
 const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
+const traffic=createTraffic({db,run,all,now});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null};}});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
@@ -144,6 +147,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  traffic.track(res, req.url.split('?')[0]);
   const json = (value, status = 200) => {
     let body = Buffer.from(JSON.stringify(value));const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Vary': 'Accept-Encoding' };
     const encoding = body.length > 1024 && encodingFor(req.headers['accept-encoding'], headers['Content-Type']);
@@ -217,6 +221,7 @@ const server = http.createServer(async (req, res) => {
     if(await stories.route({path,req,b,user,json,url}))return;
     if(await polls.route({path,req,b,user,json,url}))return;
     if(await adminAccess.route({path,req,b,user,json}))return;
+    if(path==='/api/admin/traffic'&&req.method==='GET'){if(!adminAccess.isAdmin(user.id))fail(403,'Только администратор');return json(traffic.report());}
     if(await vip.route({path,req,b,user,json}))return;
     if(await stickers.route({path,req,res,b,user,json,url}))return;
     if(await profiles.route({path,req,b,user,json,url}))return;
@@ -433,13 +438,16 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/media' && req.method==='POST') {
       storage.writable();rate('upload:'+user.id,30);
       if(family.child(user.id)&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Вложения отключены родителем');
-      const mediaId=id(); const type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
-      const name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
+      const mediaId=id(); let type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
+      let name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
       if(uploadsInFlight>=2)fail(429,'Сервер занят загрузками. Повторите немного позже.');
       const maximum=vip.uploadMB(user.id)*1024*1024;
       if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>20*1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 20 ГБ');
       uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
-      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;validateUpload(await storage.bytes('media',mediaId,'bytes=0-31'),type,name);await storage.persist('media',mediaId,user.id,destination,type);run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
+      try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;validateUpload(await storage.bytes('media',mediaId,'bytes=0-31'),type,name);
+        // Videos are re-encoded once here so every later download is several times smaller.
+        if(type.startsWith('video/')){const packed=await compressVideo(destination);if(packed){size=packed.size;type=packed.type;name=name.replace(/\.[^.]*$/,'')+'.mp4';}}
+        await storage.persist('media',mediaId,user.id,destination,type);run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
       catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;}
       await storage.releaseLocal('media',mediaId);return json({id:mediaId,name,type,size},201);
     }
@@ -487,11 +495,11 @@ const server = http.createServer(async (req, res) => {
   } catch(error) { const requestId=!error.status?logFailure('request_failed',error):undefined; if(!res.headersSent) json({error:error.status?error.message:'Не удалось выполнить действие. Попробуйте позже.',...(requestId?{requestId}:{})},error.status||500); else res.end(); }
 });
 // Each maintenance step is isolated: a transient database error must be logged, never crash the process.
-const maintenance=[()=>social.tick(),()=>polls.tick(),()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);},()=>{for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');},()=>run('DELETE FROM sessions WHERE expires<?',now()),()=>{databaseHealth=health(db);}];
+const maintenance=[()=>traffic.flush(),()=>social.tick(),()=>polls.tick(),()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);},()=>{for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');},()=>run('DELETE FROM sessions WHERE expires<?',now()),()=>{databaseHealth=health(db);}];
 setInterval(()=>{for(const step of maintenance)try{step();}catch(error){logFailure('maintenance_failed',error);}},15_000).unref();
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
-function shutdown(){for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
+function shutdown(){try{traffic.flush(true);}catch(error){logFailure('traffic_flush_failed',error);}for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
 
 

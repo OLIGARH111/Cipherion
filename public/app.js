@@ -511,9 +511,11 @@ function setupRecorder(){
 }
 async function beginRecording(){
   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)throw new Error('Запись требует HTTPS и браузер с поддержкой MediaRecorder');
-  const round=state.mode==='round';const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:round?{width:{ideal:640},height:{ideal:640},aspectRatio:1,facingMode:'user'}:false});
+  const round=state.mode==='round';const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:round?{width:{ideal:480},height:{ideal:480},aspectRatio:1,facingMode:'user'}:false});
   const types=round?['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm']:['audio/webm;codecs=opus','audio/mp4'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
-  let recorder;try{recorder=new MediaRecorder(stream,type?{mimeType:type}:{});}catch(e){stream.getTracks().forEach(t=>t.stop());throw e;}
+  // Browsers default to 2.5+ Mbit/s; a round video is shown ~300 px wide and voice needs far less.
+  const bitrate=round?{videoBitsPerSecond:700_000,audioBitsPerSecond:64_000}:{audioBitsPerSecond:32_000};
+  let recorder;try{recorder=new MediaRecorder(stream,{...(type?{mimeType:type}:{}),...bitrate});}catch(e){stream.getTracks().forEach(t=>t.stop());throw e;}
   const rec={recorder,stream,kind:state.mode,chunks:[],started:Date.now(),locked:false,chat:state.chat,send:false};state.recording=rec;
   const limit=state.user.vip?600:180;
   if(round){rec.overlay=document.createElement('div');rec.overlay.className='round-recorder';rec.overlay.setAttribute('role','dialog');rec.overlay.setAttribute('aria-label','Запись видео-кружка');rec.overlay.innerHTML=`<div class="round-stage"><video class="round-live" autoplay playsinline muted></video><svg class="round-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48" pathLength="100"></circle><circle class="round-progress" cx="50" cy="50" r="48" pathLength="100"></circle></svg></div><div class="round-info"><span class="record-time">0:00</span><small id="record-label">Отпустите, чтобы отправить · Влево — отмена · Вверх — закрепить</small></div><div class="round-actions">${button('close','Отменить запись','id="cancel-record"')}${button('lock','Закрепить запись','id="lock-record"')}${button('send','Отправить запись','id="send-record"')}</div>`;document.body.append(rec.overlay);document.body.classList.add('round-recording');rec.overlay.querySelector('.round-live').srcObject=stream;rec.onkey=e=>{if(e.key==='Escape')finishRecording(false);};addEventListener('keydown',rec.onkey);}
