@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cipherion — Хэллоуин, промо-ролик</title>
+<style>
+/* Сцена ролика 540×960 (рендер в 1080×1920). Время задаёт render(t): все CSS-анимации
+   ставятся на паузу и перематываются на t, а сюжет считается в JS ниже. */
+:root{--pumpkin:#ff8a2b;--pumpkin2:#ffb34d;--violet:#8b5cf6;--text:#f3eaf8;--muted:#a99bbb}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#05030a;overflow:hidden}
+body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
+.emo,.av,.ib,.tab .i{font-family:"Noto Color Emoji",Inter,sans-serif}
+.viewport{position:fixed;inset:0;display:grid;place-items:center}
+.stage{position:relative;width:540px;height:960px;overflow:hidden;flex:none;
+  background:radial-gradient(90% 50% at 82% 6%,#ff8a2b24,transparent 60%),radial-gradient(90% 55% at 0% 100%,#6d28d955,transparent 62%),linear-gradient(#140b20,#07040c 70%)}
+
+/* ---------- фон сцены ---------- */
+.star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:twinkle 2.6s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.15}}
+.moon{position:absolute;top:34px;right:-46px;width:190px;height:190px;border-radius:50%;
+  background:radial-gradient(circle at 38% 38%,#fff3d6,#ffd08a 45%,#ff9b3d 70%,#ff8a2b00 72%);opacity:.5;filter:blur(.6px);box-shadow:0 0 120px 30px #ff8a2b30}
+.moon::before,.moon::after{content:"";position:absolute;border-radius:50%;background:#e8964466}
+.moon::before{width:26px;height:26px;left:52px;top:70px}.moon::after{width:14px;height:14px;left:96px;top:42px}
+.fog{position:absolute;left:-50%;right:-50%;bottom:-40px;height:330px;pointer-events:none;
+  background:radial-gradient(40% 45% at 30% 80%,#c4b5fd1f,transparent 70%),radial-gradient(35% 40% at 70% 90%,#ffffff14,transparent 70%);animation:drift 12s ease-in-out infinite alternate}
+.fog.two{bottom:auto;top:380px;height:260px;opacity:.55;animation-duration:17s;animation-direction:alternate-reverse}
+@keyframes drift{to{transform:translateX(16%)}}
+.sbat{position:absolute;left:-60px;width:34px;animation:sfly 11s linear infinite;z-index:30}
+.sbat svg{width:100%;fill:#05030a;filter:drop-shadow(0 0 7px #ff8a2b88);animation:flap .24s ease-in-out infinite alternate}
+@keyframes flap{to{transform:scaleY(.45)}}
+@keyframes sfly{0%{transform:translate(0,0)}25%{transform:translate(180px,-40px)}50%{transform:translate(330px,10px)}75%{transform:translate(480px,-30px)}100%{transform:translate(660px,0)}}
+.spider{position:absolute;left:44px;top:-6px;width:2px;height:130px;background:linear-gradient(#ffffff00,#ffffff55);transform-origin:50% 0;animation:swing 4.2s ease-in-out infinite;z-index:31}
+.spider span{position:absolute;bottom:-14px;left:-12px;font-size:24px}
+@keyframes swing{0%,100%{transform:rotate(9deg)}50%{transform:rotate(-9deg)}}
+.web{position:absolute;right:-6px;bottom:-6px;width:150px;opacity:.22;z-index:2}
+
+/* ---------- заголовок ---------- */
+.hdr{position:absolute;left:0;right:0;top:34px;text-align:center;z-index:20}
+.brand{font-weight:800;font-size:13px;letter-spacing:.32em;color:#e9d5ffcc}
+.brand span{color:var(--pumpkin)}
+.hdr h1{font-family:"Inter Display",Inter,sans-serif;font-weight:800;font-size:40px;letter-spacing:-.03em;line-height:1.05;margin-top:8px;
+  background:linear-gradient(180deg,#fff7ec,#ffc58a 55%,#ff8a2b);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 18px #ff8a2b55)}
+.pill{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 16px;border-radius:99px;font-size:14.5px;font-weight:600;
+  background:linear-gradient(90deg,#ff8a2b2e,#8b5cf633);border:1px solid #ff8a2b77;box-shadow:0 0 24px #ff8a2b33}
+.pill b{color:#ffc58a}
+
+/* ---------- телефон (3D) ---------- */
+.p3d-wrap{position:absolute;left:121px;top:196px;width:298px;height:620px;perspective:1500px;z-index:10}
+.phone3d{position:absolute;inset:0;transform-style:preserve-3d}
+.face{position:absolute;inset:0;border-radius:50px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.front{transform:translateZ(5px);background:linear-gradient(160deg,#f59a5a,#d9611f 50%,#b9501a);padding:3px;box-shadow:0 40px 80px -30px #000}
+.bezel{width:100%;height:100%;border-radius:47px;background:#040306;padding:6px}
+.screen{position:relative;width:100%;height:100%;border-radius:41px;overflow:hidden;background:#000}
+.island{position:absolute;top:9px;left:50%;width:82px;height:24px;margin-left:-41px;border-radius:14px;background:#000;z-index:60}
+.glare{position:absolute;inset:0;z-index:59;pointer-events:none;background:linear-gradient(115deg,transparent 30%,#ffffff22 45%,transparent 60%);opacity:0}
+.side{position:absolute;top:44px;width:10px;height:532px;border-radius:5px;transform:rotateY(90deg);background:linear-gradient(#f39456,#cf5a1d 50%,#a9471a)}
+.side.l{left:-5px}.side.r{left:293px}
+
+.back{transform:rotateY(180deg) translateZ(5px);overflow:hidden;
+  background:radial-gradient(120% 55% at 25% 0%,#ffae74,transparent 60%),linear-gradient(165deg,#f2853f,#e2672a 45%,#c4501b);
+  box-shadow:inset 0 0 0 2px #ffc39255,inset 0 0 0 4px #b54914,inset 0 -30px 60px #8a330f44}
+.plateau{position:absolute;left:9px;right:9px;top:9px;height:134px;border-radius:42px;
+  background:linear-gradient(172deg,#f99a5a,#e06a2a 65%,#cf5d22);box-shadow:0 7px 16px #6b240a77,inset 0 2px 1px #ffd2ad99,inset 0 -3px 5px #9c3a1066}
+.lens{position:absolute;width:58px;height:58px;border-radius:50%;
+  background:radial-gradient(circle,#04050a 0 28%,#16203a 29% 37%,#05060a 38% 52%,#3d424d 53% 57%,#17181e 58% 68%,#ef8a4a 69% 78%,#b4511b 79%);box-shadow:0 3px 6px #0009}
+.lens::after{content:"";position:absolute;left:31%;top:29%;width:15%;height:11%;border-radius:50%;background:#8da2ff66;filter:blur(1px)}
+.l1{left:14px;top:9px}.l2{left:14px;top:68px}.l3{left:72px;top:38px}
+.flash{position:absolute;right:30px;top:24px;width:19px;height:19px;border-radius:50%;background:radial-gradient(#fffbe9,#efe1b2 55%,#9c8a5b 70%,#d06a2c 72%)}
+.lidar{position:absolute;right:30px;top:92px;width:19px;height:19px;border-radius:50%;background:radial-gradient(#2a2d36,#0b0c10 60%,#d06a2c 72%)}
+.mic{position:absolute;right:38px;top:65px;width:5px;height:5px;border-radius:50%;background:#7a2c0c}
+.panel{position:absolute;left:9px;right:9px;top:152px;bottom:9px;border-radius:42px;
+  background:linear-gradient(170deg,#ef7e3a,#dc632a 60%,#c95520);box-shadow:inset 0 1px 0 #ffc59a55,inset 0 0 0 1px #b04a1a66}
+.logo{position:absolute;left:50%;top:342px;width:84px;margin-left:-42px;animation:glow 2.2s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 4px #ffcf9a88)}50%{filter:drop-shadow(0 0 16px #ffe1b8)}}
+.backlabel{position:absolute;left:0;right:0;bottom:44px;text-align:center;font-size:9px;letter-spacing:.2em;color:#8f3c13aa;font-weight:700}
+
+/* ---------- приложение внутри экрана (макет 360×774, масштаб 0.7778) ---------- */
+.inner{position:absolute;left:0;top:0;width:360px;height:774px;transform:scale(.77778);transform-origin:0 0;font-size:15px;line-height:1.35;
+  --text:#efe6f5;--muted:#a294b3;--surface:#1c122ab8;--line:#e9d5ff1a;--hover:#ffffff0f}
+.inner.pumpkin{--app-bg:radial-gradient(120% 70% at 85% -10%,#ff8a2b33,transparent 60%),radial-gradient(90% 60% at -10% 110%,#6d28d955,transparent 60%),linear-gradient(#140b1f,#0b0712);--accent:#ff8a2b;--accent2:#ff6a3d;--on-accent:#2a1200}
+.inner.potion{--app-bg:radial-gradient(120% 70% at 85% -10%,#9be15d2b,transparent 60%),radial-gradient(90% 60% at -10% 110%,#7c3aed4d,transparent 60%),linear-gradient(#0f1513,#080b0a);--accent:#9be15d;--accent2:#5fc46a;--on-accent:#102a06}
+.inner.plain{--app-bg:radial-gradient(120% 70% at 85% -10%,#255c4955,transparent 60%),linear-gradient(#0e1d1b,#0b1716);--accent:#83d9b5;--accent2:#5eead4;--on-accent:#12382c;--surface:#152620b8;--line:#b2e7cc17}
+.inner.plain .spooky{display:none}
+.scr{position:absolute;inset:0;background:var(--app-bg);overflow:hidden;color:var(--text)}
+.content{position:absolute;inset:0;display:flex;flex-direction:column;z-index:3}
+.glass{background:var(--surface);border:1px solid var(--line)}
+.status{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 6px;font-size:14px;font-weight:600;height:46px;flex:none}
+.status svg{height:12px;fill:currentColor}
+.s-moon{position:absolute;top:56px;right:-34px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#ffe7b8,#ffb34d 55%,#ff8a2b00 72%);opacity:.2;z-index:0}
+.s-fog{position:absolute;left:-40%;right:-40%;bottom:0;height:45%;z-index:1;background:radial-gradient(40% 50% at 30% 80%,#c4b5fd1c,transparent 70%),radial-gradient(35% 45% at 70% 90%,#ffffff12,transparent 70%);animation:drift 10s ease-in-out infinite alternate}
+.ibat{position:absolute;left:-40px;width:26px;z-index:4;opacity:.85;animation:ifly 7s linear infinite}
+.ibat svg{width:100%;fill:#05030a;filter:drop-shadow(0 0 6px #ff8a2b77);animation:flap .26s ease-in-out infinite alternate}
+@keyframes ifly{0%{transform:translate(0,0)}50%{transform:translate(200px,-30px)}100%{transform:translate(440px,10px)}}
+
+.side-header{padding:6px 18px 4px;display:flex;justify-content:space-between;align-items:center}
+.side-header h2{font-size:28px;letter-spacing:-.03em;font-weight:800}
+.side-header h2 i{font-style:normal;color:var(--accent)}
+.side-header small{display:block;color:var(--muted);font-size:12.5px}
+.icons{display:flex;gap:8px}
+.ib{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:15px}
+.stories{display:flex;gap:12px;padding:10px 16px}
+.story{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);width:58px;flex:none}
+.ring{width:58px;height:58px;border-radius:50%;padding:2.5px;background:conic-gradient(var(--accent),#c084fc,var(--accent))}
+.ring>div{width:100%;height:100%;border-radius:50%;border:2.5px solid #140b1f;display:grid;place-items:center;font-size:22px;font-weight:700;color:#fff}
+.story.hw .ring{background:conic-gradient(#ff8a2b,#ffd166,#9be15d,#8b5cf6,#ff8a2b);animation:spin 5s linear infinite}
+.story.hw .ring>div{background:#1b0f05;animation:spin 5s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.banner{margin:4px 14px 8px;border-radius:20px;padding:13px 14px;display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,#ff8a2b38,#6d28d94d);border:1px solid #ff8a2b55}
+.banner .p{font-size:36px;filter:drop-shadow(0 0 12px #ff8a2b99);animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px) rotate(-6deg)}}
+.banner b{display:block;font-size:14.5px}
+.banner span{font-size:12px;color:#e9d5ffcc}
+.banner .x{margin-left:auto;align-self:flex-start;color:var(--muted);font-size:13px}
+.list{flex:1;overflow:hidden;padding:0 8px}
+.item{display:flex;gap:12px;padding:9px 10px;border-radius:16px;align-items:center}
+.av{width:50px;height:50px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;color:#fff;position:relative;font-size:17px}
+.av .hat{position:absolute;top:-15px;left:50%;transform:translateX(-50%) rotate(-8deg);font-size:21px}
+.meta{flex:1;min-width:0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.name{font-weight:600;font-size:15.5px;white-space:nowrap}
+.time{font-size:11.5px;color:var(--muted)}
+.prev{font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unread{min-width:21px;height:21px;border-radius:11px;background:var(--accent);color:var(--on-accent);font-size:11.5px;font-weight:700;display:grid;place-items:center;padding:0 6px}
+.vip{font-size:10px;font-weight:800;padding:1px 5px;border-radius:6px;background:linear-gradient(90deg,var(--accent),#c084fc);color:#1b0a00;margin-left:5px;vertical-align:2px}
+.tabbar{margin:8px 12px 14px;border-radius:28px;display:flex;justify-content:space-around;padding:8px 6px;flex:none}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:var(--muted);padding:4px 10px;border-radius:16px}
+.tab .i{font-size:19px;line-height:1.1}
+.tab.on{color:var(--accent);background:var(--hover)}
+
+.dim{position:absolute;inset:0;background:#05020bcc;z-index:6;opacity:0}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;border-radius:32px 32px 40px 40px;padding:10px 20px 22px;display:flex;flex-direction:column;background:#1b1027f2;border:1px solid #ffffff14;transform:translateY(105%)}
+.grab{width:40px;height:5px;border-radius:3px;background:#ffffff33;align-self:center;margin-bottom:8px}
+.hero{text-align:center;padding:0 0 8px}
+.hero .big{font-size:50px;filter:drop-shadow(0 0 22px #ff8a2bbb);animation:bob 2.4s ease-in-out infinite;display:inline-block}
+.hero h3{font-size:22px;margin-top:2px;letter-spacing:-.02em}
+.hero p{font-size:13px;color:#ffc58a;font-weight:600;margin-top:2px}
+.feat{display:flex;gap:12px;padding:9px 2px;align-items:flex-start;border-top:1px solid var(--line)}
+.feat .fi{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none;background:#ff8a2b22}
+.feat b{font-size:14px;display:block}
+.feat span{font-size:12px;line-height:1.35;color:var(--muted)}
+.until{font-size:11.5px;color:var(--pumpkin2);text-align:center;margin:8px 0}
+.btn{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:99px;padding:10px 16px;display:inline-block;text-align:center}
+.btn.p{background:var(--pumpkin);color:#2a1200}
+.btn.s{background:#ffffff16;color:var(--text);border:1px solid var(--line)}
+.btn.wide{width:100%;padding:13px}
+.later{text-align:center;color:var(--muted);font-size:14px;margin-top:10px}
+
+/* чат */
+.chat-head{display:flex;align-items:center;gap:10px;padding:8px 14px;margin:0 10px;border-radius:24px;flex:none}
+.bk .chev{display:block;width:12px;height:20px}
+.chat-head .bk{color:var(--accent);display:grid;place-items:center;width:16px}
+.chat-head .av{width:40px;height:40px;font-size:15px}
+.chat-head b{display:block;font-size:15.5px}
+.chat-head small{color:var(--muted);font-size:12.5px}
+.chat-head small.live{color:#9be15d}
+.msgs{flex:1;padding:12px 12px 6px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-height:0}
+.rv{flex:none;overflow:hidden;display:flex;flex-direction:column}
+.day{align-self:center;font-size:11.5px;color:var(--muted);padding:3px 11px;border-radius:99px;margin:4px 0 8px}
+.m{max-width:80%;padding:8px 12px 7px;border-radius:19px;font-size:15px;position:relative;margin-bottom:8px}
+.m .t{font-size:10.5px;color:var(--muted);float:right;margin:7px 0 -3px 10px}
+.m.in{align-self:flex-start;border-bottom-left-radius:6px}
+.m.out{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--on-accent);border-bottom-right-radius:6px}
+.m.out .t{color:inherit;opacity:.7}
+.m.has-react{margin-bottom:20px}
+.react{position:absolute;bottom:-15px;right:12px;font-size:13px;padding:1px 7px;border-radius:99px;background:#2a1838;border:1px solid var(--line);color:var(--text)}
+.ghostmsg{border:1.6px dashed #ffffffaa;margin-bottom:2px;animation:haunt 2.6s ease-in-out infinite}
+@keyframes haunt{50%{opacity:.72}}
+.ghost-line{align-self:flex-end;font-size:11.5px;color:#d8c8ff;padding:3px 6px 8px;display:flex;gap:6px;align-items:center}
+.ghost-line .cd{font-variant-numeric:tabular-nums;font-weight:700;color:#fff}
+.ghost-fly{position:absolute;font-size:30px;z-index:9;opacity:0;pointer-events:none}
+.treat{align-self:flex-start;width:84%;display:grid;margin-bottom:8px}
+.treat>div{grid-area:1/1;border-radius:20px;padding:13px 14px;text-align:center;background:linear-gradient(160deg,#ff8a2b26,#6d28d940);border:1px solid #ff8a2b55}
+.treat .tt{font-weight:700;font-size:15px}
+.treat small{display:block;color:var(--muted);font-size:12px;margin:4px 0 10px}
+.treat .btns{display:flex;gap:8px;justify-content:center}
+.treat .res{display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;box-shadow:0 0 30px #ff8a2b55}
+.treat .res .em{font-size:44px;line-height:1.1;display:inline-block;animation:bob 1.6s ease-in-out infinite}
+.treat .res b{font-size:17px}
+.treat .res small{margin:2px 0 0}
+.sticker-big{align-self:flex-end;width:132px;height:132px;margin:0 2px 6px;filter:drop-shadow(0 8px 18px #ff8a2b55)}
+.composer{margin:6px 10px 14px;border-radius:28px;display:flex;align-items:center;gap:10px;padding:7px 7px 7px 14px;flex:none;position:relative}
+.composer .ic{font-size:19px;line-height:1;font-family:"Noto Color Emoji",sans-serif}
+.composer .in{flex:1;color:var(--muted);font-size:15px;white-space:nowrap;overflow:hidden}
+.composer .in.typed{color:var(--text)}
+.caret{display:inline-block;width:1.5px;height:17px;background:var(--accent);vertical-align:-3px;margin-left:1px}
+.gbtn{filter:grayscale(1);opacity:.6}
+.gbtn.on{filter:none;opacity:1}
+.composer.ghost-mode{box-shadow:0 0 0 1.5px #c4b5fdaa,0 0 26px #8b5cf666}
+.send{width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:800;font-size:16px;flex:none}
+.tip{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);white-space:nowrap;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:12px;background:#2a1b3d;border:1px solid #c4b5fd66;color:#efe6ff;opacity:0;z-index:8}
+.stkpanel{position:absolute;left:0;right:0;bottom:0;height:356px;z-index:8;border-radius:28px 28px 40px 40px;background:#1a1026f5;border-top:1px solid #ffffff1a;transform:translateY(105%);padding:10px 14px}
+.stk-tabs{display:flex;gap:8px;align-items:center;margin:4px 2px 10px}
+.stk-tabs span{font-size:13px;padding:6px 12px;border-radius:99px;color:var(--muted);background:#ffffff0d}
+.stk-tabs span.on{background:var(--accent);color:var(--on-accent);font-weight:700}
+.stk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stk-cell{height:84px;border-radius:16px;display:grid;place-items:center}
+.stk-cell.hit{background:#ffffff14}
+.stk{width:72px;height:72px}
+.stk svg,.sticker-big svg{width:100%;height:100%;display:block}
+.attach-burst{position:absolute;inset:0;z-index:9;pointer-events:none}
+.attach-burst span{position:absolute;font-size:26px;font-family:"Noto Color Emoji",sans-serif}
+
+/* настройки */
+.set-head{display:flex;align-items:center;gap:8px;padding:2px 16px 4px}
+.set-head .bk{color:var(--accent);display:grid;place-items:center;width:16px}
+.set-head h2{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.sec{padding:0 16px}
+.sec h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:14px 4px 8px}
+.prof{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:20px}
+.prof .av{width:62px;height:62px;background:#7c3aed;font-size:22px;transition:none}
+.prof b{display:block;font-size:16px}
+.prof small{color:var(--muted);font-size:12.5px}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.th{border-radius:16px;height:92px;position:relative;overflow:hidden;border:2.5px solid transparent;display:flex;align-items:flex-end;padding:7px 8px;font-size:12px;font-weight:700;color:#fff}
+.th.sel{border-color:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
+.th .new{position:absolute;top:6px;right:6px;font-size:9px;font-weight:800;background:#fff;color:#1b0a00;padding:1px 5px;border-radius:5px}
+.th .ok{position:absolute;top:6px;left:6px;width:18px;height:18px;border-radius:50%;background:#fff;color:#111;font-size:11px;display:grid;place-items:center;opacity:0}
+.th.sel .ok{opacity:1}
+.card{border-radius:18px;padding:2px 0}
+.opt{display:flex;align-items:center;gap:12px;padding:11px 14px;font-size:14.5px}
+.opt+.opt{border-top:1px solid var(--line)}
+.opt .oi{font-size:18px;width:22px;text-align:center;font-family:"Noto Color Emoji",sans-serif}
+.opt .d{flex:1}
+.opt small{display:block;font-size:11.5px;color:var(--muted)}
+.sw{width:44px;height:26px;border-radius:13px;background:var(--accent);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:21px;width:20px;height:20px;border-radius:50%;background:#fff}
+.frames{display:flex;justify-content:space-between;padding:6px 6px 2px}
+.fr{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);padding:6px 4px;border-radius:14px}
+.fr.sel{background:#ffffff12;color:var(--text)}
+.fr .av{width:56px;height:56px;background:#7c3aed}
+.f-pumpkin{box-shadow:0 0 0 3px #ff8a2b,0 0 18px #ff8a2baa}
+.f-slime{box-shadow:0 0 0 3px #9be15d,0 0 18px #9be15d99}
+.f-ghost{box-shadow:0 0 0 3px #c4b5fd,0 0 20px #8b5cf6cc}
+.f-witch{box-shadow:0 0 0 3px #8b5cf6,0 0 18px #8b5cf699}
+.hat{display:none}
+.f-witch .hat,.item .hat{display:block}
+
+/* общий слой экрана */
+.tap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:#ffffff55;border:2px solid #ffffffcc;box-shadow:0 0 18px #fff8;z-index:50;opacity:0;pointer-events:none}
+.flash{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:var(--accent);z-index:49;opacity:0;pointer-events:none}
+.burst{position:absolute;inset:0;z-index:48;pointer-events:none;overflow:hidden}
+.burst span{position:absolute;left:0;top:0;font-size:28px;opacity:0;font-family:"Noto Color Emoji",sans-serif}
+
+/* ---------- подписи ---------- */
+.caps{position:absolute;left:24px;right:24px;top:832px;height:110px;z-index:20}
+.cap{position:absolute;inset:0;text-align:center;opacity:0}
+.cap .n{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--pumpkin);padding:3px 10px;border-radius:99px;border:1px solid #ff8a2b66;background:#ff8a2b1a}
+.cap h2{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:8px}
+.cap p{font-size:14.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.cap.final h2{font-size:28px;background:linear-gradient(180deg,#fff7ec,#ffb15f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cap.final p{color:#ffd2a6;font-weight:600}
+.dots{position:absolute;left:0;right:0;top:812px;display:flex;justify-content:center;gap:6px;z-index:20;opacity:0}
+.dots i{width:6px;height:6px;border-radius:3px;background:#ffffff33}
+.dots i.on{width:20px;background:var(--pumpkin)}
+.fade{position:absolute;inset:0;background:#000;z-index:100;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="viewport"><div class="stage" id="stage">
+  <div id="stars"></div>
+  <div class="moon"></div>
+  <div class="fog"></div><div class="fog two"></div>
+  <svg class="web" viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width=".7"><path d="M100 100L0 30M100 100L20 0M100 100L60 0M100 100L100 0M100 100L0 75"/><path d="M100 78Q88 82 84 90 80 97 78 100M100 56Q78 62 70 76 62 88 58 100M100 34Q70 42 56 62 44 80 38 100M100 14Q60 24 42 48 26 72 18 100"/></svg>
+  <div class="spider"><span class="emo">🕷️</span></div>
+  <div class="sbat" style="top:150px;animation-delay:-3s"><svg viewBox="0 0 64 28"><path id="batp" d="M32 8c2-4 4-5 5-3l1 4c4-6 12-9 26-5-6 2-9 6-9 12-4-3-8-3-10 1-2-3-5-3-7 1-1-2-3-3-6-3s-5 1-6 3c-2-4-5-4-7-1-2-4-6-4-10-1 0-6-3-10-9-12 14-4 22-1 26 5l1-4c1-2 3-1 5 3z"/></svg></div>
+  <div class="sbat" style="top:470px;width:24px;animation-duration:14s;animation-delay:-9s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+  <div class="sbat" style="top:700px;width:28px;animation-duration:12s;animation-delay:-1s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+  <div class="sbat" style="top:300px;width:18px;animation-duration:16s;animation-delay:-12s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+
+  <header class="hdr">
+    <div class="brand" id="hBrand">CIPHERION<span>.</span></div>
+    <h1 id="hTitle">Хэллоуин-обновление</h1>
+    <div class="pill" id="hPill"><span class="emo">🎃</span><span>Событие <b>с 1 ноября по 30 ноября</b> включительно</span></div>
+  </header>
+
+  <div class="p3d-wrap"><div class="phone3d" id="phone">
+    <div class="side l"></div><div class="side r"></div>
+    <div class="face back" id="back">
+      <div class="plateau">
+        <div class="lens l1"></div><div class="lens l2"></div><div class="lens l3"></div>
+        <div class="flash"></div><div class="lidar"></div><div class="mic"></div>
+      </div>
+      <div class="panel"></div>
+      <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="pm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1df"/><stop offset=".35" stop-color="#ffc58f"/><stop offset=".55" stop-color="#e2762f"/><stop offset=".8" stop-color="#ffd7b0"/><stop offset="1" stop-color="#f19a58"/></linearGradient>
+          <linearGradient id="ps" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1df"/><stop offset="1" stop-color="#d9772f"/></linearGradient>
+        </defs>
+        <path d="M49 26c-1-8 2-14 9-17l3 4c-5 3-7 7-6 13z" fill="url(#ps)"/>
+        <g fill="url(#pm)" stroke="#b7531c" stroke-width="1.2">
+          <ellipse cx="25" cy="60" rx="17" ry="25"/><ellipse cx="75" cy="60" rx="17" ry="25"/>
+          <ellipse cx="37" cy="60" rx="19" ry="29"/><ellipse cx="63" cy="60" rx="19" ry="29"/>
+          <ellipse cx="50" cy="59" rx="18" ry="31"/>
+        </g>
+        <g fill="#8a3412" opacity=".9">
+          <path d="M30 52l9-9 5 11z"/><path d="M70 52l-9-9-5 11z"/><path d="M50 58l4 7h-8z"/>
+          <path d="M27 69q23 16 46 0l-4 9-5-4-5 6-5-5-5 5-5-6-5 4z"/>
+        </g>
+      </svg>
+      <div class="backlabel">CIPHERION · HALLOWEEN</div>
+    </div>
+    <div class="face front"><div class="bezel"><div class="screen">
+      <div class="island"></div><div class="glare" id="glare"></div>
+      <div class="inner plain" id="inner">
+
+        <!-- список чатов + «Что нового» -->
+        <div class="scr" id="sList">
+          <div class="s-moon spooky"></div><div class="s-fog spooky"></div>
+          <div class="ibat spooky" style="top:110px;animation-delay:-2s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+          <div class="ibat spooky" style="top:250px;width:18px;animation-duration:9s;animation-delay:-6s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+          <div class="content">
+            <div class="status"><span>21:13</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="side-header">
+              <div><h2>Cipherion<i>.</i></h2><small><span class="spooky">Жуткие разговоры, в одном месте <span class="emo">🦇</span></span><span class="plain-only">Ваши разговоры, в одном месте</span></small></div>
+              <div class="icons"><div class="ib glass">🔍</div><div class="ib glass">✏️</div></div>
+            </div>
+            <div class="stories">
+              <div class="story hw spooky"><div class="ring"><div>🎃</div></div>Хэллоуин</div>
+              <div class="story"><div class="ring"><div style="background:#7c3aed">А</div></div>Алиса</div>
+              <div class="story"><div class="ring"><div style="background:#0f766e">М</div></div>Макс</div>
+              <div class="story"><div class="ring"><div style="background:#be185d">К</div></div>Катя</div>
+              <div class="story"><div class="ring"><div style="background:#b45309">Д</div></div>Дима</div>
+            </div>
+            <div class="banner spooky"><div class="p emo">🎃</div><div><b>Тыквенный ноябрь</b><span>Темы, призрачные сообщения и игра «Сладость или гадость»</span></div><div class="x">✕</div></div>
+            <div class="list">
+              <div class="item" id="rowAlice"><div class="av" style="background:#7c3aed">А<span class="hat spooky emo">🧙</span></div><div class="meta"><div class="row"><span class="name">Алиса<span class="vip">VIP</span></span><span class="time">21:12</span></div><div class="row"><span class="prev"><span class="spooky emo">👻 </span>Идёшь на вечеринку?</span><span class="unread">2</span></div></div></div>
+              <div class="item"><div class="av" style="background:#0f766e">М</div><div class="meta"><div class="row"><span class="name">Макс</span><span class="time">20:47</span></div><div class="row"><span class="prev"><span class="emo">🎃</span> Стикер</span></div></div></div>
+              <div class="item"><div class="av emo" style="background:#b45309">🏚️</div><div class="meta"><div class="row"><span class="name">Вечеринка костюмов</span><span class="time">19:30</span></div><div class="row"><span class="prev">Катя: костюмы обязательны!</span><span class="unread">14</span></div></div></div>
+              <div class="item"><div class="av" style="background:#be185d">К</div><div class="meta"><div class="row"><span class="name">Катя</span><span class="time">18:02</span></div><div class="row"><span class="prev">Сладость или гадость? <span class="emo">🍬</span></span></div></div></div>
+              <div class="item"><div class="av" style="background:#334155">★</div><div class="meta"><div class="row"><span class="name">Избранное</span><span class="time">пн</span></div><div class="row"><span class="prev">Список костюмов</span></div></div></div>
+            </div>
+            <nav class="tabbar glass">
+              <div class="tab on"><span class="i">💬</span>Чаты</div>
+              <div class="tab"><span class="i">✨</span>AI</div>
+              <div class="tab"><span class="i">📞</span>Звонки</div>
+              <div class="tab"><span class="i">⚙️</span>Настройки</div>
+            </nav>
+          </div>
+          <div class="dim" id="dim"></div>
+          <div class="sheet" id="sheet">
+            <div class="grab"></div>
+            <div class="hero"><div class="big emo">🎃</div><h3>Хэллоуин в Cipherion</h3><p>Событие с 1 ноября по 30 ноября включительно</p></div>
+            <div class="feat"><div class="fi emo">🌙</div><div><b>Темы «Ночь тыкв» и «Зелье»</b><span>Луна, туман и летучие мыши. Выключается в «Оформлении».</span></div></div>
+            <div class="feat"><div class="fi emo">👻</div><div><b>Призрачные сообщения</b><span>Исчезают через минуту после прочтения.</span></div></div>
+            <div class="feat"><div class="fi emo">🍬</div><div><b>Игра «Сладость или гадость»</b><span>Мини-игра в личных чатах и группах — в меню 📎.</span></div></div>
+            <div class="feat"><div class="fi emo">🦇</div><div><b>12 анимированных стикеров</b><span>Набор «Хэллоуин» появится у всех.</span></div></div>
+            <div class="feat"><div class="fi emo">🧙</div><div><b>Рамки для аватара</b><span>Тыква, слизь, призрак. Ведьма — для VIP.</span></div></div>
+            <p class="until">Тема выключится сама 1 декабря</p>
+            <div class="btn p wide" id="btnEnable">Включить тему</div>
+            <div class="later">Позже</div>
+          </div>
+        </div>
+
+        <!-- чат -->
+        <div class="scr" id="sChat" style="transform:translateX(105%)">
+          <div class="s-fog spooky"></div>
+          <div class="ibat spooky" style="top:170px;width:20px;animation-delay:-4s"><svg viewBox="0 0 64 28"><use href="#batp"/></svg></div>
+          <div class="content">
+            <div class="status"><span>21:14</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="chat-head glass"><span class="bk"><svg class="chev" viewBox="0 0 12 20"><path d="M10 2L3 10l7 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="av" style="background:#7c3aed">А</div><div><b>Алиса <span class="vip">VIP</span></b><small id="chatStatus">в сети</small></div></div>
+            <div class="msgs">
+              <div class="day glass">Вчера</div>
+              <div class="m in glass">Видела? Хэллоуин в Cipherion на целый месяц <span class="emo">🎃</span><span class="t">22:40</span></div>
+              <div class="m out">Ага, до 30 ноября включительно!<span class="t">22:41 ✓✓</span></div>
+              <div class="m in glass">Тогда устраиваем вечеринку <span class="emo">🦇</span><span class="t">22:41</span></div>
+              <div class="day glass">Сегодня</div>
+              <div class="m in glass">Идёшь на вечеринку в субботу? <span class="emo">🕸️</span><span class="t">21:12</span></div>
+              <div class="m out has-react">Конечно! Костюм уже готов<span class="t">21:13 ✓✓</span><span class="react emo">🎃 2</span></div>
+              <div class="rv" id="ghostWrap" style="height:0">
+                <div class="m out ghostmsg" id="ghostMsg">Угадай, кем я буду… <span class="emo">🎭</span><span class="t">21:14 <span id="ghostTicks">✓</span></span></div>
+                <div class="ghost-line" id="ghostLine"><span class="emo">👻</span><span id="ghostText">Исчезнет через минуту после прочтения</span></div>
+              </div>
+              <div class="rv" id="gameWrap" style="height:0">
+                <div class="treat" id="treat">
+                  <div class="front-c" id="treatFront"><div class="tt">🍬 Сладость или гадость?</div><small>Выберите — и узнаете, что выпало</small><div class="btns"><span class="btn p" id="treatYes">Сладость</span><span class="btn s">Гадость</span></div></div>
+                  <div class="res" id="treatRes"><span class="em emo">🍫</span><b>Шоколадка!</b><small>Вы · выбор «Сладость»</small></div>
+                </div>
+              </div>
+              <div class="rv" id="stickerWrap" style="height:0"><div class="sticker-big" id="stickerBig"></div></div>
+            </div>
+            <div class="composer glass" id="composer">
+              <span class="ic">📎</span><span class="in" id="inputText">Сообщение…</span>
+              <span class="ic gbtn" id="ghostBtn">👻</span><span class="ic" id="stkBtn">🎃</span><span class="send" id="sendBtn">➤</span>
+              <div class="tip" id="tip"><span class="emo">👻</span> Призрачный режим включён</div>
+            </div>
+          </div>
+          <div class="ghost-fly emo" id="ghostFly">👻</div>
+          <div class="stkpanel" id="stkPanel">
+            <div class="grab" style="margin:0 auto 6px"></div>
+            <div class="stk-tabs"><span class="on">🎃 Хэллоуин</span><span>Сифа</span><span>Эстетика</span><span>⭐</span></div>
+            <div class="stk-grid" id="stkGrid"></div>
+          </div>
+        </div>
+
+        <!-- оформление -->
+        <div class="scr" id="sSet" style="transform:translateX(105%)">
+          <div class="s-fog spooky"></div>
+          <div class="content">
+            <div class="status"><span>21:15</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="set-head"><span class="bk"><svg class="chev" viewBox="0 0 12 20"><path d="M10 2L3 10l7 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2>Оформление</h2></div>
+            <div class="sec">
+              <div class="prof glass"><div class="av f-pumpkin" id="profAv">Я<span class="hat emo">🧙</span></div><div><b>Вы <span class="vip">VIP</span></b><small id="profFrame">Рамка «Тыква»</small></div></div>
+              <h4>Тема</h4>
+              <div class="themes">
+                <div class="th" id="thPumpkin" style="background:linear-gradient(160deg,#ff8a2b,#3b0764)"><span class="ok">✓</span><span class="new">NEW</span>Ночь тыкв</div>
+                <div class="th" id="thPotion" style="background:linear-gradient(160deg,#a6e85f,#052e16)"><span class="ok">✓</span><span class="new">NEW</span>Зелье</div>
+                <div class="th" style="background:linear-gradient(160deg,#83d9b5,#0b1716)"><span class="ok">✓</span>Изумруд</div>
+              </div>
+              <h4><span class="emo">🎃</span> Хэллоуин</h4>
+              <div class="card glass">
+                <div class="opt"><span class="oi">🦇</span><div class="d">Луна, туман и мыши<small>Оформление на фоне и баннер</small></div><span class="sw"></span></div>
+                <div class="opt"><span class="oi">👻</span><div class="d">Призрачные сообщения<small>Разрешить отправлять мне</small></div><span class="sw"></span></div>
+              </div>
+              <h4>Рамка аватара</h4>
+              <div class="frames">
+                <div class="fr" id="frPumpkin"><div class="av f-pumpkin">Я</div>Тыква</div>
+                <div class="fr" id="frSlime"><div class="av f-slime">Я</div>Слизь</div>
+                <div class="fr" id="frGhost"><div class="av f-ghost">Я</div>Призрак</div>
+                <div class="fr" id="frWitch"><div class="av f-witch">Я<span class="hat emo">🧙</span></div>Ведьма <span class="vip" style="margin:0">VIP</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flash" id="flash"></div>
+        <div class="burst" id="burst"></div>
+        <div class="tap" id="tap"></div>
+      </div>
+    </div></div></div>
+  </div></div>
+
+  <div class="dots" id="dots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="caps">
+    <div class="cap" data-a="1.3" data-b="5.0"><span class="n">НОЯБРЬ В CIPHERION</span><h2>Тыквы, призраки и сладости</h2><p>Повернём телефон — и посмотрим, что внутри</p></div>
+    <div class="cap" data-a="5.3" data-b="9.3" data-dot="0"><span class="n">01</span><h2>Что нового</h2><p>Все новинки — в одном окне при первом входе</p></div>
+    <div class="cap" data-a="9.3" data-b="13.9" data-dot="1"><span class="n">02</span><h2>Тема «Ночь тыкв»</h2><p>Луна, туман, летучие мыши и тыквенный баннер</p></div>
+    <div class="cap" data-a="13.9" data-b="20.8" data-dot="2"><span class="n">03</span><h2>Призрачные сообщения</h2><p>Исчезают через минуту после прочтения и не пересылаются</p></div>
+    <div class="cap" data-a="20.8" data-b="26.2" data-dot="3"><span class="n">04</span><h2>«Сладость или гадость»</h2><p>Мини-игра в меню 📎 — что выпадет, решает случай</p></div>
+    <div class="cap" data-a="26.2" data-b="30.6" data-dot="4"><span class="n">05</span><h2>12 анимированных стикеров</h2><p>Набор «Хэллоуин» появится у всех</p></div>
+    <div class="cap" data-a="30.6" data-b="36.2" data-dot="5"><span class="n">06</span><h2>Темы и рамки аватара</h2><p>«Ночь тыкв», «Зелье» и рамка «Ведьма» для VIP</p></div>
+    <div class="cap final" data-a="36.6" data-b="99"><h2>Ждём вас в Cipherion</h2><p>Событие с 1 ноября по 30 ноября включительно</p></div>
+  </div>
+  <div class="fade" id="fade"></div>
+</div></div>
+
+<script>
+const DURATION=41;
+const $=id=>document.getElementById(id);
+const clamp=x=>x<0?0:x>1?1:x;
+const E={lin:p=>p,out:p=>1-Math.pow(1-p,3),inOut:p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2,
+  back:p=>{const c=1.6;return 1+(c+1)*Math.pow(p-1,3)+c*Math.pow(p-1,2)}};
+const P=(t,a,d,e=E.out)=>e(clamp((t-a)/d));
+// окно видимости: плавно появляется в a, исчезает к b
+const win=(t,a,b,fi=.4,fo=.3)=>Math.min(P(t,a,fi),1-P(t,b-fo,fo,E.lin));
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+
+// звёзды
+(()=>{let h='';for(let i=0;i<70;i++)h+=`<i class="star" style="left:${(rnd()*540).toFixed(0)}px;top:${(rnd()*720).toFixed(0)}px;opacity:${(.3+rnd()*.6).toFixed(2)};animation-delay:-${(rnd()*3).toFixed(2)}s;transform:scale(${(.6+rnd()).toFixed(2)})"></i>`;$('stars').innerHTML=h;})();
+
+// частицы «Сладость!»
+const CANDY=['🍬','🍭','🍫','🧁','🍪'];
+const parts=Array.from({length:24},(_,i)=>({e:CANDY[i%5],a:-Math.PI/2+(rnd()-.5)*2.2,v:330+rnd()*260,r:(rnd()-.5)*540,s:.8+rnd()*.6,d:rnd()*.25}));
+$('burst').innerHTML=parts.map(p=>`<span>${p.e}</span>`).join('');
+
+// стикеры: анимированные SVG из public/stickers-v5 в shadow DOM, чтобы их стили не смешивались
+const shadows=[];
+async function loadStickers(){
+  const grid=$('stkGrid');
+  grid.innerHTML=Array.from({length:12},(_,i)=>`<div class="stk-cell" id="stk${i}"><div class="stk"></div></div>`).join('');
+  const base='../../../public/stickers-v5/';
+  const svgs=await Promise.all(Array.from({length:12},(_,i)=>fetch(`${base}hw-${String(i).padStart(2,'0')}.svg`).then(r=>r.ok?r.text():'').catch(()=>'')));
+  const put=(host,svg)=>{const root=host.attachShadow({mode:'open'});root.innerHTML='<style>:host{display:block}svg{width:100%;height:100%;display:block}</style>'+svg;shadows.push(root);};
+  [...grid.querySelectorAll('.stk')].forEach((h,i)=>put(h,svgs[i]));
+  put($('stickerBig'),svgs[0]);
+}
+
+// центр элемента в координатах .inner (без учёта transform — для пальца)
+function centerOf(el){const inner=$('inner');let x=el.offsetWidth/2,y=el.offsetHeight/2;let n=el;while(n&&n!==inner){x+=n.offsetLeft;y+=n.offsetTop;n=n.offsetParent;}return[x,y];}
+
+const TAPS=[[8.6,'btnEnable'],[13.3,'rowAlice'],[14.7,'ghostBtn'],[16.5,'sendBtn'],[23.4,'treatYes'],[26.5,'stkBtn'],[28.2,'stk0'],[32.0,'thPotion'],[33.2,'frGhost'],[34.0,'frWitch'],[35.0,'thPumpkin']];
+const SEND_TEXT=Array.from('Угадай, кем я буду… 🎭');
+let hRv={};
+
+function setRv(id,p){const el=$(id);if(hRv[id]==null){el.style.height='auto';hRv[id]=el.scrollHeight;}el.style.height=(hRv[id]*p).toFixed(2)+'px';}
+
+function render(t){
+  // 1. перемотать все CSS-анимации (в документе и в стикерах)
+  for(const a of [...document.getAnimations(),...shadows.flatMap(s=>s.getAnimations())]){a.pause();a.currentTime=t*1000;}
+
+  // 2. заголовок
+  $('hBrand').style.opacity=P(t,.2,.6);
+  $('hTitle').style.cssText=`opacity:${P(t,.45,.7)};transform:translateY(${(1-P(t,.45,.8))*14}px)`;
+  const pill=P(t,.8,.7,E.back);
+  $('hPill').style.cssText=`opacity:${P(t,.8,.5)};transform:scale(${.85+.15*pill})`;
+
+  // 3. телефон: задняя крышка → поворот экраном → … → снова крышка в финале
+  let ry,rx=6,ty=0,sc=1;
+  if(t<3.4){const e=P(t,.2,1.5);ty=(1-e)*520;ry=180-38*(1-e)+Math.sin((t-1.6)*1.7)*9*P(t,1.4,.8,E.lin);rx=8;}
+  else if(t<5){const e=P(t,3.4,1.6,E.inOut);ry=180+180*e+Math.sin((3.4-1.6)*1.7)*9*(1-e);rx=8-6*e;sc=1+.07*Math.sin(Math.PI*e);}
+  else if(t<36.2){ry=360+Math.sin((t-5)*.9)*2.2*P(t,5,1,E.lin);rx=2+Math.sin((t-5)*.7)*1.2;ty=Math.sin((t-5)*1.1)*3;}
+  else{const e=P(t,36.2,1.6,E.inOut);ry=360+180*e+Math.sin((t-36)*1.5)*8*P(t,37.8,.8,E.lin);rx=2+6*e;sc=1-.06*e;ty=-6*e;}
+  $('phone').style.transform=`translateY(${ty}px) scale(${sc}) rotateX(${rx}deg) rotateY(${ry}deg)`;
+  const turn=Math.abs(Math.sin(ry*Math.PI/180));
+  $('glare').style.cssText=`opacity:${turn*.9};background-position:${ry}px 0`;
+
+  // 4. тема приложения
+  const theme=t<8.75?'plain':(t>=32.05&&t<35.05)?'potion':'pumpkin';
+  const inner=$('inner');if(!inner.classList.contains(theme)){inner.classList.remove('plain','pumpkin','potion');inner.classList.add(theme);}
+
+  // 5. экраны
+  const chatIn=P(t,13.55,.5,E.inOut),setIn=P(t,30.6,.5,E.inOut);
+  $('sList').style.transform=`translateX(${-30*chatIn}%)`;$('sList').style.filter=chatIn>0?`brightness(${1-.4*chatIn})`:'';
+  $('sChat').style.transform=`translateX(${(1-chatIn)*105-30*setIn}%)`;$('sChat').style.filter=setIn>0?`brightness(${1-.4*setIn})`:'';
+  $('sSet').style.transform=`translateX(${(1-setIn)*105}%)`;
+
+  // «Что нового»
+  const sh=P(t,5.4,.6,E.out)*(1-P(t,8.8,.45,E.inOut));
+  $('sheet').style.transform=`translateY(${(1-sh)*105}%)`;$('dim').style.opacity=sh;
+  [...document.querySelectorAll('.feat')].forEach((f,i)=>{const e=P(t,5.8+i*.28,.45);f.style.opacity=e;f.style.transform=`translateY(${(1-e)*12}px)`;});
+  $('btnEnable').style.transform=`scale(${1-.05*win(t,8.5,8.75,.08,.12)})`;
+  // вспышка при смене темы
+  const fl=(at,id)=>{const d=t-at;if(d<0||d>.7)return false;const [x,y]=centerOf($(id));$('flash').style.cssText=`left:${x}px;top:${y}px;opacity:${(.55*(1-d/.7)).toFixed(3)};transform:scale(${1+d*40})`;return true;};
+  if(!fl(8.75,'btnEnable')&&!fl(32.05,'thPotion')&&!fl(35.05,'thPumpkin'))$('flash').style.opacity=0;
+
+  // 6. чат: призрачное сообщение
+  const gOn=t>=14.75&&t<16.6;
+  $('ghostBtn').classList.toggle('on',gOn);$('composer').classList.toggle('ghost-mode',gOn);
+  $('tip').style.cssText=`opacity:${win(t,14.8,16.3,.25,.3)};transform:translateX(-50%) translateY(${(1-P(t,14.8,.3))*8}px)`;
+  const typed=Math.floor(SEND_TEXT.length*P(t,15.1,1.25,E.lin));
+  const inp=$('inputText');
+  if(t>=15.1&&t<16.6){inp.className='in typed';inp.innerHTML=SEND_TEXT.slice(0,typed).join('').replace('🎭','<span class="emo">🎭</span>')+'<span class="caret"></span>';}
+  else{inp.className='in';inp.textContent=gOn?'Призрачное сообщение…':'Сообщение…';}
+  setRv('ghostWrap',P(t,16.55,.4,E.out)*(1-P(t,20.25,.45,E.inOut)));
+  const gm=$('ghostMsg');const van=P(t,19.55,.7,E.lin);
+  gm.style.opacity=t<19.55?'':1-van;gm.style.filter=van>0?`blur(${van*6}px)`:'';gm.style.transform=`translateY(${-14*van}px) scale(${1-.05*van})`;
+  $('ghostLine').style.opacity=1-van;
+  $('ghostTicks').textContent=t<17.3?'✓':'✓✓';
+  if(t<17.3)$('ghostText').innerHTML='Исчезнет через минуту после прочтения';
+  else{const left=Math.max(0,Math.round(59*(1-P(t,17.5,2,E.lin))));$('ghostText').innerHTML=`Прочитано · исчезнет через <span class="cd">0:${String(left).padStart(2,'0')}</span>`;}
+  const gf=P(t,19.6,1.1,E.out);
+  if(t>19.6&&t<20.8){const [x,y]=centerOf(gm);$('ghostFly').style.cssText=`left:${x-15}px;top:${y-20-gf*120}px;opacity:${Math.sin(Math.PI*gf)};transform:scale(${1+gf*.6}) rotate(${gf*-14}deg)`;}else $('ghostFly').style.opacity=0;
+
+  // 7. «Сладость или гадость»
+  $('chatStatus').textContent=t>=21&&t<22.2?'печатает…':'в сети';$('chatStatus').className=t>=21&&t<22.2?'live':'';
+  setRv('gameWrap',P(t,22.2,.45,E.out));
+  $('treat').style.transform=`scale(${.8+.2*P(t,22.2,.5,E.back)})`;
+  $('treatYes').style.transform=`scale(${1-.08*win(t,23.3,23.55,.08,.12)})`;
+  const flip=P(t,23.6,.5,E.inOut);
+  $('treatFront').style.cssText=`opacity:${1-clamp(flip*2)};transform:rotateX(${flip*90}deg)`;
+  $('treatRes').style.cssText=`opacity:${clamp(flip*2-1)};transform:rotateX(${(1-flip)*-90}deg) scale(${.9+.1*flip})`;
+  const bt=t-23.85;
+  if(bt>0&&bt<2.2){const [cx,cy]=centerOf($('treat'));const spans=$('burst').children;
+    parts.forEach((p,i)=>{const s=Math.max(0,bt-p.d);const x=cx+Math.cos(p.a)*p.v*s;const y=cy+Math.sin(p.a)*p.v*s+520*s*s;
+      spans[i].style.cssText=`opacity:${s>0?Math.min(1,s*8)*(1-clamp((bt-1.5)/.7)):0};transform:translate(${x-14}px,${y-14}px) rotate(${p.r*s}deg) scale(${p.s})`;});}
+  else for(const s of $('burst').children)s.style.opacity=0;
+
+  // 8. стикеры
+  const sp=P(t,26.6,.45,E.out)*(1-P(t,28.4,.4,E.inOut));
+  $('stkPanel').style.transform=`translateY(${(1-sp)*105}%)`;
+  [...$('stkGrid').children].forEach((c,i)=>{const e=P(t,26.8+i*.05,.35,E.back);c.style.transform=`scale(${.4+.6*e})`;c.style.opacity=clamp(e*1.5);});
+  $('stk0').classList.toggle('hit',t>28.05&&t<28.5);
+  setRv('stickerWrap',P(t,28.45,.4,E.out));
+  $('stickerBig').style.transform=`scale(${.3+.7*P(t,28.5,.6,E.back)})`;
+
+  // 9. оформление
+  const thSel=theme==='potion'?'thPotion':'thPumpkin';
+  for(const id of ['thPumpkin','thPotion'])$(id).classList.toggle('sel',id===thSel);
+  const frame=t<33.25?'pumpkin':t<34.05?'ghost':'witch';
+  const names={pumpkin:'Тыква',ghost:'Призрак',witch:'Ведьма'};
+  $('profAv').className='av f-'+frame;$('profFrame').textContent=`Рамка «${names[frame]}»`;
+  for(const [id,f] of [['frPumpkin','pumpkin'],['frSlime','slime'],['frGhost','ghost'],['frWitch','witch']])$(id).classList.toggle('sel',f===frame);
+  $('profAv').style.transform=`scale(${1+.12*Math.max(win(t,33.25,33.7,.12,.3),win(t,34.05,34.5,.12,.3))})`;
+
+  // 10. палец
+  const tap=$('tap');let shown=false;
+  for(const [at,id] of TAPS){const d=t-at;if(d>-.3&&d<.4){const [x,y]=centerOf($(id));const o=d<0?(1-(-d/.3)):(1-d/.4);tap.style.cssText=`left:${x}px;top:${y}px;opacity:${(o*.9).toFixed(3)};transform:scale(${d<0?1.3+d:1+d*.8})`;shown=true;break;}}
+  if(!shown)tap.style.opacity=0;
+
+  // 11. подписи и точки прогресса
+  let dot=-1;
+  for(const c of document.querySelectorAll('.cap')){const a=+c.dataset.a,b=+c.dataset.b;const o=win(t,a,b,.45,.35);c.style.opacity=o;c.style.transform=`translateY(${(1-P(t,a,.5))*14}px)`;if(o>.5&&c.dataset.dot)dot=+c.dataset.dot;}
+  $('dots').style.opacity=win(t,5.3,36.2,.5,.4);
+  [...$('dots').children].forEach((d,i)=>d.classList.toggle('on',i===dot));
+  $('fade').style.opacity=P(t,DURATION-.7,.7,E.lin);
+}
+
+// подогнать сцену под окно браузера (для превью)
+function fit(){const s=Math.min(innerWidth/540,innerHeight/960);$('stage').style.transform=s<1||!window.__render?`scale(${s})`:'';}
+window.render=render;
+window.DURATION=DURATION;
+window.__render=new URLSearchParams(location.search).has('render');
+window.ready=(async()=>{
+  await loadStickers();await document.fonts.ready;render(0);
+  if(window.__render){$('stage').style.transform='';return true;}
+  fit();addEventListener('resize',fit);
+  const t0=performance.now();const loop=()=>{render(((performance.now()-t0)/1000)%DURATION);requestAnimationFrame(loop);};loop();
+  return true;
+})();
+</script>
+<style>.plain-only{display:none}.inner.plain .plain-only{display:inline}</style>
+</body>
+</html>
