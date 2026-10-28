@@ -1,0 +1,103 @@
+/* Halloween season — themes, ambient layer, banner, ghost messages and the treat game. */
+
+/* Themes «Ночь тыкв» и «Зелье» */
+body[data-palette=pumpkin]{--on-accent:#2a1200}
+body[data-palette=potion]{--on-accent:#102a06}
+body[data-palette=pumpkin] .ambient{background:var(--wallpaper,none),radial-gradient(ellipse at 88% -5%,#ff8a2b33,transparent 55%),radial-gradient(ellipse at 0% 105%,#6d28d955,transparent 55%),var(--bg);background-size:cover}
+body[data-palette=potion] .ambient{background:var(--wallpaper,none),radial-gradient(ellipse at 85% 0%,#9be15d26,transparent 55%),radial-gradient(ellipse at 5% 100%,#7c3aed40,transparent 55%),var(--bg);background-size:cover}
+body[data-palette=pumpkin] .message.own .bubble{background:linear-gradient(135deg,#ff9a3d,#ff6a3d);color:#2a1200}
+body[data-palette=potion] .message.own .bubble{background:linear-gradient(135deg,#a6e85f,#5fc46a);color:#102a06}
+body[data-palette=pumpkin] .message.own .bubble :is(time,.edited,.message-footer),body[data-palette=potion] .message.own .bubble :is(time,.edited,.message-footer){color:inherit;opacity:.7}
+
+/* Ambient: moon and fog live in the background layer, a few bats fly over the app now and then. */
+.hw-layer{position:absolute;inset:0;pointer-events:none}
+.hw-moon{position:absolute;top:6vh;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#ffe7b8,#ffb34d 55%,transparent 72%);opacity:.16;filter:blur(1px)}
+.hw-fog{position:absolute;left:-40%;right:-40%;bottom:-6vh;height:42vh;background:radial-gradient(40% 50% at 30% 80%,#c4b5fd1c,transparent 70%),radial-gradient(35% 45% at 70% 90%,#ffffff12,transparent 70%);animation:hw-drift 22s ease-in-out infinite alternate}
+.hw-fog.two{bottom:auto;top:30vh;height:30vh;opacity:.6;animation-duration:30s;animation-direction:alternate-reverse}
+@keyframes hw-drift{to{transform:translateX(16%)}}
+.hw-bats{position:fixed;inset:0 0 auto 0;height:40vh;pointer-events:none;z-index:40;overflow:hidden}
+.hw-bat{position:absolute;left:-60px;width:30px;opacity:0;animation:hw-fly 26s linear infinite}
+.hw-bat svg{width:100%;fill:#07040c;filter:drop-shadow(0 0 6px #ff8a2b66);animation:hw-flap .26s ease-in-out infinite alternate}
+body.light .hw-bat svg{fill:#2b1d38}
+.hw-bat.b0{top:12vh;animation-delay:2s}
+.hw-bat.b1{top:22vh;width:20px;animation-delay:9s;animation-duration:31s}
+.hw-bat.b2{top:6vh;width:24px;animation-delay:17s;animation-duration:28s}
+@keyframes hw-flap{to{transform:scaleY(.5)}}
+@keyframes hw-fly{0%{transform:translate(0,0);opacity:0}2%{opacity:.85}10%{transform:translate(55vw,-4vh)}20%{transform:translate(115vw,2vh);opacity:.85}21%,100%{transform:translate(115vw,2vh);opacity:0}}
+
+/* Banner above the chat list */
+.hw-banner{position:relative;display:flex;align-items:center;gap:12px;margin:10px 0 4px;padding:12px 40px 12px 14px;border-radius:18px;background:linear-gradient(120deg,#ff8a2b2e,#6d28d940);border:1px solid #ff8a2b44;cursor:pointer;text-align:left;color:var(--text)}
+.hw-banner:hover{background:linear-gradient(120deg,#ff8a2b3a,#6d28d950)}
+.hw-banner:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hw-banner-pumpkin{font-size:32px;line-height:1;filter:drop-shadow(0 0 12px #ff8a2b99);animation:hw-bob 2.4s ease-in-out infinite}
+.hw-banner-text{display:flex;flex-direction:column;min-width:0}
+.hw-banner-text b{font-size:14px}
+.hw-banner-text small{font-size:12px;color:var(--muted);line-height:1.3}
+.hw-banner-close{position:absolute;top:8px;right:8px;width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+.hw-banner-close:hover{background:var(--hover);color:var(--text)}
+@keyframes hw-bob{50%{transform:translateY(-3px) rotate(-6deg)}}
+
+/* «Что нового» */
+.hw-news{display:flex;flex-direction:column;gap:4px}
+.hw-news-hero{font-size:56px;text-align:center;filter:drop-shadow(0 0 22px #ff8a2bbb);animation:hw-bob 2.4s ease-in-out infinite}
+.hw-news-lead{text-align:center;color:var(--muted);margin:0 0 6px}
+.hw-feature{display:flex;gap:12px;align-items:flex-start;padding:10px 2px;border-top:1px solid var(--line)}
+.hw-feature>span{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:#ff8a2b1f}
+.hw-feature b{display:block}
+.hw-feature small{display:block;color:var(--muted);line-height:1.35}
+.hw-news-note{font-size:12px;color:var(--muted);text-align:center;margin:8px 0}
+.hw-news .primary,.hw-news .secondary{width:100%}
+
+/* Settings */
+.hw-settings-group .settings-icon{--c:#ff8a2b!important}
+.hw-theme-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.hw-theme-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:4px;height:92px;padding:10px;border-radius:16px;border:2px solid transparent;color:#fff;font-weight:600;cursor:pointer;background:linear-gradient(160deg,#ff8a2b,#3b0764)}
+.hw-theme-card[data-hw-theme="Зелье"]{background:linear-gradient(160deg,#a6e85f,#052e16)}
+.hw-theme-card span{font-size:24px}
+.hw-theme-card.selected{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+.hw-menu-emoji{font-size:22px;line-height:1}
+
+/* Composer ghost mode */
+.ghost-toggle{font-size:18px;filter:grayscale(1);opacity:.65;transition:filter .2s,opacity .2s,transform .2s}
+.ghost-toggle[aria-pressed=true]{filter:none;opacity:1;transform:scale(1.1)}
+.composer.ghost-mode{box-shadow:0 0 0 1.5px #c4b5fd88,0 0 22px #8b5cf644}
+
+/* Ghost messages */
+.ghost-message .bubble{border:1.5px dashed #c4b5fd77;animation:hw-haunt 3.4s ease-in-out infinite}
+.ghost-message.own .bubble{border-color:#ffffff88}
+.ghost-line{display:flex;align-items:center;gap:6px;padding:2px 10px 6px;font-size:11.5px;opacity:.85}
+.ghost-line small{font-size:inherit}
+.ghost-message.vanishing .bubble{animation:hw-vanish 1.2s ease-in forwards}
+@keyframes hw-haunt{50%{opacity:.72}}
+@keyframes hw-vanish{to{opacity:0;filter:blur(6px);transform:translateY(-10px) scale(.96)}}
+
+/* «Сладость или гадость» */
+.treat-card{display:flex;flex-direction:column;gap:6px;min-width:220px;padding:12px;margin:2px;border-radius:16px;background:linear-gradient(160deg,#ff8a2b26,#6d28d933);border:1px solid #ff8a2b44;color:var(--text);text-align:center}
+.message.own .treat-card{color:inherit;background:#00000018;border-color:#00000022}
+.treat-title{font-weight:700}
+.treat-wait{opacity:.75}
+.treat-actions{display:flex;gap:8px;justify-content:center}
+.treat-actions button{flex:1;min-height:38px;padding:6px 12px}
+.treat-result{display:flex;flex-direction:column;align-items:center;gap:2px}
+.treat-emoji{font-size:46px;line-height:1.1;animation:hw-pop .6s cubic-bezier(.3,1.6,.5,1)}
+.treat-card.is-trick .treat-emoji{animation:hw-pop .6s cubic-bezier(.3,1.6,.5,1),hw-shake .5s .6s 2}
+.treat-result small{opacity:.75}
+@keyframes hw-pop{from{transform:scale(.2);opacity:0}}
+@keyframes hw-shake{25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+
+/* Game burst */
+.hw-burst{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
+.hw-burst span{position:absolute;top:-60px;left:var(--x);font-size:34px;animation:hw-fall 1.9s var(--d) cubic-bezier(.4,.1,.7,1) forwards}
+.hw-burst.trick{background:radial-gradient(circle at 50% 50%,transparent 30%,#05020bcc);animation:hw-dark 2.2s ease forwards}
+.hw-burst.trick span{top:auto;bottom:-60px;animation-name:hw-rise}
+.hw-boo{position:absolute;inset:0;display:grid;place-items:center;font-size:min(28vw,180px);font-weight:900;color:#fff;text-shadow:0 0 40px #8b5cf6,0 0 12px #ff8a2b;animation:hw-boo 1.4s ease-out forwards}
+@keyframes hw-fall{to{transform:translateY(calc(100vh + 120px)) rotate(var(--r))}}
+@keyframes hw-rise{to{transform:translateY(calc(-100vh - 120px)) rotate(var(--r))}}
+@keyframes hw-dark{0%,70%{opacity:1}100%{opacity:0}}
+@keyframes hw-boo{0%{transform:scale(.3);opacity:0}25%{transform:scale(1.15);opacity:1}60%{transform:scale(1);opacity:1}100%{transform:scale(1.4);opacity:0}}
+
+@media (prefers-reduced-motion:reduce){.hw-bats,.hw-fog{display:none}.hw-banner-pumpkin,.hw-news-hero,.ghost-message .bubble,.treat-emoji{animation:none!important}}
+body.no-motion .hw-bats,body.no-motion .hw-fog{display:none}
+/* Own bubbles in the Halloween themes are bright: keep secondary text readable. */
+.message.own .ghost-line,.message.own .ghost-line small,.message.own .treat-wait,.message.own .treat-result small{color:inherit!important}
+.message.own .ghost-line,.message.own .treat-wait,.message.own .treat-result small{opacity:.8}
