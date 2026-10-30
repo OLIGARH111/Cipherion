@@ -1,0 +1,108 @@
+/* Profile screen in Telegram style + emoji status picker. */
+dialog.tgp-modal header{border-bottom:0}
+.tgp{display:flex;flex-direction:column;gap:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.tgp-hero{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:26px 14px 18px;border-radius:28px;color:#fff;box-shadow:0 14px 40px rgba(0,0,0,.28)}
+.tgp-hero.has-cover{padding-top:150px}
+.tgp-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+.tgp-hero.has-cover::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to bottom,transparent 25%,rgba(5,10,25,.35) 55%,rgba(5,10,25,.78))}
+.tgp-pattern{position:absolute;inset:0;z-index:-1;pointer-events:none}
+.tgp-pattern span{position:absolute;transform:translate(-50%,-50%);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.25));animation:tgp-float 6s ease-in-out infinite alternate}
+.tgp-pattern span:nth-child(n+7){opacity:.55}
+.tgp-pattern .custom-emoji{width:1.25em!important;height:1.25em!important}
+@keyframes tgp-float{from{translate:0 0}to{translate:0 -6px}}
+.tgp-avatar{border:0;padding:3px;background:transparent;border-radius:50%;cursor:pointer;line-height:0}
+.tgp-avatar .avatar{width:112px!important;height:112px!important;font-size:40px;border-radius:50%;box-shadow:0 8px 26px rgba(0,0,0,.3)}
+.tgp-avatar.has-stories{background:conic-gradient(from 200deg,var(--profile-accent,#83d9b5),#7ecbff,#c38bff,var(--profile-accent,#83d9b5))}
+.tgp-avatar.has-stories .avatar{outline:3px solid rgba(0,0,0,.25)}
+.tgp-hero.has-cover .tgp-avatar .avatar{width:84px!important;height:84px!important}
+.tgp-name{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin:12px 0 0;font-size:28px;font-weight:700;line-height:1.15;letter-spacing:-.01em;text-shadow:0 1px 8px rgba(0,0,0,.18)}
+.tgp-name .gradient-name{background:linear-gradient(90deg,var(--name-color,#fff),var(--profile-accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.tgp-name>span[style*="--name-color"]:not(.gradient-name){color:var(--name-color)}
+.tgp-emoji-status{display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:12px;background:transparent;color:inherit;font-size:28px;line-height:1;cursor:pointer;transition:transform .2s var(--ci-spring,ease)}
+.tgp-emoji-status:active{transform:scale(.9)}
+.tgp-emoji-status .custom-emoji{width:38px!important;height:38px!important}
+.tgp-emoji-status.empty{width:30px;height:30px;background:rgba(255,255,255,.16);opacity:.85}
+.tgp-emoji-status.empty svg{width:18px;height:18px}
+.tgp-emoji-status[tabindex="-1"]{cursor:default}
+.tgp-sub{margin:4px 0 0;font-size:16px;opacity:.78}
+.tgp-sub.online{color:color-mix(in srgb,var(--profile-accent,#83d9b5) 70%,#fff);opacity:1}
+.tgp-status-text{margin:6px 0 0;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.14);font-size:14px}
+.tgp-actions{display:flex;justify-content:center;gap:10px;width:100%;margin-top:20px}
+.tgp-action{flex:1;max-width:76px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:0;border:0;background:none;color:#fff;cursor:pointer}
+.tgp-action i{display:grid;place-items:center;width:100%;max-width:64px;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);transition:transform .2s var(--ci-spring,ease),background .2s}
+.tgp-action svg{width:26px;height:26px;stroke-width:2}
+.tgp-action small{font-size:11px;opacity:.85;line-height:1.1}
+.tgp-action:active i{transform:scale(.92);background:rgba(255,255,255,.26)}
+.tgp-action[aria-expanded="true"] i{background:rgba(255,255,255,.3)}
+.solid-buttons .tgp-action i{background:var(--profile-accent);color:#08251b;border-color:transparent}
+.tgp-more{display:grid;gap:4px;width:100%;margin-top:14px;padding:6px;border-radius:20px;background:rgba(0,0,0,.28);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);text-align:left}
+.tgp-more .pe-link{color:#fff;background:transparent}
+.tgp-more .pe-link.danger{color:#ff9b9b}
+.tgp-card{display:flex;flex-direction:column;padding:4px 18px;border-radius:24px;background:var(--ci-island,rgba(255,255,255,.06));border:1px solid var(--ci-hairline,transparent)}
+.tgp-field{padding:12px 0}
+.tgp-field+.tgp-field{border-top:1px solid var(--ci-line,rgba(255,255,255,.08))}
+.tgp-field small{display:block;font-size:14px;color:var(--profile-accent,var(--accent));opacity:.9}
+.tgp-field p{margin:2px 0 0;font-size:17px;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere}
+.tgp-field a{color:var(--profile-accent,var(--accent))}
+.tgp-stories{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.tgp-tabs{display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--ci-island,rgba(255,255,255,.06));border:1px solid var(--ci-hairline,transparent);overflow-x:auto;scrollbar-width:none}
+.tgp-tabs button{flex:1 0 auto;padding:9px 16px;border:0;border-radius:999px;background:transparent;color:inherit;font-weight:600;font-size:15px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
+.tgp-tabs button.active{background:color-mix(in srgb,var(--profile-accent,var(--accent)) 30%,transparent);color:var(--text)}
+.tgp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tgp-tile{position:relative;aspect-ratio:1;overflow:hidden;border-radius:16px;background:var(--ci-field,rgba(255,255,255,.06))}
+.tgp-tile img,.tgp-tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tgp-tile.round video{border-radius:50%}
+.tgp-tile i{position:absolute;right:6px;bottom:6px;color:#fff;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}
+.tgp-tile i svg{width:18px;height:18px}
+.tgp-list{display:grid;gap:2px}
+.tgp-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border:0;border-radius:14px;background:none;color:inherit;text-align:left;text-decoration:none;cursor:pointer}
+.tgp-row:hover{background:var(--ci-hover,rgba(255,255,255,.05))}
+.tgp-row>i{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:12px;background:color-mix(in srgb,var(--profile-accent,var(--accent)) 22%,transparent);color:var(--profile-accent,var(--accent))}
+.tgp-row>span{display:flex;flex-direction:column;min-width:0}
+.tgp-row b,.tgp-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tgp-row small{opacity:.65}
+.tgp-empty{text-align:center;opacity:.6;margin:10px 0}
+@media (prefers-reduced-motion:reduce){.tgp-pattern span{animation:none}}
+
+/* Emoji status picker */
+dialog.emoji-status-sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(520px,100vw);max-width:100vw;height:min(78dvh,640px);max-height:none;padding:12px 16px 0;border:0;border-radius:26px 26px 0 0;background:var(--ci-side,var(--bg));color:var(--text);display:flex;flex-direction:column;gap:10px;box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+dialog.emoji-status-sheet:not([open]){display:none}
+dialog.emoji-status-sheet[open]{animation:ess-in .26s var(--ci-ease,ease)}
+dialog.emoji-status-sheet::backdrop{background:rgba(0,0,0,.35)}
+@keyframes ess-in{from{transform:translateY(40px);opacity:0}}
+@media (min-width:701px){dialog.emoji-status-sheet{inset:0;margin:auto;border-radius:26px}}
+.ess-head{display:flex;align-items:center;justify-content:space-between;font-size:17px}
+.ess-close{display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:var(--ci-field);color:inherit;cursor:pointer}
+.ess-close svg{width:18px;height:18px}
+.ess-current{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:16px;background:var(--ci-field)}
+.ess-current small{flex:1;opacity:.7}
+.ess-preview{font-size:28px;line-height:1;min-width:32px;text-align:center}
+.ess-preview .custom-emoji{width:32px!important;height:32px!important}
+.ess-search{width:100%;padding:10px 14px;border:0;border-radius:14px;background:var(--ci-field);color:inherit}
+.ess-tabs{display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--ci-field)}
+.ess-tabs button{flex:1;padding:7px 10px;border:0;border-radius:999px;background:none;color:inherit;font-weight:600;cursor:pointer}
+.ess-tabs button.active{background:color-mix(in srgb,var(--accent) 32%,transparent)}
+.ess-body{flex:1;overflow-y:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+.ess-body h5{margin:12px 4px 6px;font-size:13px;font-weight:600;opacity:.6}
+.ess-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:2px}
+.ess-grid.ess-stickers{grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-top:8px}
+.ess-cell{display:grid;place-items:center;aspect-ratio:1;padding:0;border:0;border-radius:12px;background:none;font-size:28px;line-height:1;cursor:pointer;transition:transform .15s,background .15s}
+.ess-cell:hover{background:var(--ci-hover)}
+.ess-cell:active{transform:scale(.88)}
+.ess-cell.active{background:color-mix(in srgb,var(--accent) 28%,transparent)}
+.ess-cell img{width:85%;height:85%;object-fit:contain}
+.ess-cell .custom-emoji{width:32px!important;height:32px!important}
+.ess-packs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.ess-pack{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;width:68px;padding:6px 4px;border:0;border-radius:14px;background:var(--ci-field);color:inherit;cursor:pointer}
+.ess-pack.active{background:color-mix(in srgb,var(--accent) 30%,transparent)}
+.ess-pack img,.ess-pack svg{width:34px;height:34px;object-fit:contain}
+.ess-pack small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.ess-empty{grid-column:1/-1;text-align:center;opacity:.6;margin:18px 0}
+.studio-status-emoji{display:grid;place-items:center;width:52px;height:46px;flex:0 0 52px;padding:0;border:0;border-radius:14px;background:var(--ci-field);color:inherit;font-size:26px;cursor:pointer}
+.studio-status-emoji .custom-emoji{width:32px!important;height:32px!important}
+.studio-status-emoji.empty svg{width:22px;height:22px;opacity:.7}
+#profile-emoji-status i .custom-emoji{width:24px!important;height:24px!important}
+@media (max-width:700px){
+  dialog#modal.tgp-modal:not(.sheet){inset:0;width:100vw;max-width:100vw;height:var(--viewport-height,100dvh);max-height:none;margin:0;border:0;border-radius:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;background:var(--bg)!important}
+  dialog#modal.tgp-modal.sheet{inset:0;width:100vw;height:var(--viewport-height,100dvh);border-radius:0;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+}

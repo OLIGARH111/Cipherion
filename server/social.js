@@ -8,6 +8,8 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
     CREATE TABLE IF NOT EXISTS scheduled(id TEXT PRIMARY KEY,chat_id TEXT REFERENCES chats(id),user_id TEXT REFERENCES users(id),body TEXT,due INTEGER,status TEXT);`);
   const profile=u=>JSON.parse(one('SELECT data FROM profiles WHERE user_id=?',u)?.data||'{}');
   const reactions=m=>all('SELECT emoji,COUNT(*) count FROM reactions WHERE message_id=? GROUP BY emoji',m);
+  // Emoji status: one plain emoji or one sticker / custom emoji (:ce[id]) the author can access.
+  const statusEmoji=(value,owner)=>{const v=String(value??'').trim(),m=/^:ce\[([a-zA-Z0-9-]+)\]$/.exec(v);if(m){stickers.item(m[1],owner);return v;}if(v.includes(':ce[')||[...v].length>8)fail(400,'Выберите один эмодзи или стикер');return v;};
   async function route({path,req,b,user,json,url}){
     if(path==='/api/profile-presets'){
       if(req.method==='GET')json(all('SELECT id,title,data FROM profile_presets WHERE user_id=?',user.id).map(p=>({...p,data:JSON.parse(p.data)})));
@@ -28,7 +30,7 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
         p.accent=/^#[0-9a-f]{6}$/i.test(b.accent||'')?b.accent:old.accent||'#83d9b5';
         p.gallery=Array.isArray(b.gallery)?b.gallery:old.gallery||[];if(p.gallery.length>(vip.active(user.id)?10:2)||p.gallery.some(v=>!one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')",v,user.id)))fail(400,'Проверьте фотографии профиля');
         if(!vip.active(user.id)&&(p.videoAvatar!==old.videoAvatar&&p.videoAvatar||p.badge!==old.badge&&p.badge&&p.badge!=='✦'))fail(403,'Это оформление доступно с VIP');
-        p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);p.emoji=String(b.emoji??old.emoji??'').slice(0,8);
+        p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);p.emoji=b.emoji===undefined||b.emoji===old.emoji?String(old.emoji??''):statusEmoji(b.emoji,user.id);
         p.links=(Array.isArray(b.links)?b.links:old.links||[]).slice(0,vip.active(user.id)?10:3).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
         return p;
       };
