@@ -1,4 +1,4 @@
-import {VIP_BADGES} from '../public/vip-badges.js';
+import {isBadge,isCustomBadge} from '../public/vip-badges.js';
 import {normalizeAppearance} from './capabilities.js';
 const APPEARANCE=['background','frame','effect','patternLayout','motion','nameStyle','patternSize','patternDensity','patternOpacity','patternBlur','patternSpacing','glow','patternRotation','patternMotion','patternEmoji','cover','backgroundImage','videoAvatar','nameColor','badgeColor','theme','gradient','cardStyle','buttonStyle','bioStyle','linkStyle','badge','opacity','blur','accent'];
 export function createSocial({db,one,all,run,fail,now,id,membership,requirePermission,family,vip,broadcast,privacy,stickers,emit}){
@@ -16,19 +16,19 @@ export function createSocial({db,one,all,run,fail,now,id,membership,requirePermi
     }
     if(path==='/api/profile'&&req.method==='GET'){const target=url.searchParams.get('user')||user.id;if(target!==user.id)family.contact(user.id,target);const u=one('SELECT * FROM users WHERE id=?',target);if(!u)fail(404,'Профиль не найден');json({...privacy.project(u,user.id),vip:vip.active(target),profile:privacy.profile(profile(target),target,user.id)});return true;}
     if(path==='/api/profile'&&req.method==='PATCH'){
-      if(b.badge!==undefined&&b.badge!==profile(user.id).badge&&!VIP_BADGES.some(([symbol])=>symbol===b.badge))fail(400,'Выберите значок из списка');
+      if(b.badge!==undefined&&b.badge!==profile(user.id).badge){if(!isBadge(b.badge))fail(400,'Выберите один эмодзи или стикер');if(isCustomBadge(b.badge))stickers.item(b.badge.slice(4,-1),user.id);}
       if(b.badge!==undefined&&b.badge!==profile(user.id).badge&&!vip.active(user.id))fail(403,'Значок доступен с VIP');
       // Profile appearance (background, pattern, colours, frames, cover…) can only be changed with VIP;
       // bio, status and links stay free.
       const old=profile(user.id),compose=b=>{
-        const p={...old,...normalizeAppearance(b,old,vip.capabilities(user.id),fail)};for(const e of p.patternEmoji)if(e.startsWith(':ce['))stickers.tokens(e,user.id);for(const key of ['cover','videoAvatar','backgroundImage']){const value=String(b[key]??old[key]??'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
+        const p={...old,...normalizeAppearance(b,old,vip.capabilities(user.id),fail)};for(const e of p.patternEmoji){if((old.patternEmoji||[]).includes(e))continue;const m=/^:(?:ce|ae)\[([a-zA-Z0-9-]+)\]$/.exec(e);if(m)stickers.item(m[1],user.id);else if(/:(?:ce|ae)\[/.test(e))fail(400,'Один эмодзи или стикер в каждом элементе узора');}for(const key of ['cover','videoAvatar','backgroundImage']){const value=String(b[key]??old[key]??'');if(value){const media=one('SELECT type FROM media WHERE id=? AND user_id=?',value,user.id);if(!media||(key==='videoAvatar'?!/^video\/(mp4|webm)$/.test(media.type):!/^image\/(png|jpeg|webp|gif)$/.test(media.type)))fail(400,'Недопустимый файл профиля');}p[key]=value;}
         for(const key of ['nameColor','badgeColor'])p[key]=/^#[0-9a-f]{6}$/i.test(b[key]??old[key]??'')?(b[key]??old[key]):'';
-        for(const key of ['theme','gradient','cardStyle','buttonStyle','bioStyle','linkStyle','badge'])p[key]=String(b[key]??old[key]??'').slice(0,40);
+        for(const key of ['theme','gradient','cardStyle','buttonStyle','bioStyle','linkStyle','badge'])p[key]=String(b[key]??old[key]??'').slice(0,key==='badge'?120:40);
         p.opacity=Math.max(.25,Math.min(1,Number(b.opacity??old.opacity??.8)));p.blur=Math.max(0,Math.min(40,Number(b.blur??old.blur??20)));if(!Number.isFinite(p.opacity)||!Number.isFinite(p.blur))fail(400,'Проверьте оформление');
         p.accent=/^#[0-9a-f]{6}$/i.test(b.accent||'')?b.accent:old.accent||'#83d9b5';
         p.gallery=Array.isArray(b.gallery)?b.gallery:old.gallery||[];if(p.gallery.length>(vip.active(user.id)?10:2)||p.gallery.some(v=>!one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')",v,user.id)))fail(400,'Проверьте фотографии профиля');
         if(!vip.active(user.id)&&(p.videoAvatar!==old.videoAvatar&&p.videoAvatar||p.badge!==old.badge&&p.badge&&p.badge!=='✦'))fail(403,'Это оформление доступно с VIP');
-        p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);p.emoji=String(b.emoji??old.emoji??'').slice(0,8);
+        p.description=String(b.description??old.description??'').slice(0,vip.active(user.id)?2000:300);p.status=String(b.status??old.status??'').slice(0,80);delete p.emoji;
         p.links=(Array.isArray(b.links)?b.links:old.links||[]).slice(0,vip.active(user.id)?10:3).map(v=>{try{const u=new URL(String(v));if(!['https:','http:'].includes(u.protocol)||u.username||u.password)throw 0;return u.href.slice(0,500);}catch{fail(400,'Ссылки должны начинаться с https:// или http://');}});
         return p;
       };

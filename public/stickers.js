@@ -1,9 +1,11 @@
 import {accountURL} from './account-context.js';
 import {saveAction} from './ui.js';
-import {$,esc,api,modal,guard,toast,upload} from './ui.js';
+import {$,esc,api,modal,guard,toast,upload,adaptiveEmoji} from './ui.js';
 const categories={Смайлы:'😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 🙃 😉 😍 🥰 😘 😎 🤔 😢 😭 😡 🤯 🥳',Люди:'👋 🤚 👍 👎 👏 🙌 🙏 🤝 💪 🫶 👨 👩 👶 🧑 👨‍💻 👩‍💻',Животные:'🐱 🐶 🦊 🐻 🐼 🐸 🐯 🦁 🐰 🐨 🦋 🐝',Еда:'🍏 🍎 🍊 🍋 🍌 🍉 🍇 🍓 🍕 🍔 🍿 ☕ 🍰',Активности:'⚽ 🏀 🏊 🏆 🎮 🎯 🎨 🎸 🎉',Путешествия:'🚗 🚕 🚌 🚂 ✈️ 🚀 🚲 🌍 🏖️ 🏔️',Предметы:'💻 📱 ⌚ 💡 📚 ✏️ 🎁 🔑 📷',Символы:'❤️ 💚 💙 💜 ✨ 🔥 ✅ ❌ ⭐ 💯',Флаги:'🇷🇺 🇬🇧 🇺🇸 🇫🇷 🇩🇪 🇨🇳 🇯🇵 🇮🇳 🇧🇷'};
 const synonyms={'смешно':'😂 🤣 😆','сердце':'❤️ 💚 💙 💜','кот':'🐱','злюсь':'😡','люблю':'❤️ 🥰 😍','привет':'👋','спасибо':'🙏','готово':'✅ 👍'};
 export function renderCustom(text){return esc(text).replace(/:ce\[([a-zA-Z0-9-]+)\]/g,(_,id)=>`<img class="custom-emoji" src="${accountURL('/api/stickers/'+id+'/file?poster=1')}" data-motion="${accountURL('/api/stickers/'+id+'/file')}" data-poster="${accountURL('/api/stickers/'+id+'/file?poster=1')}" alt="Кастомный эмодзи" loading="lazy">`);}
+// Profile decorations (pattern, badge) also accept adaptive stickers :ae[id].
+export function renderToken(text){const m=/^:ae\[([a-zA-Z0-9-]+)\]$/.exec(String(text||''));return m?adaptiveEmoji(m[1]):renderCustom(text);}
 // Full sticker catalogue (packs, studio, management). The quick picker lives in sticker-panel.js.
 export async function stickerPanel(state,save,after,options={}){
  modal('Эмодзи и стикеры',`<div class="filters"><button class="chip" data-pane="emoji">Эмодзи</button><button class="chip" data-pane="packs">Стикеры</button><button class="chip" data-pane="gifs">GIF</button><button class="chip" data-pane="installed">Установленные</button><button class="chip" data-pane="mine">Мои</button><button class="chip" data-pane="new">Новые</button><button class="chip" data-pane="favorites">Избранные</button><button class="chip" data-pane="recent">Недавние</button><button class="chip" id="create-pack">+ Создать набор</button></div><div id="sticker-pane"></div>`,true);
