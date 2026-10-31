@@ -13,6 +13,7 @@ import {createPolls} from './polls.js';
 import {createStories} from './stories.js';
 import {createStickers} from './stickers.js';
 import {createChatTools} from './chat-tools.js';
+import {createContentProtection,canShare} from './content-protection.js';
 import {createRecovery} from './recovery.js';
 import {createReadStream} from 'node:fs';
 import { createPrivacy } from './privacy.js';
@@ -105,7 +106,7 @@ function chatView(c, user) {
   const members = all('SELECT m.*,u.username,u.name,u.avatar FROM members m JOIN users u ON u.id=m.user_id WHERE chat_id=?', c.id);
   const mine = members.find(m => m.user_id === user), cleared = mine?.cleared_at || 0;
   const last = one('SELECT * FROM messages WHERE chat_id=? AND created>? AND deleted=0 ORDER BY created DESC,id DESC LIMIT 1', c.id, cleared);
-  return { ...c, invite_key:undefined, canPost:allowed(mine,c,'text'),canEdit:allowed(mine,c,'edit'),canDelete:allowed(mine,c,'delete'),canPin:allowed(mine,c,'pin'), muted:!!one('SELECT 1 FROM chat_mutes WHERE user_id=? AND chat_id=? AND (until_at=-1 OR until_at>?)',user,c.id,now()), title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.kind === 'saved' ? 'Избранное' : c.title, cleared_at: cleared, draft: chatTools.draft(user, c.id),
+  return { ...c, invite_key:undefined, canPost:allowed(mine,c,'text'),canEdit:allowed(mine,c,'edit'),canDelete:allowed(mine,c,'delete'),canPin:allowed(mine,c,'pin'),canShare:canShare(c,mine), muted:!!one('SELECT 1 FROM chat_mutes WHERE user_id=? AND chat_id=? AND (until_at=-1 OR until_at>?)',user,c.id,now()), title: c.kind === 'direct' ? members.find(m => m.user_id !== user)?.name || 'Личный чат' : c.kind === 'saved' ? 'Избранное' : c.title, cleared_at: cleared, draft: chatTools.draft(user, c.id),
     members: members.filter(m => m.role !== 'banned').map(m => ({ ...m, ...publicUser(one('SELECT * FROM users WHERE id=?',m.user_id),user), read_at:m.user_id===user||privacy.canRead(m.user_id,c.kind)?m.read_at:0 })),
     last: last ? message(last, user) : null,
     unread: one('SELECT COUNT(*) AS n FROM messages WHERE chat_id=? AND user_id!=? AND created>? AND deleted=0', c.id, user, Math.max(mine.read_at, cleared)).n };
@@ -144,6 +145,7 @@ const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,str
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
 const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
 const chatTools=createChatTools({db,one,all,run,fail,now,id,clean,membership,family,emit,broadcast,projectMessage:message});
+const contentProtection=createContentProtection({db,all,run,fail,membership,audit});
 const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
 let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
@@ -285,6 +287,7 @@ const server = http.createServer(async (req, res) => {
       req.on('close', () => { clearInterval(heartbeat); try { run('UPDATE sessions SET active=? WHERE id=?', now(), user.session.id); } catch (error) { logFailure('stream_close_failed', error); } streams.get(user.id)?.delete(res); if (!streams.get(user.id)?.size) streams.delete(user.id); });
       return;
     }
+    if(contentProtection.route({path,req,b,user,json}))return;
     if(await chatTools.route({path,req,b,user,json,url}))return;
     if (path === '/api/chats' && req.method === 'GET') { official.ensure(user.id); return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created))); }
     if (path === '/api/chats' && req.method === 'POST') {
@@ -408,7 +411,7 @@ const server = http.createServer(async (req, res) => {
     const msgMatch = /^\/api\/messages\/([^/]+)(?:\/(vote|forward|transcribe|treat))?$/.exec(path);
     if (msgMatch) {
       const m = one('SELECT * FROM messages WHERE id=?',msgMatch[1]); if(!m) fail(404,'Сообщение не найдено');
-      membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
+      const {chat:source,member:sourceMember}=membership(m.chat_id,user.id); family.chatAccess(m.chat_id,user.id); const action = msgMatch[2];
       if (!action && req.method === 'GET') return json(message(m,user.id));
       if (!action && req.method === 'DELETE') { if(m.user_id!==user.id||one('SELECT kind FROM chats WHERE id=?',m.chat_id).kind==='channel') requirePermission(m.chat_id,user.id,'delete'); run('UPDATE messages SET deleted=1,body=\'\',transcript=NULL,e2e=NULL WHERE id=?',m.id); }
       else if (!action && req.method === 'PATCH') {
@@ -419,7 +422,7 @@ const server = http.createServer(async (req, res) => {
       } else if (action==='vote' && req.method==='POST') {
         if(!m.poll||m.deleted)fail(400,'Опрос недоступен');polls.vote(m,user.id,b.choices);
       } else if(action==='forward' && req.method==='POST') {
-        if(m.ghost)fail(403,'Призрачные сообщения нельзя пересылать');if(m.kind==='treat')fail(400,'Игру нельзя переслать');
+        if(!canShare(source,sourceMember))fail(403,'В этом чате включена защита контента: пересылка запрещена');        if(m.ghost)fail(403,'Призрачные сообщения нельзя пересылать');if(m.kind==='treat')fail(400,'Игру нельзя переслать');
         membership(b.chat,user.id);family.chatAccess(b.chat,user.id);
         const clientId=(b.clientMessageId??b.clientId)==null?null:String(b.clientMessageId??b.clientId);
         if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');
