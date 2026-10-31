@@ -6,6 +6,7 @@ import {health, logFailure, messageFingerprint} from './release.js';
 import {backupBeforeMigration, migrate} from './migrations.js';
 import {createDelivery} from './delivery.js';
 import {createAdmin} from './admin.js';
+import {createOfficial,OFFICIAL_NAME} from './official.js';
 import {vipBadgeValue} from '../public/vip-badges.js';
 import {createProfiles} from './profiles.js';
 import {createPolls} from './polls.js';
@@ -123,7 +124,7 @@ const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const traffic=createTraffic({db,run,all,now});
-const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null};}});
+const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null,verified:official.isVerified(uid),...(official.isBot(uid)?{official:true}:{})};}});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
 const vip=createVip({db,one,all,run,fail,now,id,rate,isAdmin:adminAccess.isAdmin});
@@ -138,6 +139,7 @@ const halloween=createHalloween({db,one,all,run,fail,now,broadcast,rate});
 setInterval(()=>{try{halloween.sweep();}catch(error){logFailure('ghost_sweep_failed',error);}},5000).unref();
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
 migrate(db);
+const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
 const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
@@ -213,7 +215,7 @@ const server = http.createServer(async (req, res) => {
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode, ...(b.register?{recoveryKey:recovery.issue(account.id)}:{}) });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, ...await rtcConfigurationAsync(user.id) });
+    if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, ...await rtcConfigurationAsync(user.id) }); }
     if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
     if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
@@ -225,6 +227,7 @@ const server = http.createServer(async (req, res) => {
     if(await stories.route({path,req,b,user,json,url}))return;
     if(await polls.route({path,req,b,user,json,url}))return;
     if(await adminAccess.route({path,req,b,user,json}))return;
+    if(await official.route({path,req,b,user,json}))return;
     if(path==='/api/admin/traffic'&&req.method==='GET'){if(!adminAccess.isAdmin(user.id))fail(403,'Только администратор');return json(traffic.report());}
     if(await vip.route({path,req,b,user,json}))return;
     if(await stickers.route({path,req,res,b,user,json,url}))return;
@@ -249,6 +252,7 @@ const server = http.createServer(async (req, res) => {
       if(settings.folders!==undefined&&(!Array.isArray(settings.folders)||settings.folders.length>Math.max(vip.active(user.id)?50:10,JSON.parse(user.settings).folders?.length||0)))fail(400,'Превышен лимит папок');
       if(settings.pins!==undefined&&(!Array.isArray(settings.pins)||settings.pins.length>Math.max(vip.active(user.id)?20:5,JSON.parse(user.settings).pins?.length||0)))fail(400,'Превышен лимит закреплённых чатов');
       const oldSettings=JSON.parse(user.settings);if(settings.theme!==oldSettings.theme&&['Emerald VIP','Diamond Glass','Golden Glass','Aurora VIP','Cosmic'].includes(settings.theme)&&!vip.active(user.id))fail(403,'Эта тема доступна с VIP');for(const k of ['vipGlow','vipBadge','presets'])if(JSON.stringify(settings[k])!==JSON.stringify(oldSettings[k])&&settings[k]&&!vip.active(user.id))fail(403,'Требуется VIP');
+      if (b.name !== undefined && clean(b.name, 80).toLowerCase() === OFFICIAL_NAME.toLowerCase() && !official.isBot(user.id)) fail(400, 'Это имя зарезервировано для официального аккаунта');
       run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, b.bio===undefined?user.bio:clean(b.bio, vip.active(user.id)?500:300), avatar, JSON.stringify(settings), user.id);
       emit(user.id,'settings',{});
       return json({ user: {...publicUser(one('SELECT * FROM users WHERE id=?', user.id),user.id),vip:vip.active(user.id)}, settings });
@@ -282,7 +286,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if(await chatTools.route({path,req,b,user,json,url}))return;
-    if (path === '/api/chats' && req.method === 'GET') return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created)));
+    if (path === '/api/chats' && req.method === 'GET') { official.ensure(user.id); return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created))); }
     if (path === '/api/chats' && req.method === 'POST') {
       if (b.kind === 'saved') return json(chatView(chatTools.ensureSaved(user.id), user.id), 201);
       const kind = ['group','channel'].includes(b.kind) ? b.kind : 'direct';
@@ -294,6 +298,7 @@ const server = http.createServer(async (req, res) => {
         if (!one('SELECT id FROM users WHERE id=?', target)) fail(400, 'Пользователь не найден');
         if (one('SELECT * FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)', target, user.id, user.id, target)) fail(403, 'Общение с этим пользователем недоступно');
       }
+      if (kind === 'direct' && users.some(official.isBot)) return json(chatView(one('SELECT * FROM chats WHERE id=?', official.ensure(user.id)), user.id));
       if (kind === 'direct') {
         const existing = one("SELECT c.* FROM chats c JOIN members a ON a.chat_id=c.id JOIN members b ON b.chat_id=c.id WHERE c.kind='direct' AND a.user_id=? AND b.user_id=?", user.id, users.find(u => u !== user.id));
         if (existing) { run('UPDATE members SET hidden=0 WHERE chat_id=? AND user_id=?', existing.id, user.id); return json(chatView(existing, user.id)); }
@@ -329,6 +334,7 @@ const server = http.createServer(async (req, res) => {
         if(clientId){const existing=one('SELECT * FROM messages WHERE user_id=? AND client_id=?',user.id,clientId);if(existing){const request=one('SELECT fingerprint FROM message_requests WHERE user_id=? AND client_id=?',user.id,clientId);if(existing.chat_id!==chatId || request&&request.fingerprint!==messageFingerprint(chatId,b))fail(409,'ID сообщения уже использован для другого запроса');return json(message(existing,user.id));}}
         rate('message:' + user.id, 90); const sealed=b.e2e===undefined||b.e2e===null?null:e2e.accept(chat,user.id,b.e2e); if(sealed){if(b.kind==='poll')fail(400,'Опросы не шифруются');if(b.kind==='treat')fail(400,'Игра не шифруется');b.body='';} family.content(chatId,clean(b.body)+' '+JSON.stringify(b.poll||{}),!!b.media);
         const kind = ['text','photo','video','file','voice','round','poll','treat'].includes(b.kind) ? b.kind : 'text';
+        if (official.isOfficialChat(chatId) && !official.isBot(user.id)) fail(403, 'Это официальный чат уведомлений Cipherion');
         requirePermission(chatId, user.id, kind==='treat'?'text':kind);
         const ghost=halloween.ghostFlag(chat,user.id,b,kind);
         if(kind==='treat'&&['channel','saved'].includes(chat.kind))fail(400,'Игра доступна в личных чатах и группах');
@@ -481,6 +487,7 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/calls' && req.method==='POST') {
       const {chat}=membership(b.chat,user.id);family.chatAccess(b.chat,user.id,true);
       if(['channel','saved'].includes(chat.kind))fail(400,'Звонки доступны в личных и групповых чатах');
+      if(official.isOfficialChat(b.chat))fail(400,'Официальному аккаунту нельзя позвонить');
       const members=all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",b.chat);
       for(const m of members)if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');
       if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');
