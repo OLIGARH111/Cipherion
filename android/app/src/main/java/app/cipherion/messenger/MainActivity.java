@@ -36,6 +36,10 @@ import java.util.List;
 public class MainActivity extends Activity {
     private static final int REQUEST_FILE = 1;
     private static final int REQUEST_MEDIA_PERMISSIONS = 2;
+    private static final int REQUEST_NOTIFICATIONS = 3;
+
+    /** True while the app is on screen: the page itself shows what is new, so no system notifications. */
+    static volatile boolean visible;
 
     private final String siteUrl = BuildConfig.SITE_URL;
     private final String siteHost = Uri.parse(BuildConfig.SITE_URL).getHost();
@@ -86,18 +90,78 @@ public class MainActivity extends Activity {
         } else {
             web.loadUrl(startUrl(getIntent()));
         }
+        showOverLockScreen(getIntent());
+        CipherionService.createChannels(this);
+        askForNotifications();
     }
 
     private String startUrl(Intent intent) {
         Uri data = intent != null ? intent.getData() : null;
         if (data != null && "https".equals(data.getScheme()) && siteHost.equals(data.getHost())) return data.toString();
+        String link = notificationLink(intent);
+        if (link != null) return siteUrl + "/" + link;
         return siteUrl;
+    }
+
+    /** "#chat=…&message=…" from a tapped notification, or null. */
+    private static String notificationLink(Intent intent) {
+        String link = intent != null ? intent.getStringExtra(CipherionService.EXTRA_LINK) : null;
+        return link != null && link.startsWith("#") ? link : null;
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (intent.getData() != null) web.loadUrl(startUrl(intent));
+        setIntent(intent);
+        showOverLockScreen(intent);
+        String link = notificationLink(intent);
+        if (link != null) {
+            // The page is already running: changing the hash opens the chat without a reload, so a live call survives.
+            String hash = link.substring(1).replace("\\", "").replace("'", "");
+            web.evaluateJavascript("location.hash='';location.hash='" + hash + "'", null);
+        } else if (intent.getData() != null) {
+            web.loadUrl(startUrl(intent));
+        }
+    }
+
+    /** An incoming call opened from the lock screen shows on top of it, like a phone call. */
+    @SuppressWarnings("deprecation")
+    private void showOverLockScreen(Intent intent) {
+        String link = notificationLink(intent);
+        boolean call = link != null && link.contains("&call=");
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(call);
+            setTurnScreenOn(call);
+        } else if (call) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        }
+    }
+
+    /** Android 13+ asks for notifications once; then the background connection starts. */
+    private void askForNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 && !has(Manifest.permission.POST_NOTIFICATIONS)) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+        } else {
+            afterNotificationsAllowed();
+        }
+    }
+
+    private void afterNotificationsAllowed() {
+        CipherionService.start(this);
+        // Like Telegram, ask once to be exempt from battery saving so messages are not delayed.
+        android.content.SharedPreferences sp = getSharedPreferences("app", MODE_PRIVATE);
+        if (Build.VERSION.SDK_INT >= 23 && !sp.getBoolean("askedBattery", false)) {
+            sp.edit().putBoolean("askedBattery", true).apply();
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     @Override
@@ -109,11 +173,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        visible = true;
         web.onResume();
+        CipherionService.clearMessages(this);
+        CipherionService.start(this);
     }
 
     @Override
     protected void onPause() {
+        visible = false;
         // Keep JS timers running so calls and live delivery survive a short trip to another app.
         CookieManager.getInstance().flush();
         super.onPause();
@@ -203,6 +271,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            afterNotificationsAllowed();
+            return;
+        }
         if (requestCode == REQUEST_MEDIA_PERMISSIONS && pendingPermission != null) {
             grantAllowed(pendingPermission);
             pendingPermission = null;
