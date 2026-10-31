@@ -27,6 +27,7 @@ import { applyTheme, settingsPage, themes } from './settings.js';
 import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,dayKey,dayLabel,listTime,ticks,tickSVG,mobile} from './chat-ui.js';
 import { createCalls } from './calls.js';
 import { groupPanel } from './groups.js';
+import {syncProtection,restricted,isProtected,protectionText} from './content-protection.js';
 import {schedulePage} from './social.js';
 import {aiPage,familyPage} from './extensions.js';
 import {syncHalloween,maybeWhatsNew,decorateComposer,treatMenuButton,ghostLine,treatCard,bindHalloween} from './halloween.js';
@@ -258,11 +259,12 @@ function messageHTML(m,{first,last,kind,others}){
   const jumbo=m.kind==='text'&&!m.deleted&&!m.media&&!m.poll&&!m.reply_id&&!m.forwarded&&!m.story?jumboSize(m.body):0;
   const hasText=!jumbo&&!m.deleted&&m.kind!=='sticker'&&!!String(m.body||'').trim();const tail=[];let visual=!!jumbo;
   if(!m.deleted){
-    if(m.media){const source=accountURL('/api/media/'+m.media.id);
-      if(m.kind==='photo'){visual=true;content+=`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
+    if(m.media){const source=accountURL('/api/media/'+m.media.id),locked=restricted(c);
+      if(m.kind==='photo'){visual=true;content+=locked?`<div class="media"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`:`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
       else if(m.kind==='round'){visual=true;content+=`<div class="round-note" role="button" tabindex="0" data-round="${source}" aria-label="Воспроизвести видео-кружок"><video class="round" src="${source}#t=0.001" muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video><span class="round-duration"></span><span class="round-muted" aria-hidden="true">${icon('speakeroff')}</span></div>`;}
-      else if(m.kind==='video'){visual=true;content+=`<video src="${source}" controls playsinline preload="metadata"></video>`;}
-      else if(m.kind==='voice')content+=`<div class="waveform" aria-hidden="true">${Array.from({length:35},(_,i)=>`<i style="height:${7+Math.sin(i*4.3)**2*17}px;animation-delay:${i*.04}s"></i>`).join('')}</div><audio src="${source}" controls preload="metadata"></audio><button class="chip audio-speed">1×</button>`;
+      else if(m.kind==='video'){visual=true;content+=`<video src="${source}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video>`;}
+      else if(m.kind==='voice')content+=`<div class="waveform" aria-hidden="true">${Array.from({length:35},(_,i)=>`<i style="height:${7+Math.sin(i*4.3)**2*17}px;animation-delay:${i*.04}s"></i>`).join('')}</div><audio src="${source}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button>`;
+      else if(locked)content+=`<div class="file file-locked" title="Сохранение запрещено защитой контента"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
       else content+=`<a class="file" href="${source}" download="${esc(m.media.name)}"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ</small></span>${icon('download')}</a>`;
     }
     if(m.reply_id){const original=state.messages.find(r=>r.id===m.reply_id);const who=original?authorName(original):'';content=`<button type="button" class="reply-preview" data-jump="${esc(m.reply_id)}" data-tone="${tone(who)}"><b>${esc(who||'Ответ')}</b><span>${esc(original?preview(original):'Сообщение недоступно')}</span></button>`+content;}
@@ -293,7 +295,7 @@ function messageHTML(m,{first,last,kind,others}){
   return `<article class="message ${own?'own':''} ${m.ghost&&!m.deleted?'ghost-message':''} ${first?'first':''} ${last?'last':''} ${picked?'picked':''} ${found?'found':''} ${current?'found-current':''}" data-key="${esc(messageKey(m))}" data-id="${m.id}">${state.selection?`<span class="select-mark" aria-hidden="true">${icon('check')}</span>`:''}${side}<div class="bubble ${mediaOnly?'media-only':''} ${mediaOnly&&(jumbo||['sticker','round'].includes(m.kind))?'bare':''} ${m.kind==='sticker'?'sticker-bubble':''}">${author}${content}</div>${!m.deleted&&!m.pending&&!state.selection?`<button class="message-menu" data-message="${m.id}" aria-label="Действия сообщения">${icon('kebab')}</button>`:''}</article>`;
 }
 function renderMessages(scroll){
-  const box=$('.messages');if(!box)return;const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;const previous=box.scrollTop;
+  const box=$('.messages');if(!box)return;syncProtection(selected(),state.user);const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;const previous=box.scrollTop;
   const c=selected(),kind=c?.kind||'direct',others=(c?.members||[]).filter(p=>p.user_id!==state.user.id);
   if(renderedKeys&&!scroll&&!nearBottom)for(const m of state.messages)if(!renderedKeys.has(messageKey(m))&&m.user_id!==state.user.id)state.unseen=(state.unseen||0)+1;
   renderedKeys=new Set(state.messages.map(messageKey));
@@ -353,9 +355,10 @@ function messageMenu(messageId,at={}){
   const c=selected(),channel=c?.kind==='channel',post=!channel||c.canPost,own=m.user_id===state.user.id,reactions=!channel||c.reactions_enabled;
   const items=[];
   if(post)items.push(['reply','reply','Ответить']);
-  if(m.body&&m.kind!=='sticker')items.push(['copy','copy','Копировать текст']);
+  const locked=restricted(c);
+  if(m.body&&m.kind!=='sticker'&&!locked)items.push(['copy','copy','Копировать текст']);
   if(m.kind==='sticker'&&m.sticker)items.push(['sticker-favorite','star','Стикер в избранное'],['sticker-pack','image','Открыть набор стикеров']);
-  items.push(['forward','forward','Переслать']);
+  if(!locked)items.push(['forward','forward','Переслать']);
   if(!channel||c.canPin)items.push(['pin','pin',m.pinned?'Открепить':'Закрепить']);
   if(channel?c.canEdit:own)items.push(['edit','edit','Изменить']);
   if(!channel||c.canDelete)items.push(['delete','trash','Удалить']);
@@ -392,11 +395,11 @@ function toggleSelect(id){const s=state.selection;if(s.has(id))s.delete(id);else
 function renderSelectionBar(){
   const bar=$('.selection-bar');if(!bar)return;const s=state.selection;bar.hidden=!s;if(!s){bar.innerHTML='';return;}
   const c=selected(),none=!s.size,chosen=()=>state.messages.filter(m=>s.has(m.id));
-  bar.innerHTML=`${button('close','Отменить выбор (Esc)','id="selection-cancel"')}<strong aria-live="polite">${none?'Выберите сообщения':'Выбрано: '+s.size}</strong><span class="spacer"></span>${button('copy','Копировать','id="selection-copy"')}${button('forward','Переслать','id="selection-forward"')}${c?.kind!=='channel'||c.canDelete?button('trash','Удалить','id="selection-delete"'):''}`;
+  bar.innerHTML=`${button('close','Отменить выбор (Esc)','id="selection-cancel"')}<strong aria-live="polite">${none?'Выберите сообщения':'Выбрано: '+s.size}</strong><span class="spacer"></span>${restricted(c)?'':button('copy','Копировать','id="selection-copy"')+button('forward','Переслать','id="selection-forward"')}${c?.kind!=='channel'||c.canDelete?button('trash','Удалить','id="selection-delete"'):''}`;
   bar.querySelectorAll('#selection-copy,#selection-forward,#selection-delete').forEach(b=>b.disabled=none);
   $('#selection-cancel').onclick=exitSelection;
-  $('#selection-copy').onclick=guard(async()=>{await copyText(chosen().map(m=>m.body||preview(m)).join('\n\n'));toast('Скопировано');exitSelection();});
-  $('#selection-forward').onclick=()=>forwardMessages(chosen());
+  if($('#selection-copy'))$('#selection-copy').onclick=guard(async()=>{await copyText(chosen().map(m=>m.body||preview(m)).join('\n\n'));toast('Скопировано');exitSelection();});
+  if($('#selection-forward'))$('#selection-forward').onclick=()=>forwardMessages(chosen());
   if($('#selection-delete'))$('#selection-delete').onclick=guard(async()=>{const list=chosen();if(!confirm(`Удалить выбранные сообщения (${list.length}) для всех участников?`))return;let failed=0;for(const m of list){try{await api('/messages/'+m.id,'DELETE',{});}catch{failed++;}}exitSelection();await loadMessages(false);if(failed)toast(`Не удалось удалить: ${failed}`);});
 }
 function openFind(){
@@ -437,6 +440,7 @@ function chatMenu(){
   if(!(c.kind==='channel'&&!c.canPost))items.push(['schedule-chat','clock','Запланировать сообщение']);
   items.push(['find-in-chat','search','Поиск по чату'],['select-messages','select','Выбрать сообщения']);
   if(c.kind!=='channel')items.push(['e2e-info','shield','Шифрование']);
+  if(c.kind==='direct'||(!saved&&mine?.role==='owner'))items.push(['protect-content','lock',isProtected(c)?'Защита контента: вкл.':'Защита контента…']);
   if(c.kind==='direct')items.push(['block-user','lock','Заблокировать собеседника']);
   else if(!saved)items.push(['group-manage','settings',['owner','admin'].includes(mine?.role)?(c.kind==='channel'?'Настройки канала':'Настройки группы'):'Участники']);
   items.push(['sep'],['clear-history','eraser','Очистить историю']);
@@ -452,6 +456,7 @@ function chatMenu(){
   on('mute-chat',()=>muteChat(c.id,c.title));
   on('find-in-chat',()=>openFind());
   on('e2e-info',()=>encryptionInfo(state.user.id,c));
+  on('protect-content',()=>protectionDialog(c));
   on('select-messages',()=>enterSelection(null));
   on('group-manage',()=>asSheet(()=>groupPanel(c,state,refresh)));
   on('delete-community',()=>asSheet(()=>groupPanel(c,state,refresh)));
@@ -459,6 +464,11 @@ function chatMenu(){
   on('clear-history',()=>clearHistory(c));
   on('delete-chat',()=>deleteChat(c));
   on('block-user',async()=>{if(confirm('Заблокировать пользователя? Он не сможет отправлять вам сообщения и звонить.')){await api('/blocks','POST',{target:c.members.find(m=>m.user_id!==state.user.id).user_id});toast('Пользователь заблокирован');}});
+}
+function protectionDialog(c){
+  const on=isProtected(c);
+  modal('Защита контента',`<p>${protectionText(c)}</p><p class="note">${on?'Сейчас защита включена.':'Сейчас защита выключена.'}</p><button class="primary" id="protect-toggle">${on?'Выключить защиту':'Включить защиту'}</button>`);
+  $('#protect-toggle').onclick=saveAction(async()=>{await api(`/chats/${c.id}/protection`,'POST',{enabled:!on});await refresh();$('#modal').close();toast(on?'Защита контента выключена':'Защита контента включена');});
 }
 // Clearing hides the history only for you unless "also for <name>" is ticked in a private chat.
 function historyDialog(c,remove){

@@ -1,0 +1,11 @@
+/* Защита контента: no selecting, saving or printing; watermark and blur shield against screenshots. */
+.protect-badge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:var(--accent,#3b82f6)}
+.protect-badge svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.content-restricted .messages{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.content-restricted .messages img,.content-restricted .messages video{-webkit-user-drag:none;-webkit-touch-callout:none;pointer-events:auto}
+.content-restricted .messages-wrap{position:relative}
+.content-restricted .messages-wrap::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;background-image:var(--protect-watermark);background-repeat:repeat}
+.content-restricted .messages{transition:filter .12s}
+.content-shielded .messages,.content-shielded #pinned-bar{filter:blur(22px) saturate(.4)}
+.file-locked{cursor:default;opacity:.85}
+@media print{.content-restricted .messages,.content-restricted #pinned-bar{display:none!important}}
