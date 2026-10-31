@@ -18,12 +18,6 @@ dialog.tgp-modal header{border-bottom:0}
 .tgp-name{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin:12px 0 0;font-size:28px;font-weight:700;line-height:1.15;letter-spacing:-.01em;text-shadow:0 1px 8px rgba(0,0,0,.18)}
 .tgp-name .gradient-name{background:linear-gradient(90deg,var(--name-color,#fff),var(--profile-accent));-webkit-background-clip:text;background-clip:text;color:transparent}
 .tgp-name>span[style*="--name-color"]:not(.gradient-name){color:var(--name-color)}
-.tgp-emoji-status{display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:12px;background:transparent;color:inherit;font-size:28px;line-height:1;cursor:pointer;transition:transform .2s var(--ci-spring,ease)}
-.tgp-emoji-status:active{transform:scale(.9)}
-.tgp-emoji-status .custom-emoji{width:38px!important;height:38px!important}
-.tgp-emoji-status.empty{width:30px;height:30px;background:rgba(255,255,255,.16);opacity:.85}
-.tgp-emoji-status.empty svg{width:18px;height:18px}
-.tgp-emoji-status[tabindex="-1"]{cursor:default}
 .tgp-sub{margin:4px 0 0;font-size:16px;opacity:.78}
 .tgp-sub.online{color:color-mix(in srgb,var(--profile-accent,#83d9b5) 70%,#fff);opacity:1}
 .tgp-status-text{margin:6px 0 0;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.14);font-size:14px}
@@ -65,12 +59,12 @@ dialog.tgp-modal header{border-bottom:0}
 @media (prefers-reduced-motion:reduce){.tgp-pattern span{animation:none}}
 
 /* Emoji status picker */
-dialog.emoji-status-sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(520px,100vw);max-width:100vw;height:min(78dvh,640px);max-height:none;padding:12px 16px 0;border:0;border-radius:26px 26px 0 0;background:var(--ci-side,var(--bg));color:var(--text);display:flex;flex-direction:column;gap:10px;box-shadow:0 -10px 40px rgba(0,0,0,.35)}
-dialog.emoji-status-sheet:not([open]){display:none}
-dialog.emoji-status-sheet[open]{animation:ess-in .26s var(--ci-ease,ease)}
-dialog.emoji-status-sheet::backdrop{background:rgba(0,0,0,.35)}
+dialog.badge-sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(520px,100vw);max-width:100vw;height:min(78dvh,640px);max-height:none;padding:12px 16px 0;border:0;border-radius:26px 26px 0 0;background:var(--ci-side,var(--bg));color:var(--text);display:flex;flex-direction:column;gap:10px;box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+dialog.badge-sheet:not([open]){display:none}
+dialog.badge-sheet[open]{animation:ess-in .26s var(--ci-ease,ease)}
+dialog.badge-sheet::backdrop{background:rgba(0,0,0,.35)}
 @keyframes ess-in{from{transform:translateY(40px);opacity:0}}
-@media (min-width:701px){dialog.emoji-status-sheet{inset:0;margin:auto;border-radius:26px}}
+@media (min-width:701px){dialog.badge-sheet{inset:0;margin:auto;border-radius:26px}}
 .ess-head{display:flex;align-items:center;justify-content:space-between;font-size:17px}
 .ess-close{display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:var(--ci-field);color:inherit;cursor:pointer}
 .ess-close svg{width:18px;height:18px}
@@ -98,11 +92,26 @@ dialog.emoji-status-sheet::backdrop{background:rgba(0,0,0,.35)}
 .ess-pack img,.ess-pack svg{width:34px;height:34px;object-fit:contain}
 .ess-pack small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
 .ess-empty{grid-column:1/-1;text-align:center;opacity:.6;margin:18px 0}
-.studio-status-emoji{display:grid;place-items:center;width:52px;height:46px;flex:0 0 52px;padding:0;border:0;border-radius:14px;background:var(--ci-field);color:inherit;font-size:26px;cursor:pointer}
-.studio-status-emoji .custom-emoji{width:32px!important;height:32px!important}
-.studio-status-emoji.empty svg{width:22px;height:22px;opacity:.7}
-#profile-emoji-status i .custom-emoji{width:24px!important;height:24px!important}
 @media (max-width:700px){
   dialog#modal.tgp-modal:not(.sheet){inset:0;width:100vw;max-width:100vw;height:var(--viewport-height,100dvh);max-height:none;margin:0;border:0;border-radius:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;background:var(--bg)!important}
   dialog#modal.tgp-modal.sheet{inset:0;width:100vw;height:var(--viewport-height,100dvh);border-radius:0;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 }
+
+/* VIP badge next to the name: any emoji or sticker ("premium emoji") */
+.vip-badge.vip-custom{padding:0;background:none;line-height:1;vertical-align:-.18em}
+.vip-badge .badge-emoji{width:1.25em!important;height:1.25em!important;object-fit:contain}
+.chat-title .vip-badge .badge-emoji,.author .vip-badge .badge-emoji{width:18px!important;height:18px!important}
+.tgp-name .vip-badge{font-size:28px;margin-left:2px}
+.tgp-name .vip-badge .badge-emoji{width:36px!important;height:36px!important}
+.tgp-name .vip-badge.vip-text{font-size:14px}
+.tgp-badge{display:inline-flex;align-items:center;padding:0;border:0;background:none;color:inherit;cursor:pointer;transition:transform .2s var(--ci-spring,ease)}
+.tgp-badge:active{transform:scale(.88)}
+.badge-options .badge-more{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px dashed var(--ci-hairline,rgba(255,255,255,.2));border-radius:14px;background:none;color:inherit;cursor:pointer;min-height:58px}
+.badge-options .badge-more svg{width:20px;height:20px}
+.badge-options .badge-custom .badge-emoji{width:26px!important;height:26px!important}
+.ess-badges{grid-template-columns:repeat(4,1fr)!important;gap:8px!important}
+.ess-badges .ess-cell{aspect-ratio:auto;height:56px;background:var(--ci-field);font-size:26px}
+.ess-preview .vip-badge{font-size:26px}
+.ess-preview .badge-emoji{width:32px!important;height:32px!important}
+.studio-badge-now{display:grid;place-items:center;min-width:40px;font-size:26px}
+.studio-badge-now .badge-emoji{width:34px!important;height:34px!important}

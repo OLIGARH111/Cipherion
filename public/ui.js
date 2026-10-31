@@ -1,6 +1,6 @@
 import {activeAccount,accountFetch,accountURL,accountEpoch} from './account-context.js';
-import {vipBadgeValue,vipBadgeText} from './vip-badges.js';
-export function vipBadge(user){if(user?.vip!==true)return '';const value=vipBadgeValue(user.vipBadge||user.profile?.badge);return `<span class="vip-mark vip-badge${value==='✦'?' vip-text':''}" title="Cipherion VIP" aria-label="Cipherion VIP">${vipBadgeText(value)}</span>`;}
+import {vipBadgeValue,vipBadgeText,isCustomBadge} from './vip-badges.js';
+export function vipBadge(user){if(user?.vip!==true)return '';const value=vipBadgeValue(user.vipBadge||user.profile?.badge);const custom=isCustomBadge(value),id=custom?value.slice(4,-1):'';const content=custom?`<img class="custom-emoji badge-emoji" src="${esc(accountURL('/api/stickers/'+id+'/file?poster=1'))}" data-motion="${esc(accountURL('/api/stickers/'+id+'/file'))}" data-poster="${esc(accountURL('/api/stickers/'+id+'/file?poster=1'))}" alt="">`:esc(vipBadgeText(value));return `<span class="vip-mark vip-badge${value==='✦'?' vip-text':''}${custom?' vip-custom':''}" title="Cipherion VIP" aria-label="Cipherion VIP">${content}</span>`;}
 export const $ = (q, root = document) => root.querySelector(q);
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const paths = {

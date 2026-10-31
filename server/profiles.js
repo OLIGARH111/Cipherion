@@ -1,6 +1,6 @@
-import {VIP_BADGES} from '../public/vip-badges.js';
+import {isBadge,isCustomBadge} from '../public/vip-badges.js';
 import {randomInt,createHash,timingSafeEqual} from 'node:crypto';
-export function createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,social,isAdmin}) {
+export function createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,vip,emit,social,stickers,isAdmin}) {
   db.exec(`CREATE TABLE IF NOT EXISTS profile_details(user_id TEXT PRIMARY KEY,surname TEXT DEFAULT '',email TEXT DEFAULT '',phone_verified INTEGER DEFAULT 0,email_verified INTEGER DEFAULT 0,pinned TEXT DEFAULT '');
     CREATE TABLE IF NOT EXISTS profile_verifications(user_id TEXT,kind TEXT,value TEXT,hash TEXT,expires INTEGER,attempts INTEGER DEFAULT 0,PRIMARY KEY(user_id,kind));
     CREATE TABLE IF NOT EXISTS user_reports(id TEXT PRIMARY KEY,reporter TEXT,target TEXT,reason TEXT,created INTEGER);`);
@@ -20,7 +20,7 @@ export function createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,v
       if(bio!==user.bio&&bio.length>(vip.active(user.id)?500:300))fail(400,'Слишком длинное описание');
       if(avatar&&!one("SELECT id FROM media WHERE id=? AND user_id=? AND type IN ('image/png','image/jpeg','image/webp','image/gif')",avatar,user.id))fail(400,'Недопустимый аватар');
       const appearance=social.profile(user.id);
-      if(b.badge!==undefined){if(!VIP_BADGES.some(([symbol])=>symbol===b.badge))fail(400,'Выберите значок из списка');if(!vip.active(user.id))fail(403,'Значок доступен с VIP');appearance.badge=b.badge;}
+      if(b.badge!==undefined){if(!isBadge(b.badge))fail(400,'Выберите один эмодзи или стикер');if(isCustomBadge(b.badge)&&b.badge!==appearance.badge)stickers.item(b.badge.slice(4,-1),user.id);if(!vip.active(user.id))fail(403,'Значок доступен с VIP');appearance.badge=b.badge;}
       if(b.bio!==undefined)appearance.description=bio;
       if(b.avatar!==undefined&&avatar!==user.avatar)appearance.videoAvatar='';
       db.exec('BEGIN');try{run('UPDATE users SET username=?,name=?,bio=?,avatar=? WHERE id=?',username,name,bio,avatar,user.id);
@@ -33,7 +33,7 @@ export function createProfiles({db,one,all,run,fail,now,id,rate,privacy,family,v
     const shared=all("SELECT c.id,c.title,c.kind FROM chats c JOIN members a ON a.chat_id=c.id JOIN members b ON b.chat_id=c.id WHERE a.user_id=? AND b.user_id=? AND a.role!='banned' AND b.role!='banned' AND c.kind!='direct'",target,user.id).filter(c=>{try{family.chatAccess(c.id,user.id);return true;}catch{return false;}});
     const chat=one("SELECT c.id FROM chats c JOIN members a ON a.chat_id=c.id JOIN members b ON b.chat_id=c.id WHERE c.kind='direct' AND a.user_id=? AND b.user_id=?",target,user.id)?.id;
     if(chat)family.chatAccess(chat,user.id);
-    json({...privacy.project(u,user.id),surname:p.surname||'',pinned:privacy.permits(target,user.id,'bio')?p.pinned||'':'',...(privacy.permits(target,user.id,'email')?{email:p.email||'',emailVerified:!!p.email_verified}:{}),...(privacy.permits(target,user.id,'phone')?{phoneVerified:!!p.phone_verified}:{}),own,savedProfile:own?social.profile(target):undefined,vip:vip.active(target),profile:privacy.profile((()=>{const p={...social.profile(target)};if(!vip.active(target)){p.motion='off';p.patternMotion=false;p.frame='None';p.effect='None';p.nameStyle='plain';delete p.videoAvatar;}if(p.statusExpires&&p.statusExpires<=now()){p.status='';p.emoji='';}return p;})(),target,user.id),shared,chat,media:chat?all("SELECT id,kind,body,media_id,created FROM messages WHERE chat_id=? AND deleted=0 AND (media_id IS NOT NULL OR instr(body,'http')>0) ORDER BY created DESC LIMIT 100",chat):[],verification:own?{email:!!process.env.EMAIL_VERIFICATION_URL,phone:!!process.env.SMS_VERIFICATION_URL}:undefined});return true;
+    json({...privacy.project(u,user.id),surname:p.surname||'',pinned:privacy.permits(target,user.id,'bio')?p.pinned||'':'',...(privacy.permits(target,user.id,'email')?{email:p.email||'',emailVerified:!!p.email_verified}:{}),...(privacy.permits(target,user.id,'phone')?{phoneVerified:!!p.phone_verified}:{}),own,savedProfile:own?social.profile(target):undefined,vip:vip.active(target),profile:privacy.profile((()=>{const p={...social.profile(target)};if(!vip.active(target)){p.motion='off';p.patternMotion=false;p.frame='None';p.effect='None';p.nameStyle='plain';delete p.videoAvatar;}delete p.emoji;if(p.statusExpires&&p.statusExpires<=now())p.status='';return p;})(),target,user.id),shared,chat,media:chat?all("SELECT id,kind,body,media_id,created FROM messages WHERE chat_id=? AND deleted=0 AND (media_id IS NOT NULL OR instr(body,'http')>0) ORDER BY created DESC LIMIT 100",chat):[],verification:own?{email:!!process.env.EMAIL_VERIFICATION_URL,phone:!!process.env.SMS_VERIFICATION_URL}:undefined});return true;
   }
   return {route};
 }
