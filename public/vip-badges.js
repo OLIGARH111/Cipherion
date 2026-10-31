@@ -4,7 +4,7 @@ export const VIP_BADGES=Object.freeze([
  ['✦','Статус'],['💎','Бриллиант'],['👑','Корона'],['✨','Искры'],
  ['⚡','Молния'],['🔥','Огонь'],['🚀','Ракета'],['💚','Сердце']
 ]);
-const customBadge=/^:ce\[[a-zA-Z0-9-]{1,80}\]$/;
+const customBadge=/^:(?:ce|ae)\[[a-zA-Z0-9-]{1,80}\]$/;
 const emojiBadge=/^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\p{Emoji_Component}|‍|️|⃣)+$/u;
 export const isCustomBadge=value=>customBadge.test(String(value||''));
 export const isBadge=value=>{const v=String(value||'');return VIP_BADGES.some(([symbol])=>symbol===v)||customBadge.test(v)||(emojiBadge.test(v)&&!/^[\d#*]+$/.test(v)&&[...v].length<=10);};

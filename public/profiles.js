@@ -3,7 +3,7 @@ import {icon} from './ui.js';
 import {accountURL,accountFetch,draftKey} from './account-context.js';
 import {saveAction} from './ui.js';
 import {profileStudio,profileVisual,profileEffect,profileColors} from './profile-studio.js';
-import {renderCustom} from './stickers.js';
+import {renderCustom,renderToken} from './stickers.js';
 import {pickBadge,setBadge} from './badge-picker.js';
 import {$,esc,avatar,api,upload,modal,guard,toast,lastSeenText,vipBadge} from './ui.js';
 import {showStories,storyArchive} from './stories.js';
@@ -12,8 +12,13 @@ export function configureProfiles(c){context=c;}
 export const profileThemes={'Emerald Glass':['#153d32','#83d9b5'],Midnight:['#10172c','#a5b9ff'],'Black Glass':['#131719','#dce6e8'],Snow:['#e8f1ef','#236245'],Ocean:['#103149','#81c9ff'],Purple:['#312041','#d6adff'],Rose:['#452635','#ffb9db'],Bronze:['#3c2d21','#edbf89'],Aurora:['#183141','#acffe1'],Sunset:['#482d3a','#ffbc98']};
 function cardStyle(p){const theme=profileThemes[p.theme]||profileThemes['Emerald Glass'];return `--profile-accent:${p.accent||theme[1]};color:${p.theme==='Snow'?'#203c30':'#eef8f3'};background:linear-gradient(${p.gradient==='horizontal'?90:135}deg,${theme[0]},${p.gradient==='solid'?theme[0]:'#162e36'});border-radius:${p.cardStyle==='square'?8:28}px;--profile-blur:${Number(p.blur)||20}px;`;}
 // Telegram-style profile: hero with avatar, name + VIP badge (any emoji or sticker), round actions, info card and tabs.
-const heroSpots=[[15,20],[85,18],[7,46],[93,44],[19,72],[81,70],[33,7],[67,6],[5,84],[95,82],[32,90],[68,92]];
-function heroPattern(a){const list=(a.patternEmoji||[]).filter(Boolean);if(!list.length)return '';return `<div class="tgp-pattern ${a.patternMotion?'pattern-motion':''}" aria-hidden="true">${heroSpots.map(([x,y],i)=>`<span style="left:${x}%;top:${y}%;font-size:${i<6?28:18}px;animation-delay:${(i*.37).toFixed(2)}s">${renderCustom(list[i%list.length])}</span>`).join('')}</div>`;}
+// Telegram-style pattern: a faint scattered layer over the whole header plus bigger items around the avatar.
+const heroRing=[[22,17],[78,15],[11,40],[89,38],[25,60],[75,59]];
+const heroField=[[6,6],[30,4],[50,3],[70,5],[94,7],[4,24],[38,22],[62,23],[96,25],[17,32],[83,30],[3,52],[97,50],[12,70],[40,71],[60,70],[88,72],[5,88],[27,84],[50,90],[73,86],[95,92],[35,40],[65,41]];
+function heroPattern(a){const list=(a.patternEmoji||[]).filter(Boolean);if(!list.length)return '';const size=Number(a.patternSize)||30,faint=Math.max(.14,Math.min(.6,(a.patternOpacity??.2)+.12));
+ const field=heroField.map(([x,y],i)=>`<span class="tgp-faint" style="left:${x}%;top:${y}%;font-size:${Math.round(size*.62)}px;opacity:${faint};transform:translate(-50%,-50%) rotate(${a.patternRotation?(i*47%60)-30:0}deg)">${renderToken(list[(i+1)%list.length])}</span>`).join('');
+ const ring=heroRing.map(([x,y],i)=>`<span class="tgp-ring" style="left:${x}%;top:${y}%;font-size:${Math.round(size*1.05)}px;animation-delay:${(i*.37).toFixed(2)}s">${renderToken(list[i%list.length])}</span>`).join('');
+ return `<div class="tgp-pattern ${a.patternMotion?'pattern-motion':''}" aria-hidden="true" style="filter:blur(${Number(a.patternBlur)||0}px)">${field}${ring}</div>`;}
 function heroBackground(a){const c=profileColors[a.background]||profileColors.Emerald,accent=a.accent||'#83d9b5';return `radial-gradient(120% 80% at 50% 18%,color-mix(in srgb,${accent} 38%,transparent),transparent 70%),linear-gradient(160deg,${c[0]},${c[1]})`;}
 const mediaKinds={media:['photo','video','round'],files:['file'],voice:['voice'],links:['text']};
 function mediaTab(kind,rows){

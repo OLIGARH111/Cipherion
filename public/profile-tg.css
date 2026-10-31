@@ -5,10 +5,6 @@ dialog.tgp-modal header{border-bottom:0}
 .tgp-hero.has-cover{padding-top:150px}
 .tgp-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
 .tgp-hero.has-cover::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to bottom,transparent 25%,rgba(5,10,25,.35) 55%,rgba(5,10,25,.78))}
-.tgp-pattern{position:absolute;inset:0;z-index:-1;pointer-events:none}
-.tgp-pattern span{position:absolute;transform:translate(-50%,-50%);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.25));animation:tgp-float 6s ease-in-out infinite alternate}
-.tgp-pattern span:nth-child(n+7){opacity:.55}
-.tgp-pattern .custom-emoji{width:1.25em!important;height:1.25em!important}
 @keyframes tgp-float{from{translate:0 0}to{translate:0 -6px}}
 .tgp-avatar{border:0;padding:3px;background:transparent;border-radius:50%;cursor:pointer;line-height:0}
 .tgp-avatar .avatar{width:112px!important;height:112px!important;font-size:40px;border-radius:50%;box-shadow:0 8px 26px rgba(0,0,0,.3)}
@@ -115,3 +111,37 @@ dialog.badge-sheet::backdrop{background:rgba(0,0,0,.35)}
 .ess-preview .badge-emoji{width:32px!important;height:32px!important}
 .studio-badge-now{display:grid;place-items:center;min-width:40px;font-size:26px}
 .studio-badge-now .badge-emoji{width:34px!important;height:34px!important}
+
+/* Adaptive emoji: the sticker becomes a one-colour shape in currentColor.
+   A soft silhouette (alpha) plus the light parts of the drawing (luminance) keep inner details. */
+.adaptive-emoji{position:relative;display:inline-block;width:1.2em;height:1.2em;vertical-align:middle;color:inherit;flex:none}
+.adaptive-emoji::before,.adaptive-emoji::after{content:"";position:absolute;inset:0;background:currentColor;-webkit-mask:var(--ae) center/contain no-repeat;mask:var(--ae) center/contain no-repeat}
+.adaptive-emoji::before{opacity:.5}
+.adaptive-emoji::after{-webkit-mask-source-type:luminance;mask-mode:luminance}
+.vip-badge .adaptive-emoji{color:color-mix(in srgb,var(--profile-accent,var(--accent)) 75%,#fff)}
+
+/* Profile header pattern */
+.tgp-pattern{position:absolute;inset:0;z-index:-1;pointer-events:none;color:color-mix(in srgb,var(--profile-accent,#83d9b5) 55%,#fff)}
+.tgp-pattern span{position:absolute;line-height:1}
+.tgp-pattern .tgp-ring{transform:translate(-50%,-50%);filter:drop-shadow(0 4px 12px rgba(0,0,0,.22));animation:tgp-float 6s ease-in-out infinite alternate}
+.tgp-pattern .tgp-ring .adaptive-emoji{color:color-mix(in srgb,var(--profile-accent,#83d9b5) 35%,#fff)}
+.tgp-pattern .custom-emoji{width:1.2em!important;height:1.2em!important}
+.tgp-pattern.pattern-motion .tgp-faint{animation:tgp-drift 9s ease-in-out infinite alternate}
+@keyframes tgp-drift{to{translate:0 -8px}}
+@media (prefers-reduced-motion:reduce){.tgp-pattern span{animation:none!important}}
+.emoji-pattern{color:color-mix(in srgb,var(--profile-accent,#83d9b5) 60%,#fff)}
+.emoji-pattern .adaptive-emoji{width:1.15em;height:1.15em}
+
+/* Pattern editor in the studio */
+.adaptive-chip{display:inline-flex;align-items:center;gap:4px;color:var(--profile-accent,var(--accent))}
+.adaptive-chip .adaptive-emoji{font-size:20px}
+.adaptive-chip span:last-child{color:var(--text);margin-left:4px}
+.pattern-items{display:flex;flex-wrap:wrap;gap:8px}
+.pattern-item{position:relative;display:grid;place-items:center;width:56px;height:56px;padding:0;border:0;border-radius:16px;background:var(--ci-field);color:var(--profile-accent,var(--accent));font-size:30px;cursor:pointer}
+.pattern-item .custom-emoji{width:36px!important;height:36px!important}
+.pattern-item i{position:absolute;top:-4px;right:-4px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ci-danger,#f06a6a);color:#fff;font-style:normal;font-size:14px;line-height:1}
+.pattern-add{flex-direction:column;gap:0;border:1px dashed var(--ci-hairline);background:none;color:inherit;font-size:12px}
+.pattern-add svg{width:20px;height:20px}
+.ess-hint{margin:0;font-size:13px;opacity:.7}
+.ess-adaptive-grid .ess-cell{color:var(--accent);font-size:44px}
+.ess-current[hidden]{display:none!important}

@@ -30,6 +30,10 @@ test('VIP badge next to the name accepts any emoji or accessible sticker; emoji 
  const seen=(await request('/profile?user='+a.data.user.id,b.cookie)).data;
  assert.equal(seen.vipBadge,':ce['+sticker.id+']');assert.equal(seen.profile.emoji,undefined);
  assert.equal((await fetch(base+'/api/stickers/'+sticker.id+'/file',{headers:{Cookie:b.cookie},redirect:'manual'})).status,200);
+ assert.equal((await request('/profile',a.cookie,'PATCH',{patternEmoji:[':ae[v5-halloween-0]',':ae['+sticker.id+']','🎃']})).status,200);
+ assert.equal((await request('/profile',a.cookie,'PATCH',{patternEmoji:[':ae['+foreign.id+']']})).status,404);
+ assert.equal((await request('/profile',a.cookie,'PATCH',{patternEmoji:['x:ae[v5-halloween-0]']})).status,400);
+ assert.equal((await request('/profile',a.cookie,'PATCH',{badge:':ae[v5-halloween-1]'})).data.badge,':ae[v5-halloween-1]');
  assert.equal((await request('/profile/details',a.cookie,'PATCH',{badge:'🐸'})).status,200);
  assert.equal((await request('/profile?user='+a.data.user.id,b.cookie)).data.vipBadge,'🐸');
 });
