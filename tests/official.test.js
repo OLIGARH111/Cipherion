@@ -45,3 +45,8 @@ test('verified badge renders before the VIP mark',()=>{
  assert.match(vipBadge({verified:true,official:true}),/Официальный аккаунт Cipherion/);
  assert.match(vipBadge({verified:true,vip:true,vipBadge:'✦'}),/verified-badge.*vip-mark/s);
 });
+test('official chat UI hides the composer and calls',async()=>{
+ const src=(await import('node:fs')).readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ assert.match(src,/official=c\.kind==='direct'&&!!people\[0\]\?\.official/);
+ assert.match(src,/if\(p\?\.official\)return 'официальный аккаунт'/);
+});

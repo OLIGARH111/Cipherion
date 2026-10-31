@@ -487,6 +487,7 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/calls' && req.method==='POST') {
       const {chat}=membership(b.chat,user.id);family.chatAccess(b.chat,user.id,true);
       if(['channel','saved'].includes(chat.kind))fail(400,'Звонки доступны в личных и групповых чатах');
+      if(official.isOfficialChat(b.chat))fail(400,'Официальному аккаунту нельзя позвонить');
       const members=all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",b.chat);
       for(const m of members)if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');
       if(members.some(m=>m.user_id!==user.id && one('SELECT * FROM blocks WHERE user_id=? AND target=?',m.user_id,user.id)))fail(403,'Звонок недоступен');

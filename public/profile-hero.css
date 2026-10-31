@@ -151,3 +151,7 @@ dialog.badge-sheet::backdrop{background:rgba(0,0,0,.35)}
 .verified-badge .vb-seal{fill:#3b9cf6}
 .verified-badge .vb-tick{stroke:#fff}
 .tgp-name .verified-badge{width:.9em;height:.9em}
+/* The profile hero is a <header> inside a sheet dialog: keep the generic
+   «dialog.sheet header» bar styles from overriding it on phones. */
+dialog .tgp header.tgp-hero{position:relative;top:auto;z-index:auto;margin:0;flex-direction:column;justify-content:flex-start;align-items:center;gap:0;padding:26px 14px 18px;background-color:transparent}
+.tgp-more[hidden]{display:none}
