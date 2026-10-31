@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The site the app opens. Override with -PsiteUrl=https://... when building.
+def siteUrl = project.findProperty('siteUrl') ?: 'https://cipherion-messenger.onrender.com'
+
+android {
+    namespace 'app.cipherion.messenger'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.cipherion.messenger'
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName System.getenv('VERSION_NAME') ?: '1.0'
+        buildConfigField 'String', 'SITE_URL', "\"${siteUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    // Release signing comes from environment variables (GitHub secrets in CI).
+    // Without them the release build is signed with the debug key so it still installs.
+    signingConfigs {
+        release {
+            def store = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('ANDROID_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

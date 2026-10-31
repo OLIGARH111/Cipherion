@@ -27,7 +27,7 @@ import { applyTheme, settingsPage, themes } from './settings.js';
 import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,dayKey,dayLabel,listTime,ticks,tickSVG,mobile} from './chat-ui.js';
 import { createCalls } from './calls.js';
 import { groupPanel } from './groups.js';
-import {syncProtection,restricted,isProtected,protectionText} from './content-protection.js';
+import {syncProtection,nativeSecure,restricted,isProtected,protectionText} from './content-protection.js';
 import {schedulePage} from './social.js';
 import {aiPage,familyPage} from './extensions.js';
 import {syncHalloween,maybeWhatsNew,decorateComposer,treatMenuButton,ghostLine,treatCard,bindHalloween} from './halloween.js';
@@ -103,7 +103,7 @@ function empty(){const w=$('.workspace');if(!w)return;w.innerHTML=`<div class="e
 function closeChat(){
   if(state.recording){toast('Завершите или отмените запись');return;}
   const shellEl=$('.shell');if(!shellEl||!state.chat)return;closePopover();
-  flushDrafts();state.chat=null;state.reply=null;state.editing=null;state.stashedDraft=null;state.selection=null;state.find=null;pageCache.delete('chat');
+  flushDrafts();nativeSecure(false);state.chat=null;state.reply=null;state.editing=null;state.stashedDraft=null;state.selection=null;state.find=null;pageCache.delete('chat');
   shellEl.classList.remove('show-chat');renderChats();
   setTimeout(()=>{if(!state.chat&&state.tab==='chat')empty();},mobile()&&!calm()?260:0);
 }

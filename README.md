@@ -123,6 +123,22 @@ npm test
 
 Ключи, пароли и содержимое `data/` в репозиторий не входят.
 
+## Android-приложение
+
+В папке `android/` — нативное приложение для Android 7.0+ (без сторонних библиотек). Оно открывает `https://cipherion-messenger.onrender.com` во встроенном WebView и добавляет то, чего нет у сайта в браузере:
+- камера и микрофон для звонков, голосовых и кружочков (системный запрос разрешений);
+- выбор файлов и фото, скачивание файлов в «Загрузки», полноэкранное видео;
+- настоящий запрет скриншотов и записи экрана в чатах с защитой контента (`FLAG_SECURE`);
+- кнопка «Назад» закрывает открытый чат, ссылки на другие сайты открываются в браузере.
+
+**Где взять APK.** Workflow `.github/workflows/android.yml` собирает приложение при каждом изменении папки `android/` (или вручную: Actions → Android APK → Run workflow) и выкладывает `Cipherion.apk` в релиз [android-latest](../../releases/tag/android-latest).
+
+**Подпись.** Без секретов APK подписывается отладочным ключом — он устанавливается, но обновление поверх прошлой сборки может потребовать удалить старую. Для постоянной подписи добавьте секреты репозитория `ANDROID_KEYSTORE_BASE64` (keystore в base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+
+**Локальная сборка:** Android SDK + JDK 17, затем `cd android && gradle assembleRelease`. Другой адрес сервера: `-PsiteUrl=https://ваш-домен`.
+
+Push-уведомления в фоне пока работают только в PWA из браузера: WebView не поддерживает Web Push.
+
 ## Развёртывание
 
 Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит загрузки локально (`MEDIA_STORAGE_MODE=temporary`): на бесплатном Render такие файлы могут пропасть при перезапуске. Для постоянного хранения нужны рабочее S3-хранилище и `MEDIA_STORAGE_MODE=durable`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).

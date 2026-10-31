@@ -50,12 +50,16 @@ function install(){
   window.addEventListener('afterprint',()=>unshield());
 }
 
+// In the Android app the system can truly block screenshots and screen recording (FLAG_SECURE).
+export function nativeSecure(on){try{window.CipherionAndroid?.setSecure?.(!!on);}catch{}}
+
 // Called whenever the open chat is rendered, so a change made by the other side applies at once.
 export function syncProtection(chat,user){
   const box=document.querySelector('.conversation');if(!box)return;
   const on=restricted(chat);
   box.classList.toggle('content-protected',isProtected(chat));
   box.classList.toggle('content-restricted',on);
+  nativeSecure(on);
   if(on){install();box.style.setProperty('--protect-watermark',watermark(user));}
   else{box.classList.remove('content-shielded');box.style.removeProperty('--protect-watermark');}
   const title=box.querySelector('.conversation-title h3');
