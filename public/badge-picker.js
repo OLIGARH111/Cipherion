@@ -14,7 +14,7 @@ export function pickBadge(current='✦',{mode='badge'}={}){const pattern=mode===
   const sheet=document.createElement('dialog');sheet.className='badge-sheet';
   let tab=pattern?'adaptive':'badges',packs=null,packId=pattern?'':'recent',done=false;const cache=new Map();
   sheet.innerHTML=`<div class="ess-head"><b>${pattern?'Узор профиля':'Значок у имени'}</b><button type="button" class="ess-close" aria-label="Закрыть">${icon('close')}</button></div>
-   ${pattern?'<p class="ess-hint">Адаптивные эмодзи окрашиваются в цвет профиля, как узор в Telegram</p>':''}<div class="ess-current" ${pattern?'hidden':''}><span class="ess-preview">${vipBadge({vip:true,vipBadge:current})}</span><small>Сейчас рядом с именем</small>${current&&current!=='✦'?'<button type="button" class="pe-text-button" data-ess-clear>Вернуть VIP</button>':''}</div>
+   ${pattern?'<p class="ess-hint">Адаптивные эмодзи окрашиваются в цвет вашего профиля</p>':''}<div class="ess-current" ${pattern?'hidden':''}><span class="ess-preview">${vipBadge({vip:true,vipBadge:current})}</span><small>Сейчас рядом с именем</small>${current&&current!=='✦'?'<button type="button" class="pe-text-button" data-ess-clear>Вернуть VIP</button>':''}</div>
    <input class="ess-search" type="search" placeholder="Поиск эмодзи" autocomplete="off">
    <div class="ess-tabs" role="tablist">${pattern?'':'<button type="button" data-ess-tab="badges">Значки</button>'}<button type="button" data-ess-tab="adaptive">Адаптивные</button><button type="button" data-ess-tab="emoji">Эмодзи</button><button type="button" data-ess-tab="stickers">Стикеры</button></div>
    <div class="ess-body"></div>`;

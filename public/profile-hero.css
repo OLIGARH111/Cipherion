@@ -1,4 +1,4 @@
-/* Profile screen in Telegram style + emoji status picker. */
+/* Profile screen, VIP badge picker and adaptive emoji. */
 dialog.tgp-modal header{border-bottom:0}
 .tgp{display:flex;flex-direction:column;gap:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
 .tgp-hero{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:26px 14px 18px;border-radius:28px;color:#fff;box-shadow:0 14px 40px rgba(0,0,0,.28)}

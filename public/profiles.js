@@ -11,8 +11,8 @@ let context;
 export function configureProfiles(c){context=c;}
 export const profileThemes={'Emerald Glass':['#153d32','#83d9b5'],Midnight:['#10172c','#a5b9ff'],'Black Glass':['#131719','#dce6e8'],Snow:['#e8f1ef','#236245'],Ocean:['#103149','#81c9ff'],Purple:['#312041','#d6adff'],Rose:['#452635','#ffb9db'],Bronze:['#3c2d21','#edbf89'],Aurora:['#183141','#acffe1'],Sunset:['#482d3a','#ffbc98']};
 function cardStyle(p){const theme=profileThemes[p.theme]||profileThemes['Emerald Glass'];return `--profile-accent:${p.accent||theme[1]};color:${p.theme==='Snow'?'#203c30':'#eef8f3'};background:linear-gradient(${p.gradient==='horizontal'?90:135}deg,${theme[0]},${p.gradient==='solid'?theme[0]:'#162e36'});border-radius:${p.cardStyle==='square'?8:28}px;--profile-blur:${Number(p.blur)||20}px;`;}
-// Telegram-style profile: hero with avatar, name + VIP badge (any emoji or sticker), round actions, info card and tabs.
-// Telegram-style pattern: a faint scattered layer over the whole header plus bigger items around the avatar.
+// Profile screen: hero with avatar, name + VIP badge (any emoji or sticker), round actions, info card and tabs.
+// Header pattern: a faint scattered layer over the whole header plus bigger items around the avatar.
 const heroRing=[[22,17],[78,15],[11,40],[89,38],[25,60],[75,59]];
 const heroField=[[6,6],[30,4],[50,3],[70,5],[94,7],[4,24],[38,22],[62,23],[96,25],[17,32],[83,30],[3,52],[97,50],[12,70],[40,71],[60,70],[88,72],[5,88],[27,84],[50,90],[73,86],[95,92],[35,40],[65,41]];
 function heroPattern(a){const list=(a.patternEmoji||[]).filter(Boolean);if(!list.length)return '';const size=Number(a.patternSize)||30,faint=Math.max(.14,Math.min(.6,(a.patternOpacity??.2)+.12));
