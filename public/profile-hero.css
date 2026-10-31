@@ -145,3 +145,9 @@ dialog.badge-sheet::backdrop{background:rgba(0,0,0,.35)}
 .ess-hint{margin:0;font-size:13px;opacity:.7}
 .ess-adaptive-grid .ess-cell{color:var(--accent);font-size:44px}
 .ess-current[hidden]{display:none!important}
+/* Verified / official account check */
+.verified-badge{display:inline-flex;align-items:center;justify-content:center;width:1.05em;height:1.05em;margin-inline:.22em .1em;vertical-align:-.14em;flex:none}
+.verified-badge svg{width:100%;height:100%;display:block}
+.verified-badge .vb-seal{fill:#3b9cf6}
+.verified-badge .vb-tick{stroke:#fff}
+.tgp-name .verified-badge{width:.9em;height:.9em}
