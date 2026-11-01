@@ -149,5 +149,6 @@ body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page
   .pill-head .conversation-title h3{max-width:100%;font-size:17px;font-weight:650;line-height:1.2}
   .pill-head #chat-status{max-width:100%;font-size:13.5px;text-align:center}
   .pill-head .avatar{order:2;flex:none;width:50px!important;height:50px!important;margin:0 3px;border-radius:50%;box-shadow:0 0 0 3px var(--ci-island),0 0 0 4.5px color-mix(in srgb,var(--accent) 50%,transparent),var(--ci-island-shadow)}
+  .pill-head .avatar{cursor:default}
   .pill-head .avatar img{border-radius:50%}
 }
