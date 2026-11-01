@@ -60,7 +60,7 @@ body.light .hw-bat svg{fill:#2b1d38}
 /* Composer ghost mode */
 .ghost-toggle{font-size:18px;filter:grayscale(1);opacity:.65;transition:filter .2s,opacity .2s,transform .2s}
 .ghost-toggle[aria-pressed=true]{filter:none;opacity:1;transform:scale(1.1)}
-.composer.ghost-mode{box-shadow:0 0 0 1.5px #c4b5fd88,0 0 22px #8b5cf644}
+.composer.ghost-mode .composer-field{box-shadow:0 0 0 1.5px #c4b5fd88,0 0 22px #8b5cf644}
 
 /* Ghost messages */
 .ghost-message .bubble{border:1.5px dashed #c4b5fd77;animation:hw-haunt 3.4s ease-in-out infinite}

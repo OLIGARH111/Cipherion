@@ -550,3 +550,23 @@ dialog.sheet header>div{flex:1}
   .typing-dots i,.skeleton-msg,.side-foot .dot,.ep-loading{animation:none!important}
 }
 body.no-motion .workspace,body.no-motion .side,body.no-motion .rail{transition:none!important}
+
+/* Composer in three parts: round attach button, glass pill with the text and sticker icon, round mic/send button. */
+.composer,.composer:focus-within,:root[data-input=keyboard] .composer:has(textarea:focus){gap:8px;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.composer>.icon-button,.composer-field{border:1px solid var(--ci-hairline);background:var(--ci-island);box-shadow:var(--ci-island-shadow),inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%)}
+.composer>.icon-button{flex:none;width:50px;min-width:50px;height:50px;border-radius:50%;color:var(--text)}
+.composer>.icon-button svg{width:24px;height:24px}
+.composer>.icon-button:hover{background:color-mix(in srgb,var(--accent) 14%,var(--ci-island));color:var(--accent)}
+.composer>.send,.composer>.send:hover{border-color:transparent;background:var(--ci-grad);color:var(--on-accent)}
+.composer-field{flex:1;min-width:0;display:flex;align-items:flex-end;min-height:50px;padding:4px 5px 4px 16px;border-radius:25px;transition:border-color .2s,box-shadow .2s}
+.composer-field:focus-within{border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.composer-field textarea{padding:10px 4px 10px 0}
+.composer-field .icon-button{width:40px;min-width:40px;height:40px;border-radius:50%;background:transparent}
+.composer-field #emoji{color:var(--muted)}
+@media(max-width:700px){
+  .composer{gap:6px}
+  .composer>.icon-button{width:46px;min-width:46px;height:46px}
+  .composer-field{min-height:46px;padding:2px 3px 2px 14px;border-radius:23px}
+  .composer-field .icon-button{width:40px;min-width:40px}
+}
+body.light .composer>.icon-button:not(.send),body.light .composer-field{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.65);box-shadow:0 6px 20px rgba(16,50,36,.10),inset 0 1px 0 rgba(255,255,255,.7)}
