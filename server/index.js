@@ -123,6 +123,7 @@ function endCall(call, status = 'ended') {
 }
 const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const storage=createStorage({db,one,run,data});
+storage.adoptLocal().then(n=>{if(n)console.log(`Moved ${n} stored files into the database`);}).catch(e=>console.warn('Moving files into the database failed:',e.message));
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const traffic=createTraffic({db,run,all,now});
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null,verified:official.isVerified(uid),...(official.isBot(uid)?{official:true}:{})};}});

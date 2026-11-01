@@ -11,7 +11,7 @@ Target URL: `libsql://cipherion-oligarh111.aws-us-west-2.turso.io`.
 3. Import the verified SQLite snapshot into Turso with the provider's import workflow. Compare schema, row counts, IDs, foreign keys and representative account/message scenarios. This import has not yet been performed.
 4. Set URL and token on Render after backup/import. For a deliberately new empty database only, `TURSO_ALLOW_EMPTY_INIT=1` permits schema initialization. Do not set this flag to bypass migration or lose current accounts.
 5. Test actual remote transactions, triggers, concurrent retries, invalid-token/network failures, and restart/redeploy persistence before declaring connected. Local libSQL tests do not prove remote behavior or performance. The synchronous remote driver blocks the Node event loop during network requests; measure under realistic load before public launch.
-6. Media/stickers are STILL LOCAL FILES and require separate object storage migration. Connecting Turso alone does not preserve photo/video bytes after a Render redeploy.
+6. With `MEDIA_STORAGE_MODE=database` (Docker default) photos, stickers and files up to `MEDIA_DB_MAX_MB` (20 MB) are stored in the `media_blobs` table in 512 KB chunks, so they survive Render redeploys together with Turso. Files still on local disk are moved into the database at startup. Larger files stay local and can be lost on redeploy unless S3 (`MEDIA_STORAGE_MODE=durable`) is used. Mind the Turso storage quota.
 
 ## Validation
 

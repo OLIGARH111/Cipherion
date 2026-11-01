@@ -114,7 +114,7 @@ npm test
 | Что | Переменные |
 | --- | --- |
 | База данных | `DATA_DIR` (SQLite) или `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` |
-| Хранение файлов | `MEDIA_STORAGE_MODE`, `S3_*` |
+| Хранение файлов | `MEDIA_STORAGE_MODE` (`database` / `durable` / `temporary`), `MEDIA_DB_MAX_MB`, `S3_*` |
 | Звонки (TURN) | `TURN_URLS` + `TURN_SHARED_SECRET`, `CLOUDFLARE_TURN_*` или `METERED_TURN_*` |
 | AI и расшифровка | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `TRANSCRIPTION_*` |
 | Email-вход | `EMAIL_AUTH_ENABLED`, `EMAIL_PROVIDER`, `RESEND_API_KEY` |
@@ -125,7 +125,7 @@ npm test
 
 ## Развёртывание
 
-Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит загрузки локально (`MEDIA_STORAGE_MODE=temporary`): на бесплатном Render такие файлы могут пропасть при перезапуске. Для постоянного хранения нужны рабочее S3-хранилище и `MEDIA_STORAGE_MODE=durable`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
+Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит фото и файлы до 20 МБ прямо в базе данных (`MEDIA_STORAGE_MODE=database`, таблица `media_blobs`): они переживают деплой и перезапуск вместе с базой Turso. Файлы крупнее `MEDIA_DB_MAX_MB` остаются на локальном диске. Для S3-хранилища — `MEDIA_STORAGE_MODE=durable` и `S3_*`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
 
 ## Архитектура
 
