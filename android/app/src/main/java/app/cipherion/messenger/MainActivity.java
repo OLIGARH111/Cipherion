@@ -74,6 +74,16 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        // Speed: keep the app's own files in the HTTP cache, a fixed text size so layouts never reflow,
+        // pre-rendered off-screen tiles for smooth scrolling, and top renderer priority like a native app.
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setTextZoom(100);
+        if (Build.VERSION.SDK_INT >= 23) s.setOffscreenPreRaster(true);
+        if (Build.VERSION.SDK_INT >= 26) {
+            s.setSafeBrowsingEnabled(false); // only our own site is ever loaded here
+            web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
+        }
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         s.setUserAgentString(s.getUserAgentString() + " CipherionAndroid/" + BuildConfig.VERSION_NAME);
 
         CookieManager cookies = CookieManager.getInstance();
@@ -177,6 +187,7 @@ public class MainActivity extends Activity {
         web.onResume();
         CipherionService.clearMessages(this);
         CipherionService.start(this);
+        Updater.check(this, false);
     }
 
     @Override
@@ -376,6 +387,17 @@ public class MainActivity extends Activity {
                 if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
                 else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
             });
+        }
+
+        /** Lets a "Проверить обновления" button in the page trigger a check right away. */
+        @JavascriptInterface
+        public void checkForUpdates() {
+            runOnUiThread(() -> Updater.check(MainActivity.this, true));
+        }
+
+        @JavascriptInterface
+        public int versionCode() {
+            return BuildConfig.VERSION_CODE;
         }
 
         @JavascriptInterface

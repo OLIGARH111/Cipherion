@@ -9,7 +9,7 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
 // API calls and media never pass through this cache: they carry private, per-account data.
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);
-  if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname==='/sw.js')return;
+  if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname.startsWith('/android/')||url.pathname==='/sw.js')return;
   event.respondWith((async()=>{
     const cache=await caches.open(SHELL);
     const key=request.mode==='navigate'&&url.pathname==='/'?'/':request;

@@ -121,7 +121,7 @@ function endCall(call, status = 'ended') {
   broadcast(call.chat, 'call', { ...call, participants: [...call.participants], state: status });
   liveCalls.delete(call.id);
 }
-const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json', '.apk': 'application/vnd.android.package-archive' };
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const traffic=createTraffic({db,run,all,now});

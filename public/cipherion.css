@@ -223,7 +223,7 @@ body.glass-ui .conversation{background:transparent}
 .message.first{margin-top:7px}
 .date-divider+.message{margin-top:0}
 /* Bubbles: soft capsules without tails; the corner towards the author tightens at the end of a series. */
-.bubble{position:relative;min-width:0;max-width:100%;padding:7px 12px 7px 13px;border:1px solid var(--ci-hairline);border-radius:var(--ci-r-bubble);background:var(--ci-in);color:var(--text);box-shadow:var(--ci-shadow);backdrop-filter:blur(10px);overflow-wrap:anywhere;font-size:var(--message-font,15px);line-height:1.4}
+.bubble{position:relative;min-width:0;max-width:100%;padding:7px 12px 7px 13px;border:1px solid var(--ci-hairline);border-radius:var(--ci-r-bubble);background:var(--ci-in);color:var(--text);box-shadow:var(--ci-shadow);overflow-wrap:anywhere;font-size:var(--message-font,15px);line-height:1.4}
 .own .bubble{background:var(--ci-out);background-color:var(--ci-out-flat);border-color:var(--ci-out-line);box-shadow:var(--ci-shadow),inset 0 1px 0 rgba(255,255,255,.07)}
 .message:not(.own):not(.first) .bubble{border-top-left-radius:8px}
 .message:not(.own):not(.last) .bubble{border-bottom-left-radius:8px}
