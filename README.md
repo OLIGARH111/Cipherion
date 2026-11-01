@@ -134,7 +134,7 @@ npm test
 
 **Где взять APK.** Workflow `.github/workflows/android.yml` собирает приложение при каждом изменении папки `android/` (или вручную: Actions → Android APK → Run workflow) и выкладывает `Cipherion.apk` в релиз [android-latest](../../releases/tag/android-latest).
 
-**Обновления внутри приложения.** Сборка из `main` кладёт `public/android/Cipherion.apk` и `public/android/version.json` на сайт. При входе приложение сверяет номер версии и, если есть новая, показывает «Доступно обновление» → «Обновить»: APK скачивается и ставится поверх старого, чаты и вход сохраняются. Странице доступна кнопка проверки: `window.CipherionAndroid?.checkForUpdates()`.
+**Обновления внутри приложения.** При входе приложение читает `/android/version.json` на сайте (`{"versionCode":N,"versionName":"…","url":"/android/Cipherion.apk","notes":"…"}`). Если там версия новее, показывает «Доступно обновление» → «Обновить»: APK скачивается и ставится поверх старого, чаты и вход сохраняются. Чтобы выпустить обновление, положите новый `Cipherion.apk` и `version.json` в `public/android/`. Кнопка проверки для страницы: `window.CipherionAndroid?.checkForUpdates()`.
 
 **Подпись.** Обновление поверх старой версии работает только при одном и том же ключе подписи. Без секретов APK подписывается временным ключом, и каждую сборку приходится ставить заново. Для постоянной подписи добавьте секреты репозитория `ANDROID_KEYSTORE_BASE64` (keystore в base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
 
