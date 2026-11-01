@@ -14,7 +14,10 @@ export function createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin}) {
   if(!botId||!one('SELECT id FROM users WHERE id=?',botId)){
     botId=id();
     // The empty password can never match a login attempt, so nobody can sign in as the bot.
-    const username=one('SELECT id FROM users WHERE username=?',OFFICIAL_USERNAME)?null:OFFICIAL_USERNAME;
+    // Older databases require a username, so pick a free one instead of leaving it empty.
+    const taken=name=>!!one('SELECT id FROM users WHERE username=?',name);
+    let username=[OFFICIAL_USERNAME,'cipherion_official','cipherion_bot'].find(name=>!taken(name));
+    while(!username||taken(username))username='cipherion_'+id().replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,12);
     run('INSERT INTO users(id,username,name,password,bio,created) VALUES(?,?,?,?,?,?)',botId,username,OFFICIAL_NAME,'','Официальный аккаунт Cipherion: системные уведомления и обновления',now());
     run('INSERT INTO official_account(singleton,user_id) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET user_id=excluded.user_id',botId);
   }
