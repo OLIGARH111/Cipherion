@@ -91,15 +91,27 @@ function audit(chat, actor, action, target = '') {
   run('INSERT INTO audit VALUES(?,?,?,?,?,?)', id(), chat, actor, action, target, now());
   broadcast(chat, 'refresh', { chat });
 }
-function message(row, viewer) {
+// Reactions, the viewer's own reaction and story links for a whole page of messages: three queries
+// in total instead of three for every message.
+function messageExtras(rows, viewer) {
+  const ids = [...new Set(rows.filter(r => r && !r.deleted).map(r => r.id))], reactions = new Map(), mine = new Map(), storyLinks = new Set();
+  for (let i = 0; i < ids.length; i += 400) {
+    const part = ids.slice(i, i + 400), marks = part.map(() => '?').join(',');
+    for (const r of all(`SELECT message_id,emoji,COUNT(*) count FROM reactions WHERE message_id IN (${marks}) GROUP BY message_id,emoji`, ...part)) { if (!reactions.has(r.message_id)) reactions.set(r.message_id, []); reactions.get(r.message_id).push({ emoji: r.emoji, count: r.count }); }
+    for (const r of all(`SELECT message_id,emoji FROM reactions WHERE user_id=? AND message_id IN (${marks})`, viewer, ...part)) mine.set(r.message_id, r.emoji);
+    for (const r of all(`SELECT message_id FROM story_replies WHERE message_id IN (${marks})`, ...part)) storyLinks.add(r.message_id);
+  }
+  return { reactions: id => reactions.get(id) || [], mine: id => mine.get(id) || null, story: id => storyLinks.has(id) };
+}
+function message(row, viewer, extras) {
   row={...row,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent'};
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id), viewer);
   if (row.deleted) return { id: row.id, chat_id: row.chat_id, user_id: row.user_id, created: row.created, client_id:row.client_id,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent', deleted: true, author };
-  const result = { ...row, author, reactions:social.reactions(row.id), myReaction:one('SELECT emoji FROM reactions WHERE message_id=? AND user_id=?',row.id,viewer)?.emoji||null, media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
+  const result = { ...row, author, reactions:extras?extras.reactions(row.id):social.reactions(row.id), myReaction:extras?extras.mine(row.id):one('SELECT emoji FROM reactions WHERE message_id=? AND user_id=?',row.id,viewer)?.emoji||null, media: row.media_id ? one('SELECT id,name,type,size FROM media WHERE id=?', row.media_id) : null };
   if(row.poll)result.poll=polls.project(row,viewer);
   if(row.kind==='treat')result.game=halloween.project(row)||{};
   if(row.kind==='sticker')result.sticker=stickers.asset(row.body);
-  result.story=stories.replyPreview(row.id,viewer);
+  result.story=extras&&!extras.story(row.id)?null:stories.replyPreview(row.id,viewer);
   return result;
 }
 function chatView(c, user) {
@@ -138,7 +150,7 @@ const stories=createStories({db,one,all,run,fail,now,id,rate,privacy,family,vip,
 const e2e=createE2E({db,one,all,run,fail,now,id,membership,family});
 const halloween=createHalloween({db,one,all,run,fail,now,broadcast,rate});
 setInterval(()=>{try{halloween.sweep();}catch(error){logFailure('ghost_sweep_failed',error);}},5000).unref();
-const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message});
+const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message,messageExtras});
 migrate(db);
 const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
@@ -338,7 +350,8 @@ const server = http.createServer(async (req, res) => {
         const rows = (beforeId===null
           ? all('SELECT * FROM messages WHERE chat_id=? AND created>? AND created<? ORDER BY created DESC,id DESC LIMIT 60',chatId,member.cleared_at||0,before)
           : all('SELECT * FROM messages WHERE chat_id=? AND created>? AND (created<? OR (created=? AND id<?)) ORDER BY created DESC,id DESC LIMIT 60',chatId,member.cleared_at||0,before,before,beforeId)).reverse();
-        return json(rows.map(m => message(m, user.id)));
+        const extras = messageExtras(rows, user.id);
+        return json(rows.map(m => message(m, user.id, extras)));
       }
       if (action === 'messages' && req.method === 'POST') {
         const clientId=(b.clientMessageId??b.clientId)==null?null:String(b.clientMessageId??b.clientId);if(b.clientMessageId&&b.clientId&&b.clientMessageId!==b.clientId)fail(400,'ID сообщения не совпадают');if(clientId!==null&&!/^[a-zA-Z0-9_-]{16,100}$/.test(clientId))fail(400,'Некорректный ID сообщения');

@@ -120,3 +120,20 @@ test('the chat list can be asked for one chat, and never returns a chat the user
  assert.deepEqual(await list(c,'?chat='+chat.id),[],'outsiders get nothing');
  assert.ok((await list(a)).length>1,'without the parameter the whole list is returned');
 });
+
+test('a page of messages and the sync feed match the single-message view, reactions included',async()=>{
+ const reg=async name=>{const r=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true,username:name,password:'integration-password-123'})});return r.headers.get('set-cookie').split(';')[0];};
+ const a=await reg('batch_a'),b=await reg('batch_b');
+ const call=(cookie,path,method='GET',data)=>fetch(base+'/api'+path,{method,headers:{Cookie:cookie,...(data?{'Content-Type':'application/json'}:{})},body:data&&JSON.stringify(data)}).then(r=>r.json());
+ const bId=(await call(b,'/me')).user.id,chat=await call(a,'/chats','POST',{users:[bId]});
+ const sent=[];for(let i=0;i<4;i++)sent.push(await call(i%2?b:a,'/chats/'+chat.id+'/messages','POST',{body:'m'+i,clientId:randomUUID()}));
+ await call(a,'/reactions','POST',{message:sent[1].id,emoji:'👍'});await call(b,'/reactions','POST',{message:sent[1].id,emoji:'👍'});await call(b,'/reactions','POST',{message:sent[2].id,emoji:'🔥'});
+ const strip=m=>{const {author,_metadata,...rest}=m;return {...rest,author:author?.id};};
+ const page=await call(a,'/chats/'+chat.id+'/messages');assert.equal(page.length,4);
+ assert.deepEqual(page.find(m=>m.id===sent[1].id).reactions,[{emoji:'👍',count:2}]);assert.equal(page.find(m=>m.id===sent[1].id).myReaction,'👍');
+ assert.equal(page.find(m=>m.id===sent[2].id).myReaction,null);assert.equal(page.find(m=>m.id===sent[0].id).story,null);
+ for(const m of page)assert.deepEqual(strip(m),strip(await call(a,'/messages/'+m.id)),'page entry equals single view');
+ const feed=(await call(b,'/sync?after=0')).events.map(e=>e.message).filter(m=>m.chat_id===chat.id);
+ for(const m of feed)assert.deepEqual(strip(m),strip(await call(b,'/messages/'+m.id)),'sync entry equals single view');
+ assert.ok(feed.length>=4);
+});
