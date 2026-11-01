@@ -139,6 +139,8 @@ export function createCalls(state,iceServers){
       tile.dataset.level=next;tile.style.setProperty('--voice',next.toFixed(3));
     }
     const wait=$('#call-wait');if(wait)wait.hidden=tiles.length>0;
+    // Name and status sit under the avatar; once the other person shows video they move up next to the arrow.
+    $('.call-overlay')?.classList.toggle('head-top',tiles.length>1||tiles.some(t=>t.classList.contains('has-video')));
     $('#video-grid')?.setAttribute('data-count',String(Math.min(tiles.length,4)));
   }
   // The self-view can be dragged and sticks to the nearest corner, like in Telegram.

@@ -161,3 +161,12 @@ button.primary.danger{background:var(--ci-danger,#e5534b);border-color:transpare
 .tg-call.minimized .call-btn svg{width:20px;height:20px}
 @media (min-width:900px){.tg-call .call-self{width:220px;aspect-ratio:4/3}}
 @media (prefers-reduced-motion:reduce){.tg-call .call-wait .call-voice i{animation:none}}
+/* Without the other person's video the name and call status are large, right under the avatar. */
+.tg-call .call-face b{display:none}
+.tg-call:not(.head-top) .call-title{position:absolute;left:16px;right:16px;top:calc(50dvh + 100px);padding:0;text-align:center}
+.tg-call:not(.head-top) .call-title h3{font-size:28px;white-space:normal;line-height:1.2;margin-bottom:8px;text-shadow:0 1px 10px #0008}
+.tg-call:not(.head-top) .call-title p{font-size:18px;color:#ffffffd0}
+.tg-call:not(.head-top) .call-head{background:none}
+.tg-call.head-top .call-title{text-align:left;padding-right:0}
+.tg-call.head-top .call-title h3{font-size:18px}
+.tg-call .call-title p .call-state{font-size:inherit;color:inherit;margin:0}
