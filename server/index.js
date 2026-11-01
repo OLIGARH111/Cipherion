@@ -31,7 +31,7 @@ import { open, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database, databaseConfig } from './db.js';
-import { createStaticFiles, encodingFor, compress, etagMatches } from './http-cache.js';
+import { createStaticFiles, createAppShell, encodingFor, compress, etagMatches } from './http-cache.js';
 import { createTraffic } from './traffic.js';
 import { compressVideo } from './video-compress.js';
 import { allowed, defaults, adminPermissions, memberPermissions } from './permissions.js';
@@ -150,6 +150,7 @@ const communities=createCommunities({db,one,all,run,fail,now,id,membership,famil
 let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const staticFiles = createStaticFiles();
+const appShell = createAppShell(resolve(root, 'public'), staticFiles);
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -171,11 +172,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
-      const file = resolve(root, 'public', path === '/' ? 'index.html' : '.' + decodeURIComponent(path));
+      if (path === '/' || path === '/index.html') return staticFiles.send(req, res, await appShell.get(), { type: mime['.html'], cacheControl: 'no-cache' });
+      // /v/<version>/file is the same file as /file. Only the current version may be cached forever:
+      // a request for an older version gets today's file, revalidated as usual.
+      const versioned = path.match(/^\/v\/([a-f0-9]{12})(\/.+)$/);
+      const filePath = versioned ? versioned[2] : path;
+      const file = resolve(root, 'public', '.' + decodeURIComponent(filePath));
       if (!file.startsWith(resolve(root, 'public') + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) fail(404, 'Не найдено');
       // Hashed icons never change; bundled sticker art changes only with a new versioned folder;
       // everything else is revalidated by ETag, which costs a tiny 304 instead of the whole file.
-      const cacheControl = /^\/brand\/icon-\d+-[a-f0-9]+\.png$/.test(path) ? 'public, max-age=31536000, immutable' : /^\/stickers(-v\d+)?\//.test(path) ? 'public, max-age=604800' : 'no-cache';
+      const cacheControl = versioned ? (versioned[1] === (await appShell.get()).version && /\.(js|css)$/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache') : /^\/brand\/icon-\d+-[a-f0-9]+\.png$/.test(filePath) ? 'public, max-age=31536000, immutable' : /^\/stickers(-v\d+)?\//.test(filePath) ? 'public, max-age=604800' : 'no-cache';
       return await staticFiles.serve(req, res, file, { type: mime[extname(file)] || 'application/octet-stream', cacheControl }).catch(error => error.code === 'ENOENT' || error.code === 'EISDIR' || error.code === 'ENOTDIR' ? fail(404, 'Не найдено') : Promise.reject(error));
     }
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';

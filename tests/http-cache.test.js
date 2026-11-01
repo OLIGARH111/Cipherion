@@ -67,7 +67,7 @@ test('service worker serves the saved app shell when the network or server fails
  const listeners={},store=new Map();
  const cache={put:async(k,v)=>{store.set(typeof k==='string'?k:k.url,v);},match:async k=>store.get(typeof k==='string'?k:k.url)};
  let network=async()=>({ok:true,status:200,type:'basic',clone(){return this;},body:'fresh'});
- const context={self:{location:{origin:'https://c.test'},addEventListener:(n,f)=>listeners[n]=f,clients:{claim:async()=>{}}},URL,Date,caches:{open:async()=>cache,keys:async()=>[],delete:async()=>true},fetch:(...a)=>network(...a),Response:{error:()=>({error:true})}};
+ const context={self:{location:{origin:'https://c.test'},addEventListener:(n,f)=>listeners[n]=f,clients:{claim:async()=>{}}},URL,Date,setTimeout,caches:{open:async()=>cache,keys:async()=>[],delete:async()=>true},fetch:(...a)=>network(...a),Response:{error:()=>({error:true})}};
  vm.runInNewContext(await readFile('public/sw.js','utf8'),context);
  const fetchEvent=async request=>{let result;listeners.fetch({request,respondWith:p=>result=p});return result&&await result;};
  const page={method:'GET',mode:'navigate',url:'https://c.test/?x=1'};
@@ -77,4 +77,33 @@ test('service worker serves the saved app shell when the network or server fails
  assert.equal(await fetchEvent({method:'GET',mode:'cors',url:'https://c.test/api/chats'}),undefined);
  assert.equal(await fetchEvent({method:'POST',mode:'cors',url:'https://c.test/app.js'}),undefined);
  network=async()=>{throw new TypeError('offline');};assert.deepEqual(await fetchEvent({method:'GET',mode:'no-cors',url:'https://c.test/never-cached.js'}),{error:true});
+});
+
+test('the page links versioned files that are cached forever and preloads the whole module tree',async()=>{
+ const page=await raw('/');assert.equal(page.status,200);assert.equal(page.headers['cache-control'],'no-cache');
+ const html=page.body.toString();const version=html.match(/src="\/v\/([a-f0-9]{12})\/app\.js"/)?.[1];
+ assert.ok(version,'app.js must be linked through /v/<version>/');
+ assert.match(html,new RegExp(`href="/v/${version}/style.css"`));
+ for(const module of ['ui.js','account-context.js','chat-ui.js','email-auth.js'])assert.match(html,new RegExp(`<link rel="modulepreload" href="/v/${version}/${module}">`));
+ assert.ok(!html.includes(`modulepreload" href="/v/${version}/app.js"`),'entry scripts are not preloaded twice');
+ assert.equal((await raw('/index.html')).headers.etag,page.headers.etag);
+ const asset=await raw(`/v/${version}/ui.js`);assert.equal(asset.status,200);assert.equal(asset.headers['cache-control'],'public, max-age=31536000, immutable');
+ assert.deepEqual(asset.body,await readFile('public/ui.js'));
+ // An older version still loads, but is never stored for a year under the wrong name.
+ assert.equal((await raw('/v/000000000000/ui.js')).headers['cache-control'],'no-cache');
+ assert.equal((await raw(`/v/${version}/missing.js`)).status,404);
+ assert.equal((await raw(`/v/${version}/%2e%2e/%2e%2e/package.json`)).status,404);
+ assert.ok(!(await readFile('public/style.css','utf8')).includes('@import'),'no stylesheet waits for another one');
+});
+
+test('service worker opens versioned files from its cache without the network',async()=>{
+ const listeners={},stores=new Map();
+ const open=async name=>{if(!stores.has(name))stores.set(name,new Map());const store=stores.get(name);return {put:async(k,v)=>{store.set(typeof k==='string'?k:k.url,v);},match:async k=>store.get(typeof k==='string'?k:k.url),keys:async()=>[...store.keys()].map(url=>({url})),delete:async k=>store.delete(k.url)};};
+ let calls=0;const network=async()=>{calls++;return {ok:true,status:200,type:'basic',headers:{get:()=>'public, max-age=31536000, immutable'},clone(){return this;},body:'module'};};
+ const context={self:{location:{origin:'https://c.test'},addEventListener:(n,f)=>listeners[n]=f,clients:{claim:async()=>{}}},URL,Date,setTimeout,caches:{open,keys:async()=>[],delete:async()=>true},fetch:network,Response:{error:()=>({error:true})}};
+ vm.runInNewContext(await readFile('public/sw.js','utf8'),context);
+ const fetchEvent=async request=>{let result;listeners.fetch({request,respondWith:p=>result=p});return result&&await result;};
+ const asset={method:'GET',mode:'cors',url:'https://c.test/v/0123456789ab/ui.js'};
+ assert.equal((await fetchEvent(asset)).body,'module');await new Promise(r=>setTimeout(r));
+ assert.equal((await fetchEvent(asset)).body,'module');assert.equal(calls,1,'second load must not touch the network');
 });

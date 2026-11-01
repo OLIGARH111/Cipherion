@@ -1,0 +1,8 @@
+/* Smooth scrolling on phones. Message bubbles and date pills are almost opaque, so blurring the
+   wallpaper behind each of them was invisible but made the phone redraw dozens of blurred layers
+   on every scroll frame. The same goes for the 1px blur over the whole background. */
+.bubble,.date-divider span,.chat-empty span{backdrop-filter:none;-webkit-backdrop-filter:none}
+.ambient:after{backdrop-filter:none;-webkit-backdrop-filter:none}
+/* Taps respond at once: no double-tap zoom wait on buttons and list rows. */
+button,a,[role=button],.chat-item,label{touch-action:manipulation}
+@media (prefers-reduced-motion:reduce){.ambient::before{animation:none}}
