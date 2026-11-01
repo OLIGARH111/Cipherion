@@ -68,8 +68,11 @@ function broadcast(chat, event, payload) {
     setImmediate(()=>{try{
       const row=one('SELECT * FROM messages WHERE id=?',payload.id);
       if(!row)return;
+      // Reactions and story links are read once for everyone, not once per member.
+      const reactions=social.reactions(row.id),mine=new Map(all('SELECT user_id,emoji FROM reactions WHERE message_id=?',row.id).map(r=>[r.user_id,r.emoji]));
+      const story=!!one('SELECT 1 FROM story_replies WHERE message_id=?',row.id);
       for(const m of all("SELECT user_id FROM members WHERE chat_id=? AND role!='banned'",chat))
-        emit(m.user_id,event,{...payload,clientMessageId:row.client_id,message:message(row,m.user_id)});
+        emit(m.user_id,event,{...payload,clientMessageId:row.client_id,message:message(row,m.user_id,{reactions:()=>reactions,mine:()=>mine.get(m.user_id)||null,story:()=>story})});
     }catch(error){logFailure('message_event_failed',error);}});
     return;
   }
@@ -103,6 +106,8 @@ function messageExtras(rows, viewer) {
   }
   return { reactions: id => reactions.get(id) || [], mine: id => mine.get(id) || null, story: id => storyLinks.has(id) };
 }
+// A message created a moment ago has no reactions and no story link yet.
+const freshMessage = { reactions: () => [], mine: () => null, story: () => false };
 function message(row, viewer, extras) {
   row={...row,clientMessageId:row.client_id,serverMessageId:row.id,status:'sent'};
   const author = publicUser(one('SELECT * FROM users WHERE id=?', row.user_id), viewer);
@@ -380,7 +385,9 @@ const server = http.createServer(async (req, res) => {
         const messageId = id();
         db.exec('BEGIN');try{run('INSERT INTO messages(id,chat_id,user_id,kind,body,media_id,reply_id,poll,created,client_id,e2e,ghost,game) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', messageId, chatId, user.id, kind, kind==='treat'?'':clean(b.body), media?.id || null, b.reply || null, poll ? JSON.stringify(poll) : null, Math.max(now(),(one('SELECT MAX(created) n FROM messages WHERE chat_id=?',chatId)?.n||0)+1),clientId,sealed,ghost,kind==='treat'?'{}':null);
         if(clientId)run('INSERT INTO message_requests VALUES(?,?,?,?)',user.id,clientId,messageId,messageFingerprint(chatId,b));
-        stickers.bind(messageId,emojiKeys);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(chatId, 'message', { chat: chatId, id: messageId }); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id), 201);
+        stickers.bind(messageId,emojiKeys);run('DELETE FROM drafts WHERE user_id=? AND chat_id=?',user.id,chatId);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}broadcast(chatId, 'message', { chat: chatId, id: messageId });
+        // The sent text is no longer a draft: other devices clear their composer without a separate request.
+        emit(user.id,'draft',{chat:chatId,body:'',updated:now()}); return json(message(one('SELECT * FROM messages WHERE id=?', messageId), user.id, freshMessage), 201);
       }
       if (action === 'read' && req.method === 'POST') { const last = b.message ? one('SELECT created n FROM messages WHERE id=? AND chat_id=?',String(b.message),chatId)?.n : one('SELECT MAX(created) AS n FROM messages WHERE chat_id=?', chatId).n || 0;if(last===undefined)fail(400,'Сообщение не найдено'); run('UPDATE members SET read_at=MAX(read_at,?),delivered_at=MAX(delivered_at,?) WHERE chat_id=? AND user_id=?', last, last, chatId, user.id);halloween.read(chatId,user.id,last);emit(user.id,'receipt',{chat:chatId,user:user.id,read:last,delivered:last}); if(privacy.canRead(user.id,chat.kind))broadcast(chatId, 'receipt', { chat: chatId, user: user.id, read: last, delivered: last }); return json({ ok: true }); }
       if (action === 'typing' && req.method === 'POST') { requirePermission(chatId, user.id, 'text'); broadcast(chatId, 'typing', { chat: chatId, user: user.id, name: user.name }); return json({ ok: true }); }
@@ -460,7 +467,7 @@ const server = http.createServer(async (req, res) => {
           if(clientId)run('INSERT INTO message_requests VALUES(?,?,?,?)',user.id,clientId,newId,fingerprint);
           stickers.bind(newId,all('SELECT sticker_id FROM message_stickers WHERE message_id=?',m.id).map(s=>s.sticker_id));db.exec('COMMIT');
         }catch(error){db.exec('ROLLBACK');throw error;}
-        broadcast(b.chat,'message',{chat:b.chat,id:newId});return json(message(one('SELECT * FROM messages WHERE id=?',newId),user.id),201);
+        broadcast(b.chat,'message',{chat:b.chat,id:newId});return json(message(one('SELECT * FROM messages WHERE id=?',newId),user.id,freshMessage),201);
       } else if(action==='transcribe' && req.method==='POST') {
         if(b.consent!==true||ai.settings(user.id).voice!==true)fail(403,'Разрешите AI доступ к голосовым сообщениям и подтвердите передачу записи');
         if(!['voice','round'].includes(m.kind)||m.deleted) fail(400,'Нет записи для расшифровки');

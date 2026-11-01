@@ -1,5 +1,5 @@
 // Composer panel: emoji, stickers and GIF in one place, plus sticker suggestions while typing.
-import {accountURL} from './account-context.js';
+import {accountURL,activeAccount} from './account-context.js';
 import {$, esc, api, guard, toast, icon} from './ui.js';
 import {emojiCategories, searchEmoji, emojiKeywords, jumboSize} from './emoji-data.js';
 import {stickerPanel, studio} from './stickers.js';
@@ -26,23 +26,44 @@ function outside(e) {
 }
 
 // ---------- Data ----------
+// Packs change rarely, but loading them costs the server dozens of database reads. They are kept on the
+// device for each account and refreshed in the background at most every 10 minutes, so typing (sticker
+// suggestions) never queues a burst of pack requests in front of a message being sent.
+const PACKS_TTL = 600000;
+const storeKey = () => 'accounts/' + activeAccount() + '/sticker-packs';
+function stored() { try { const v = JSON.parse(localStorage.getItem(storeKey()) || 'null'); return v && v.account === activeAccount() ? v : null; } catch { return null; } }
+function persist() { try { localStorage.setItem(storeKey(), JSON.stringify({account: activeAccount(), at: cache.packsAt, packs: cache.packs, items: cache.saved || {}})); } catch {} }
+function sameAccount() { if (cache.account !== activeAccount()) { cache.account = activeAccount(); cache.packs = null; cache.packsAt = 0; cache.items.clear(); cache.favorites = null; cache.saved = null; cache.loading = null; } }
+function fetchPacks() {
+  return cache.loading ||= Promise.all([api('/packs?mode=installed'), api('/packs?mode=mine')]).then(([installed, mine]) => {
+    const seen = new Set();
+    cache.packs = [...mine, ...installed].filter(p => !seen.has(p.id) && seen.add(p.id));
+    cache.packsAt = Date.now(); cache.items.clear(); cache.saved = {}; persist();
+    return cache.packs;
+  }).finally(() => { cache.loading = null; });
+}
 async function loadPacks(force = false) {
-  if (!force && cache.packs && Date.now() - cache.packsAt < 60000) return cache.packs;
-  const [installed, mine] = await Promise.all([api('/packs?mode=installed'), api('/packs?mode=mine')]);
-  const seen = new Set();
-  cache.packs = [...mine, ...installed].filter(p => !seen.has(p.id) && seen.add(p.id));
-  cache.packsAt = Date.now();
+  sameAccount();
+  if (force) return fetchPacks();
+  if (!cache.packs) { const saved = stored(); if (saved?.packs) { cache.packs = saved.packs; cache.packsAt = saved.at || 0; cache.saved = saved.items || {}; } }
+  if (!cache.packs) return fetchPacks();
+  if (Date.now() - cache.packsAt > PACKS_TTL) fetchPacks().catch(() => {});
   return cache.packs;
 }
 async function packItems(id) {
-  if (!cache.items.has(id)) cache.items.set(id, api('/packs/' + id).then(p => p.items).catch(() => []));
+  sameAccount();
+  if (!cache.items.has(id)) {
+    const saved = cache.saved?.[id];
+    cache.items.set(id, saved ? Promise.resolve(saved) : api('/packs/' + id).then(p => { cache.saved ||= {}; cache.saved[id] = p.items; persist(); return p.items; }).catch(() => []));
+  }
   return cache.items.get(id);
 }
 async function favorites(force = false) {
+  sameAccount();
   if (force || !cache.favorites) cache.favorites = await api('/stickers/favorites');
   return cache.favorites;
 }
-function invalidate() { cache.packs = null; cache.items.clear(); cache.favorites = null; }
+function invalidate() { cache.packs = null; cache.packsAt = 0; cache.items.clear(); cache.favorites = null; cache.saved = null; try { localStorage.removeItem(storeKey()); } catch {} }
 
 // ---------- Rendering helpers ----------
 const stickerButton = (s, attr = 'data-sticker') => `<button type="button" class="ep-sticker" ${attr}="${esc(s.id)}" title="${esc(s.label)}" aria-label="Стикер: ${esc(s.label)}"><img src="${esc(accountURL(s.poster || s.url))}" ${s.animated ? `data-motion="${esc(accountURL(s.url))}" data-poster="${esc(accountURL(s.poster))}"` : ''} alt="" loading="lazy" decoding="async"></button>`;

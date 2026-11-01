@@ -11,7 +11,7 @@ import {bindStickerEffects} from './sticker-effects.js';
 import {createSync} from './sync.js';
 import './motion.js';
 import {createOutbox} from './outbox.js';
-import {seal,emojiKeys,open as openSealed,ensureDevice,encryptionInfo} from './e2e.js';
+import {seal,emojiKeys,open as openSealed,ensureDevice,encryptionInfo,warmKeys} from './e2e.js';
 import {mergeMessages,messageKey,reconcileMessages,optimisticMessage} from './message-state.js';
 import {preparePush,muteChat,promptNotifications} from './notifications.js';
 import {setupComposerAI} from './composer-ai.js';
@@ -242,11 +242,12 @@ export async function openChat(chatId){
   // The official Cipherion chat is read-only: only a mute toggle instead of the composer.
   if(official){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить уведомления':'Выключить уведомления'}</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});renderMessages(true);await loadMessages();return;}
   if(c.kind==='channel'&&!c.canPost){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить звук':'Выключить звук'}</button><button class="secondary" id="channel-leave">Покинуть канал</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});$('#channel-leave').onclick=guard(async()=>{await api('/communities/'+c.id+'/leave','POST',{});await refresh();});renderMessages(true);await loadMessages();return;}
+  warmKeys(state.user.id,chatId);
   $('#composer').onsubmit=guard(async e=>{e.preventDefault();await sendText();});decorateComposer(state,c);
   $('#draft').value=chatDraft(c)?.body||'';
   bindFileInput($('.conversation'),$('#draft'),sendFiles);
   $('#draft').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!e.repeat&&state.settings.enter!==false){e.preventDefault();guard(sendText)();}else if(e.key==='ArrowUp'&&!e.target.value&&!e.shiftKey&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!state.editing){if(editLast())e.preventDefault();}};
-  $('#draft').oninput=e=>{const el=$('#draft');if(!state.editing&&state.chat===chatId)saveDraft(chatId,el.value);el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';if(el.value&&c.kind!=='saved'&&Date.now()-typingAt>2500){typingAt=Date.now();api(`/chats/${chatId}/typing`,'POST',{}).catch(()=>{});}};
+  $('#draft').oninput=e=>{const el=$('#draft');warmKeys(state.user.id,chatId);if(!state.editing&&state.chat===chatId)saveDraft(chatId,el.value);el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';if(el.value&&c.kind!=='saved'&&Date.now()-typingAt>2500){typingAt=Date.now();api(`/chats/${chatId}/typing`,'POST',{}).catch(()=>{});}};
   $('#attach').onclick=attachments;$('#emoji').onclick=()=>toggleEmojiPanel(state,saveSettings);
   setupComposerAI();setupStickerSuggestions(state,saveSettings);setupRecorder();renderMessages(true);
   if($('#draft').value){const el=$('#draft');el.style.height=Math.min(el.scrollHeight,200)+'px';}
@@ -357,7 +358,7 @@ async function sendText(){
  const input=$('#draft'),text=input.value.trim(),chat=state.chat;if(!text||!chat)return;
  const editing=state.editing,payload={body:text,reply:state.reply,...(state.ghostMode&&!state.editing?{ghost:true}:{})};
  // Capture and clear before the first await: Enter + submit cannot send twice.
- input.value='';input.dispatchEvent(new Event('input'));if(!editing){forgetDraft(chat);saveDraft(chat,'',{immediate:true});}
+ input.value='';input.dispatchEvent(new Event('input'));if(!editing)forgetDraft(chat);// the server drops the saved draft when the message arrives
  state.reply=null;state.editing=null;$('#reply-area').innerHTML='';
  if(!editing){await queueOutgoing(chat,payload);return;}
  restoreStashedDraft();
