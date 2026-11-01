@@ -572,3 +572,9 @@ body.no-motion .workspace,body.no-motion .side,body.no-motion .rail{transition:n
   .composer-field .icon-button{width:40px;min-width:40px}
 }
 body.light .composer>.icon-button:not(.send),body.light .composer-field{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.65);box-shadow:0 6px 20px rgba(16,50,36,.10),inset 0 1px 0 rgba(255,255,255,.7)}
+#attach svg{transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+#attach.open svg{transform:rotate(135deg)}
+#attach.open{color:var(--accent)}
+.ctx-menu.attach-menu{min-width:200px;transform-origin:left bottom!important}
+@media(prefers-reduced-motion:reduce){#attach svg{transition:none}}
+.attach-menu .hw-menu-emoji{flex:none;width:19px;display:grid;place-items:center;font-size:18px}
