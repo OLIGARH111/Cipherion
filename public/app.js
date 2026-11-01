@@ -8,7 +8,7 @@ import {accountURL,accountFetch,draftKey} from './account-context.js';
 import {peopleCount,lastSeenText} from './ui.js';
 import './viewport.js';
 import {bindStickerEffects} from './sticker-effects.js';
-import {createSync} from './sync.js';
+import {createSync,savedMessages} from './sync.js';
 import './motion.js';
 import {createOutbox} from './outbox.js';
 import {seal,emojiKeys,open as openSealed,ensureDevice,encryptionInfo,warmKeys} from './e2e.js';
@@ -275,10 +275,12 @@ function bindMessageList(){
 function updateScrollDown(){const box=$('.messages'),btn=$('#scroll-down');if(!box||!btn)return;const distance=box.scrollHeight-box.scrollTop-box.clientHeight;if(distance<80)state.unseen=0;const visible=distance>300;btn.classList.toggle('visible',visible);btn.tabIndex=visible?0:-1;btn.setAttribute('aria-hidden',String(!visible));const badge=btn.querySelector('.badge');badge.hidden=!state.unseen;badge.textContent=state.unseen>99?'99+':String(state.unseen||'');}
 function jumpTo(id,flash=true){const el=[...document.querySelectorAll('.messages .message')].find(a=>a.dataset.id===id);if(!el){toast('Сообщение ещё не загружено');return;}el.scrollIntoView({block:'center',behavior:calm()?'auto':'smooth'});if(!flash)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500);}
 async function loadMessages(scroll=true){
-  const chatId=state.chat;if(!chatId)return;const generation=++chatGeneration;let rows;
+  const chatId=state.chat;if(!chatId)return;const generation=++chatGeneration;let rows,shownSaved=false;
+  // Messages saved on this device appear at once; the server's answer is merged in when it arrives.
+  if(state.loading&&state.user)savedMessages(state.user.id,chatId).then(saved=>{if(!saved.length||generation!==chatGeneration||chatId!==state.chat||!state.loading)return;shownSaved=true;state.loading=false;acceptMessages(chatId,saved,scroll);}).catch(()=>{});
   try{rows=await api(`/chats/${chatId}/messages`);await synchronizer?.write(rows);}
   catch(e){if(e.status){if(generation===chatGeneration&&chatId===state.chat&&state.loading){state.loading=false;renderMessages(false);}throw e;}rows=(await synchronizer?.cached(chatId)||[]).slice(-60);}
-  if(generation!==chatGeneration||chatId!==state.chat)return;state.loading=false;acceptMessages(chatId,rows,scroll);
+  if(generation!==chatGeneration||chatId!==state.chat)return;state.loading=false;acceptMessages(chatId,rows,scroll&&!shownSaved);
   if(rows.length&&navigator.onLine){await api('/receipts','POST',{chat:chatId,message:rows.at(-1).id});if(document.visibilityState==='visible')await api(`/chats/${chatId}/read`,'POST',{message:rows.at(-1).id});}
 }
 let renderedKeys=null;

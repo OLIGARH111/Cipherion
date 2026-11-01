@@ -1,6 +1,8 @@
 import {api} from './ui.js';
 let dbPromise;
 function db(){return dbPromise||=new Promise((resolve,reject)=>{const r=indexedDB.open('cipherion-history',1);r.onupgradeneeded=()=>{const s=r.result.createObjectStore('messages',{keyPath:'key'});s.createIndex('chat','userChat');r.result.createObjectStore('cursors');};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+// The saved messages of one chat, oldest first. Used to show a chat instantly while the server is asked.
+export async function savedMessages(user,chat,limit=60){const d=await db();return new Promise((resolve,reject)=>{const r=d.transaction('messages').objectStore('messages').index('chat').getAll(user+':'+chat);r.onsuccess=()=>resolve(r.result.map(r=>r.message).sort((a,b)=>a.created-b.created).slice(-limit));r.onerror=()=>reject(r.error);});}
 export function createSync(user,onMessages=()=>{}){let running,again=false,disposed=false;
  async function cursor(){const d=await db();return new Promise((resolve,reject)=>{const r=d.transaction('cursors').objectStore('cursors').get(user);r.onsuccess=()=>resolve(r.result||0);r.onerror=()=>reject(r.error);});}
  async function write(rows,next){if(disposed)return;const d=await db();if(disposed)return;return new Promise((resolve,reject)=>{const tx=d.transaction(['messages','cursors'],'readwrite'),store=tx.objectStore('messages');for(const message of rows)store.put({key:user+':'+message.id,userChat:user+':'+message.chat_id,message});if(next!==undefined)tx.objectStore('cursors').put(next,user);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
