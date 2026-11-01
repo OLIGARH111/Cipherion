@@ -578,3 +578,7 @@ body.light .composer>.icon-button:not(.send),body.light .composer-field{backgrou
 .ctx-menu.attach-menu{min-width:200px;transform-origin:left bottom!important}
 @media(prefers-reduced-motion:reduce){#attach svg{transition:none}}
 .attach-menu .hw-menu-emoji{flex:none;width:19px;display:grid;place-items:center;font-size:18px}
+#record{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#record.mode-switch svg{animation:ci-record-swap .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes ci-record-swap{from{transform:scale(.4) rotate(-90deg);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){#record.mode-switch svg{animation:none}}
