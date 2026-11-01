@@ -40,11 +40,18 @@ export function ensureDevice(user){
 const device=user=>ensureDevice(user).catch(()=>null);
 
 const directory=new Map();
-async function chatKeys(user,chat){
+const loading=new Map();
+function chatKeys(user,chat){
   const key=user+':'+chat,hit=directory.get(key);
-  if(hit&&hit.at>Date.now()-15000)return hit.value;
-  const value=await api('/e2e/keys?chat='+encodeURIComponent(chat),'GET',undefined,undefined,user);
-  directory.set(key,{at:Date.now(),value});return value;
+  if(hit&&hit.at>Date.now()-15000)return Promise.resolve(hit.value);
+  if(!loading.has(key))loading.set(key,api('/e2e/keys?chat='+encodeURIComponent(chat),'GET',undefined,undefined,user)
+    .then(value=>{directory.set(key,{at:Date.now(),value});return value;}).finally(()=>loading.delete(key)));
+  return loading.get(key);
+}
+// Called when a chat opens and while typing, so pressing Send never waits for the key list.
+export function warmKeys(user,chat){
+  if(!user||!chat)return;const hit=directory.get(user+':'+chat);
+  if(!hit||hit.at<=Date.now()-10000)chatKeys(user,chat).catch(()=>{});
 }
 const senders=new Map();
 function senderKey(user,id){if(!senders.has(id))senders.set(id,api('/e2e/devices/'+id,'GET',undefined,undefined,user).catch(error=>{senders.delete(id);throw error;}));return senders.get(id);}

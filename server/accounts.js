@@ -5,7 +5,9 @@ export function createAccounts({one,all,run,now,fail,clean,publicUser,privacy,st
  const cookies=req=>Object.fromEntries(String(req.headers.cookie||'').split(';').map(v=>v.trim().split('=')));
  function sessions(req){const values=cookies(req),result=new Map();for(const [name,raw]of Object.entries(values)){if(!/^(session|session_[a-f0-9]{32})$/.test(name)||!/^[a-f0-9]{64}$/.test(raw||''))continue;const session=one('SELECT * FROM sessions WHERE id=? AND expires>?',digest(raw),now());if(session&&one('SELECT id FROM users WHERE id=?',session.user_id))result.set(session.user_id,{...session,raw});}return result;}
  function authenticate(req){const desired=req.headers['x-cipherion-account']||new URL(req.url,'http://localhost').searchParams.get('account');const available=sessions(req);let session;if(desired)session=available.get(desired);else {const raw=cookies(req).session;if(raw)session=[...available.values()].find(s=>s.id===digest(raw));}
-  if(!session)return null;run('UPDATE sessions SET active=? WHERE id=?',now(),session.id);return {...one('SELECT * FROM users WHERE id=?',session.user_id),session:{...session,raw:undefined}};
+  if(!session)return null;
+  // "Last seen" is shown to the minute, so a write every 30 s is enough; most requests stay read-only.
+  if(now()-(session.active||0)>30000)run('UPDATE sessions SET active=? WHERE id=?',now(),session.id);return {...one('SELECT * FROM users WHERE id=?',session.user_id),session:{...session,raw:undefined}};
  }
  const cookie=(name,token,max=2592000)=>`${name}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${max}${env.COOKIE_SECURE==='1'?'; Secure':''}`;
  function assertCapacity(req,userId){const list=sessions(req);if(list.size>=3&&!list.has(userId))fail(409,'На этом устройстве можно добавить до 3 аккаунтов');}

@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
-import {readFile, stat} from 'node:fs/promises';
+import {readFile, readdir, stat} from 'node:fs/promises';
+import {join} from 'node:path';
 import {brotliCompressSync, gzipSync, constants} from 'node:zlib';
 
 // Text responses shrink 3-5x when compressed; images and video are already compressed.
@@ -41,8 +42,8 @@ export function createStaticFiles() {
     entries.set(file, entry);
     return entry;
   }
-  async function serve(req, res, file, {type, cacheControl}) {
-    const entry = await load(file);
+  async function serve(req, res, file, options) { return send(req, res, await load(file), options); }
+  function send(req, res, entry, {type, cacheControl}) {
     const encoding = encodingFor(req.headers['accept-encoding'], type);
     const headers = {'Content-Type': type, 'Cache-Control': cacheControl, 'ETag': entry.etag, 'Vary': 'Accept-Encoding'};
     if (etagMatches(req.headers['if-none-match'], entry.etag)) { res.writeHead(304, headers); return res.end(); }
@@ -56,5 +57,41 @@ export function createStaticFiles() {
     res.writeHead(200, headers);
     return res.end(req.method === 'HEAD' ? undefined : body);
   }
-  return {serve};
+  return {serve, send, load};
+}
+
+// The page links every script and stylesheet through /v/<version>/, where the version is a hash of
+// all of them. Those URLs never change content, so the browser keeps them for a year and a repeat
+// visit makes no request for them at all; a deploy changes the version and therefore every URL at
+// once, so old and new modules are never mixed. All modules are announced with modulepreload, so
+// the browser fetches the whole import tree in parallel instead of level by level.
+const importPattern = /(?:\bfrom\s*|\bimport\s*)['"]\.\/([\w.-]+\.js)['"]/g;
+export function createAppShell(publicDir, staticFiles) {
+  let built = null, pending = null, checkedAt = 0;
+  async function build() {
+    const names = (await readdir(publicDir)).filter(name => /\.(js|css)$/.test(name) && name !== 'sw.js').sort();
+    const [html, ...assets] = await Promise.all(['index.html', ...names].map(name => staticFiles.load(join(publicDir, name))));
+    const key = html.etag + assets.map(asset => asset.etag).join('');
+    if (built?.key === key) return built;
+    const version = createHash('sha256').update(key).digest('hex').slice(0, 12);
+    const files = new Map(names.map((name, i) => [name, assets[i]]));
+    let text = html.body.toString('utf8');
+    const entries = [...text.matchAll(/<script type="module" src="\/([\w.-]+\.js)"/g)].map(m => m[1]);
+    const seen = new Set(entries), queue = [...entries];
+    while (queue.length) for (const [, dep] of files.get(queue.shift())?.body.toString('utf8').matchAll(importPattern) || [])
+      if (files.has(dep) && !seen.has(dep)) { seen.add(dep); queue.push(dep); }
+    text = text.replace(/(href|src)="\/([\w.-]+\.(?:css|js))"/g, (match, attr, name) => files.has(name) ? `${attr}="/v/${version}/${name}"` : match);
+    const preload = [...seen].filter(name => !entries.includes(name)).map(name => `<link rel="modulepreload" href="/v/${version}/${name}">`).join('');
+    text = text.replace('</head>', preload + '</head>');
+    const body = Buffer.from(text);
+    built = {key, version, body, variants: new Map(), etag: '"' + createHash('sha256').update(body).digest('base64url').slice(0, 22) + '"'};
+    return built;
+  }
+  // File checks are shared for a moment, so one page load (dozens of asset requests) costs one scan.
+  function get() {
+    if (built && Date.now() - checkedAt < 2000) return Promise.resolve(built);
+    pending ||= build().then(result => { checkedAt = Date.now(); return result; }).finally(() => { pending = null; });
+    return pending;
+  }
+  return {get};
 }

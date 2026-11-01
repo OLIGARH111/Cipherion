@@ -102,6 +102,8 @@ input:not([type=checkbox]):not([type=range]):not([type=color]):not([type=radio])
 input:focus,textarea:focus,select:focus{border-color:color-mix(in srgb,var(--accent) 70%,transparent)!important}
 .ripple{display:none}
 .glass{backdrop-filter:none}
+/* Windows and side sheets in Liquid Glass stay translucent but blurred, so the page behind never shows through as readable text. */
+body.glass-ui dialog#modal{-webkit-backdrop-filter:blur(28px) saturate(140%);backdrop-filter:blur(28px) saturate(140%)}
 body:not(.glass-ui) .glass{background:var(--ci-side);border-color:var(--ci-hairline);box-shadow:none}
 .vip-badge{color:var(--ci-gold)}
 

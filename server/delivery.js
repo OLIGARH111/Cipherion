@@ -1,6 +1,6 @@
 import {pushConfig} from './push-config.js';
 import {createHash} from 'node:crypto';
-export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage}) {
+export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage,messageExtras}) {
   if(!all('PRAGMA table_info(messages)').some(c=>c.name==='client_id'))db.exec('ALTER TABLE messages ADD COLUMN client_id TEXT');
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS message_idempotency ON messages(user_id,client_id) WHERE client_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS message_events(seq INTEGER PRIMARY KEY AUTOINCREMENT,chat_id TEXT NOT NULL,message_id TEXT NOT NULL);
@@ -65,7 +65,12 @@ export function createDelivery({db,one,all,run,fail,now,id,membership,emit,broad
     if(path==='/api/sync'&&req.method==='GET'){
       const after=Number(url.searchParams.get('after')||0);if(!Number.isSafeInteger(after)||after<0)fail(400,'Некорректный курсор');
       const rows=all(`SELECT e.* FROM message_events e JOIN members m ON m.chat_id=e.chat_id WHERE m.user_id=? AND m.role!='banned' AND e.seq>? AND NOT EXISTS(SELECT 1 FROM messages x WHERE x.id=e.message_id AND x.created<=m.cleared_at) ORDER BY e.seq LIMIT 200`,user.id,after);
-      json({events:rows.flatMap(e=>{try{family.chatAccess(e.chat_id,user.id);const m=one('SELECT * FROM messages WHERE id=?',e.message_id);return m?[{...e,message:projectMessage?projectMessage(m,user.id):m}]:[];}catch{return [];}}),cursor:rows.at(-1)?.seq||after,hasMore:rows.length===200});return true;
+      // Messages are read in batches, not one query per event.
+      const visible=rows.filter(e=>{try{family.chatAccess(e.chat_id,user.id);return true;}catch{return false;}});
+      const ids=[...new Set(visible.map(e=>e.message_id))],byId=new Map();
+      for(let i=0;i<ids.length;i+=400){const part=ids.slice(i,i+400);for(const m of all(`SELECT * FROM messages WHERE id IN (${part.map(()=>'?').join(',')})`,...part))byId.set(m.id,m);}
+      const extras=projectMessage&&messageExtras?messageExtras([...byId.values()],user.id):undefined;
+      json({events:visible.flatMap(e=>{try{const m=byId.get(e.message_id);return m?[{...e,message:projectMessage?projectMessage(m,user.id,extras):m}]:[];}catch{return [];}}),cursor:rows.at(-1)?.seq||after,hasMore:rows.length===200});return true;
     }
     if(path==='/api/receipts'&&req.method==='POST'){
       const {chat}=membership(b.chat,user.id);family.chatAccess(b.chat,user.id);

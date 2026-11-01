@@ -1,26 +1,49 @@
-const SHELL='cipherion-shell-v1';
+const SHELL='cipherion-shell-v2',ASSETS='cipherion-assets-v1';
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   const names=await caches.keys();await Promise.all(names.filter(n=>n.startsWith('cipherion-shell-')&&n!==SHELL).map(n=>caches.delete(n)));
   await self.clients.claim();
 })()));
-// App files: always ask the network first (a 304 via the HTTP cache is cheap), so a deploy is never
-// half-applied. The copy kept here opens the app when offline or when the server is unavailable.
-// API calls and media never pass through this cache: they carry private, per-account data.
+const textOf=r=>{try{return r.clone().text().catch(()=>'');}catch{return Promise.resolve('');}};
+const versionsIn=text=>new Set([...String(text).matchAll(/\/v\/([a-f0-9]{12})\//g)].map(m=>m[1]));
+// Scripts and styles under /v/<version>/ never change, so a saved copy opens instantly with no
+// network at all. Only files of the current and the previous page version are kept.
+async function versionedAsset(request){
+  const cache=await caches.open(ASSETS),hit=await cache.match(request);if(hit)return hit;
+  const response=await fetch(request);
+  if(response.ok&&response.type==='basic'&&/immutable/.test(response.headers?.get('Cache-Control')||''))cache.put(request,response.clone()).catch(()=>{});
+  return response;
+}
+async function prune(previousPage,page){
+  try{
+    const keep=new Set([...versionsIn(previousPage),...versionsIn(page)]);if(!keep.size)return;
+    const cache=await caches.open(ASSETS);
+    for(const key of await cache.keys()){const v=new URL(key.url).pathname.match(/^\/v\/([a-f0-9]{12})\//);if(v&&!keep.has(v[1]))await cache.delete(key);}
+  }catch{}
+}
+// The page itself: network first, so a deploy arrives at once. When the network is slow or down,
+// the saved page opens instead; it links its own versioned files, so old and new code never mix.
+// API calls and media never pass through these caches: they carry private, per-account data.
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);
   if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname==='/sw.js')return;
+  if(/^\/v\/[a-f0-9]{12}\//.test(url.pathname)){event.respondWith(versionedAsset(request));return;}
   event.respondWith((async()=>{
     const cache=await caches.open(SHELL);
-    const key=request.mode==='navigate'&&url.pathname==='/'?'/':request;
+    const page=request.mode==='navigate'&&url.pathname==='/',key=page?'/':request;
+    const saved=page?await cache.match(key):undefined,savedText=saved?textOf(saved):null;
     const network=fetch(request).then(response=>{
-      if(response.ok&&response.type==='basic')cache.put(key,response.clone()).catch(()=>{});
+      if(response.ok&&response.type==='basic'){
+        cache.put(key,response.clone()).catch(()=>{});
+        if(savedText)Promise.all([savedText,textOf(response)]).then(([a,b])=>prune(a,b)).catch(()=>{});
+      }
       return response;
     });
-    // Offline or server down: open the saved copy. No race against a slow network, which could mix
-    // old and new modules right after a deploy.
-    const fallback=async()=>await cache.match(key)||Response.error();
-    return network.then(r=>r.status>=500?cache.match(key).then(c=>c||r):r,fallback);
+    const fallback=async()=>saved||await cache.match(key)||Response.error();
+    const result=network.then(r=>r.status>=500?cache.match(key).then(c=>c||r):r,fallback);
+    if(!saved)return result;
+    // A saved page exists: wait for the network briefly, then open the saved copy.
+    return Promise.race([result,new Promise(resolve=>setTimeout(()=>resolve(saved),2500))]);
   })());
 });
 self.addEventListener('push',event=>{event.waitUntil((async()=>{
