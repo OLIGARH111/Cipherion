@@ -295,7 +295,9 @@ const server = http.createServer(async (req, res) => {
     }
     if(contentProtection.route({path,req,b,user,json}))return;
     if(await chatTools.route({path,req,b,user,json,url}))return;
-    if (path === '/api/chats' && req.method === 'GET') { official.ensure(user.id); return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'", user.id).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created))); }
+    if (path === '/api/chats' && req.method === 'GET') { official.ensure(user.id); // ?chat=<id> returns just that chat (or nothing), so a new message refreshes one row, not the whole list.
+      const only = url.searchParams.get('chat');
+      return json(all("SELECT c.*,m.hidden AS member_hidden,m.cleared_at AS member_cleared FROM chats c JOIN members m ON c.id=m.chat_id WHERE m.user_id=? AND m.role!='banned'" + (only ? ' AND c.id=?' : ''), ...(only ? [user.id, only] : [user.id])).filter(c => chatTools.visible(c.id, {hidden:c.member_hidden, cleared_at:c.member_cleared})).map(({member_hidden, member_cleared, ...c}) => chatView(c, user.id)).sort((a,b) => (b.last?.created || b.created) - (a.last?.created || a.created))); }
     if (path === '/api/chats' && req.method === 'POST') {
       if (b.kind === 'saved') return json(chatView(chatTools.ensureSaved(user.id), user.id), 201);
       const kind = ['group','channel'].includes(b.kind) ? b.kind : 'direct';

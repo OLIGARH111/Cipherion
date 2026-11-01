@@ -107,3 +107,16 @@ test('service worker opens versioned files from its cache without the network',a
  assert.equal((await fetchEvent(asset)).body,'module');await new Promise(r=>setTimeout(r));
  assert.equal((await fetchEvent(asset)).body,'module');assert.equal(calls,1,'second load must not touch the network');
 });
+
+test('the chat list can be asked for one chat, and never returns a chat the user is not in',async()=>{
+ const reg=async name=>{const r=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true,username:name,password:'integration-password-123'})});return r.headers.get('set-cookie').split(';')[0];};
+ const a=await reg('one_chat_a'),b=await reg('one_chat_b'),c=await reg('one_chat_c');
+ const me=async cookie=>(await (await fetch(base+'/api/me',{headers:{Cookie:cookie}})).json()).user;
+ const chat=await (await fetch(base+'/api/chats',{method:'POST',headers:{Cookie:a,'Content-Type':'application/json'},body:JSON.stringify({users:[(await me(b)).id]})})).json();
+ const list=async(cookie,q='')=>(await fetch(base+'/api/chats'+q,{headers:{Cookie:cookie}})).json();
+ const one=await list(a,'?chat='+chat.id);assert.equal(one.length,1);assert.equal(one[0].id,chat.id);
+ const shape=x=>({id:x.id,kind:x.kind,unread:x.unread,last:x.last?.id,members:x.members.map(m=>m.user_id).sort(),canPost:x.canPost});
+ assert.deepEqual(shape(one[0]),shape((await list(a)).find(x=>x.id===chat.id)),'same view as in the full list');
+ assert.deepEqual(await list(c,'?chat='+chat.id),[],'outsiders get nothing');
+ assert.ok((await list(a)).length>1,'without the parameter the whole list is returned');
+});

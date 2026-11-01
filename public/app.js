@@ -38,8 +38,24 @@ let outbox,synchronizer;
 const messagesByChat=new Map();
 const clearedAt=chat=>state.chats.find(c=>c.id===chat)?.cleared_at||0;
 function acceptMessages(chat,rows,scroll=false){const cut=clearedAt(chat);const messages=mergeMessages(messagesByChat.get(chat)||[],rows).filter(m=>m.pending||m.created>cut);messagesByChat.set(chat,messages);if(state.chat===chat){state.messages=messages;renderMessages(scroll);}return messages;}
-function outboxChanged(event){if(!event)return;const {item}=event;if(event.type==='confirmed'){acceptMessages(item.chat,[event.message]);synchronizer?.write([event.message]).catch(()=>{});scheduleChatRefresh();}else acceptMessages(item.chat,[optimisticMessage(item)],true);}
-function scheduleChatRefresh(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>refresh().catch(()=>{}),100);}
+function outboxChanged(event){if(!event)return;const {item}=event;if(event.type==='confirmed'){acceptMessages(item.chat,[event.message]);synchronizer?.write([event.message]).catch(()=>{});scheduleChatRefresh(item.chat);}else acceptMessages(item.chat,[optimisticMessage(item)],true);}
+// A new message changes one row of the chat list, so only that chat is asked for again. Anything
+// else (an unknown chat, many chats at once, a call without a chat) reloads the whole list.
+const refreshIds=new Set();let refreshAll=false;
+function scheduleChatRefresh(chatId){if(chatId&&state.chats.some(c=>c.id===chatId))refreshIds.add(chatId);else refreshAll=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>runChatRefresh().catch(()=>{}),100);}
+const chatOrder=(a,b)=>(b.last?.created||b.created)-(a.last?.created||a.created);
+async function runChatRefresh(){
+  const ids=[...refreshIds],whole=refreshAll||ids.length>3;refreshIds.clear();refreshAll=false;
+  if(whole)return refresh();
+  const ticket=accountEpoch(),lists=await Promise.all(ids.map(id=>api('/chats?chat='+encodeURIComponent(id))));if(ticket!==accountEpoch())return;
+  for(const [i,id] of ids.entries()){
+    const fresh=lists[i][0],index=state.chats.findIndex(c=>c.id===id);
+    if(!fresh||index<0)return refresh();
+    for(const member of fresh.members){const previous=state.chats[index].members.find(m=>m.user_id===member.user_id);member.read_at=Math.max(member.read_at||0,previous?.read_at||0);member.delivered_at=Math.max(member.delivered_at||0,previous?.delivered_at||0);}
+    state.chats[index]=fresh;
+  }
+  state.chats.sort(chatOrder);renderChats();if(state.chat)setStatus();saveSnapshot();
+}
 let calls, typingAt=0,refreshTimer, register=false, searchTimer, chatGeneration=0;
 const app=$('#app');
 const mediaLabel={photo:'Фотография',video:'Видео',file:'Файл',voice:'Голосовое сообщение',round:'Видеосообщение',poll:'Опрос'};
@@ -55,7 +71,7 @@ const backgroundEvents=new Map();
 function resetAccount(){
  state.events?.close();for(const ev of backgroundEvents.values())ev.close();backgroundEvents.clear();
  const pending=[outbox?.dispose(),synchronizer?.dispose()];calls?.dispose();calls=null;outbox=null;synchronizer=null;
- clearTimeout(refreshTimer);clearTimeout(searchTimer);chatGeneration++;messagesByChat.clear();pageCache.clear();
+ clearTimeout(refreshTimer);refreshIds.clear();refreshAll=false;clearTimeout(searchTimer);chatGeneration++;messagesByChat.clear();pageCache.clear();
 closePopover();$('#modal')?.close();$('#modal')?.classList.remove('sheet');document.querySelectorAll('.story-viewer,.story-overlay,.profile-effect').forEach(e=>e.remove());
  Object.assign(state,{user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,sendSticker:null,selection:null,find:null,unseen:0,loading:false});typingNow.clear();
  window.speechSynthesis?.cancel();window.dispatchEvent(new Event('account-change'));app.replaceChildren();return Promise.allSettled(pending);
@@ -499,7 +515,7 @@ function applyCleared(chatId,at,hidden){
   const kept=(messagesByChat.get(chatId)||[]).filter(m=>m.pending||m.created>(at||0));messagesByChat.set(chatId,kept);
   if(hidden){forgetDraft(chatId);state.chats=state.chats.filter(x=>x.id!==chatId);pageCache.delete('chat');if(state.chat===chatId){state.chat=null;state.messages=[];$('.shell')?.classList.remove('show-chat');empty();}}
   else if(state.chat===chatId){state.messages=kept;renderMessages(true);}
-  renderChats();scheduleChatRefresh();
+  renderChats();scheduleChatRefresh(hidden?undefined:chatId);
 }
 const callStatus={missed:'Пропущен',declined:'Отклонён',active:'Активен',ringing:'Вызов',ended:'Завершён'};
 async function navigate(tab){if(state.recording){toast('Завершите или отмените запись');return;}const previous=state.tab,workspace=$('.workspace');if(previous===tab)return;closePopover();pageCache.set(previous,{nodes:[...workspace.childNodes],chat:state.chat,scroll:workspace.scrollTop});workspace.replaceChildren();state.tab=tab;state.chat=null;state.selection=null;state.find=null;markTab(tab);$('.shell').classList.remove('show-chat');$('.shell').classList.toggle('show-page',tab!=='chat');renderChats();const cached=pageCache.get(tab);if(cached&&tab!=='settings'){workspace.replaceChildren(...cached.nodes);workspace.scrollTop=cached.scroll;state.chat=cached.chat;if(tab==='chat'&&state.chat){$('.shell').classList.add('show-chat');renderChats();await loadMessages(false);}return;}if(tab==='chat'){renderChats();empty();return;}if(tab==='ai'){await aiPage(state,saveSettings,openChat);return;}if(tab==='settings'){settingsPage(state,saveSettings,()=>guard(()=>accountManager.logout())());return;}if(tab==='phone'){await callsPage();return;}
@@ -558,7 +574,7 @@ function finishRecording(send){const rec=state.recording;if(!rec||rec.recorder.s
 function connectEvents(){state.events?.close();const events=new EventSource(accountURL('/api/events'));state.events=events;const ticket=accountEpoch();const listen=(name,fn)=>events.addEventListener(name,e=>{if(accountEpoch()===ticket)fn(e);});listen('profile-updated',()=>{refresh().then(()=>{renderMessages(false);const c=selected();if(c&&$('.conversation-title h3'))$('.conversation-title h3').innerHTML=esc(c.title)+' '+chatVipBadge(c);}).catch(()=>{});});listen('stories',()=>refreshStories().catch(()=>{}));listen('story-notification',()=>{toast('Новое событие в историях');refreshStories().catch(()=>{});});listen('poll',()=>toast('Новый ответ на ваш опрос'));listen('settings',()=>{api('/me').then(r=>{state.settings=r.settings;state.user=r.user;state.halloween=r.halloween||state.halloween;applyTheme(state.settings);syncHalloween(state,saveSettings);if(state.tab==='settings')settingsPage(state,saveSettings,()=>guard(()=>accountManager.logout())());}).catch(()=>{});});listen('family',()=>location.reload());listen('ready',()=>{synchronizer?.pull().catch(()=>{});outbox?.flush();calls?.reconnect().catch(()=>{});setConnection(true);refresh().catch(()=>{});if(state.chat)loadMessages(false).catch(()=>{});});events.onerror=()=>setConnection(false);
   listen('message',e=>{const data=JSON.parse(e.data);void (async()=>{
     const message=data.message?await openSealed(state.user.id,data.message):await api('/messages/'+encodeURIComponent(data.id));
-    acceptMessages(message.chat_id,[message]);synchronizer?.write([message]).catch(()=>{});scheduleChatRefresh();
+    acceptMessages(message.chat_id,[message]);synchronizer?.write([message]).catch(()=>{});scheduleChatRefresh(message.chat_id);
     if(message.user_id!==state.user.id){
       await api('/receipts','POST',{chat:message.chat_id,message:message.id});
       if(state.chat===message.chat_id&&document.visibilityState==='visible')await api(`/chats/${message.chat_id}/read`,'POST',{message:message.id});
