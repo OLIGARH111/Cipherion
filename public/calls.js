@@ -22,7 +22,7 @@ export async function replaceCallTracks(local,peers,replacement){
 }
 
 // Keep audio independent of video readiness, and retry playback as tracks arrive.
-export function bindRemoteMedia(tile, stream, debug=()=>{}){
+export function bindRemoteMedia(tile, stream, debug=()=>{}, context=()=>null){
   const video=tile.querySelector('video'),audio=document.createElement('audio');
   audio.autoplay=true;tile.append(audio);video.muted=true;video.playsInline=true;
   const audioStream=new MediaStream(),videoStream=new MediaStream();
@@ -58,8 +58,19 @@ export function bindRemoteMedia(tile, stream, debug=()=>{}){
     if(!tracks.length){dispose();tile.remove();return;}
     play();
   }
+  // Voice level for the avatar ring while the other person has no video.
+  let analyser=null,source=null,samples=null,analysedTrack=null;
+  function level(){
+    try{
+      const track=audioStream.getAudioTracks().find(t=>t.readyState==='live'),ctx=context();
+      if(!track||!ctx)return 0;
+      if(analysedTrack!==track){source?.disconnect();analyser=ctx.createAnalyser();analyser.fftSize=512;samples=new Uint8Array(analyser.fftSize);source=ctx.createMediaStreamSource(new MediaStream([track]));source.connect(analyser);analysedTrack=track;}
+      analyser.getByteTimeDomainData(samples);let sum=0;for(const v of samples){const x=(v-128)/128;sum+=x*x;}
+      return Math.min(1,Math.sqrt(sum/samples.length)*4);
+    }catch{return 0;}
+  }
   function dispose(){
-    if(disposed)return;disposed=true;attempt++;
+    if(disposed)return;disposed=true;attempt++;source?.disconnect();source=null;analyser=null;
     stream.removeEventListener('addtrack',sync);stream.removeEventListener('removetrack',sync);
     for(const cleanup of watched.values())cleanup();watched.clear();
     for(const element of [audio,video]){element.removeEventListener('loadedmetadata',play);element.pause();element.srcObject=null;}
@@ -67,7 +78,7 @@ export function bindRemoteMedia(tile, stream, debug=()=>{}){
   }
   stream.addEventListener('addtrack',sync);stream.addEventListener('removetrack',sync);
   audio.addEventListener('loadedmetadata',play);video.addEventListener('loadedmetadata',play);
-  sync();return{sync,dispose};
+  sync();return{sync,dispose,level};
 }
 
 export function createCalls(state,iceServers){
@@ -75,25 +86,68 @@ export function createCalls(state,iceServers){
   let audioContext;
   function unlockAudio(){try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioContext ||= new AC();void audioContext.resume().catch(e=>debug('audio unlock',e.name));}for(const el of root.querySelectorAll('audio'))void el.play().catch(e=>debug('audio.play',e.name));}catch(e){debug('audio unlock',e.name);}}
   let signalQueue=Promise.resolve(),generation=0,starting=false,confirming=false;
-  let current=null,local=null,screen=null,peers=new Map(),timer=null,incoming=null,started=0,minimized=false;
+  let facing='user',current=null,local=null,screen=null,peers=new Map(),timer=null,incoming=null,started=0,minimized=false;
   const root=$('#call-root');
   const action=(name,data={})=>api('/call-action','POST',{id:current?.id,action:name,...data});
   const nameOf=id=>state.chats.find(c=>c.id===current?.chat)?.members.find(m=>m.user_id===id)?.name || 'Участник';
   async function media(video){if(!navigator.mediaDevices?.getUserMedia)throw new Error('Для звонков нужен HTTPS и доступ к микрофону');const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:video?{width:{ideal:960},height:{ideal:540},facingMode:'user'}:false}).catch(e=>{debug('microphone permission',e.name);throw e;});const tracks=stream.getAudioTracks();debug('microphone permission','granted');debug('local audio tracks',tracks.map(t=>({enabled:t.enabled,muted:t.muted,state:t.readyState})));if(!tracks.some(t=>t.readyState==='live')){stream.getTracks().forEach(t=>t.stop());throw new Error('Микрофон не передаёт звук. Проверьте разрешение и повторите звонок.');}return stream;}
-  function stop(){closeCallNotification(current?.id||incoming?.id).catch(()=>{});generation++;starting=false;clearInterval(timer);local?.getTracks().forEach(t=>t.stop());screen?.getTracks().forEach(t=>t.stop());for(const p of peers.values())closePeer(p);peers.clear();audioContext?.close().catch(()=>{});audioContext=null;current=null;local=null;screen=null;incoming=null;root.querySelectorAll('[data-remote]').forEach(el=>el.rtcMedia?.dispose());root.innerHTML='';minimized=false;}
+  function stop(){closeCallNotification(current?.id||incoming?.id).catch(()=>{});generation++;starting=false;clearInterval(timer);local?.getTracks().forEach(t=>t.stop());screen?.getTracks().forEach(t=>t.stop());for(const p of peers.values())closePeer(p);peers.clear();audioContext?.close().catch(()=>{});audioContext=null;current=null;local=null;screen=null;incoming=null;facing='user';root.querySelectorAll('[data-remote]').forEach(el=>el.rtcMedia?.dispose());root.innerHTML='';minimized=false;}
   function closePeer(p){clearTimeout(p.deadline);clearTimeout(p.disconnect);clearTimeout(p.attachTimer);clearInterval(p.statsTimer);clearInterval(p.watchdog);p.pc.close();}
   function status(text){const el=$('#call-state');if(el)el.textContent=text;}
+  const chatOf=()=>state.chats.find(c=>c.id===current?.chat);
+  const memberOf=id=>chatOf()?.members?.find(m=>m.user_id===id);
+  const cameraOn=()=>!!local?.getVideoTracks().some(t=>t.enabled&&t.readyState==='live');
+  // Who we show while nobody has joined yet: the other person in a direct chat, the group otherwise.
+  function waitingFace(){const chat=chatOf();if(chat?.kind==='direct'){const m=chat.members?.find(x=>x.user_id!==state.user.id);return {name:m?.name||chat.title,avatar:m?.avatar||chat.avatar};}return {name:chat?.title||current.name||'Звонок',avatar:chat?.avatar};}
+  function voiceFace(name,media){return `<div class="call-face"><div class="call-voice"><i></i><i></i>${avatar(name,media,'large')}</div><b>${esc(name)}</b></div>`;}
+  function controlButton(id,name,label,extra=''){return `<button type="button" class="call-btn ${extra}" id="${id}" aria-label="${esc(label)}"><span>${icon(name)}</span><small>${esc(label)}</small></button>`;}
   function render(){
-    root.innerHTML=`<section class="call-overlay ${minimized?'minimized':''}"><header class="call-head"><div><h3>${esc(state.chats.find(c=>c.id===current.chat)?.title||current.name)}</h3><p class="call-state" id="call-state">Соединение…</p></div><div class="row"><small id="call-timer">00:00</small>${button('back','Свернуть / развернуть','id="minimize-call"')}</div></header><div class="video-grid" id="video-grid"><div class="video-tile" id="local-tile"><video id="local-video" autoplay playsinline muted></video><label>Вы</label></div></div><div class="call-controls">${button('mic','Выключить / включить микрофон','id="toggle-mic"')}${button('video','Выключить / включить камеру','id="toggle-camera"')}${button('video','Переключить переднюю / заднюю камеру','id="flip-camera"')}${button('screen','Демонстрация экрана','id="share-screen"')}<button class="secondary" id="call-check">Проверить связь</button>${button('settings','Устройства звонка','id="call-devices"')}${button('phone','Завершить звонок','id="hangup" class="icon-button hangup"')}</div></section>`;
-    $('#hangup').classList.add('hangup');$('#local-video').srcObject=local;
-    $('#minimize-call').onclick=()=>{minimized=!minimized;$('.call-overlay').classList.toggle('minimized',minimized);};
-    $('#toggle-mic').onclick=()=>{local.getAudioTracks().forEach(t=>t.enabled=!t.enabled);$('#toggle-mic').classList.toggle('off',!local.getAudioTracks()[0]?.enabled);};
-    $('#toggle-camera').onclick=guard(async()=>{const track=local.getVideoTracks()[0];if(track){track.enabled=!track.enabled;$('#toggle-camera').classList.toggle('off',!track.enabled);}else{const stream=await navigator.mediaDevices.getUserMedia({video:true});const track=stream.getVideoTracks()[0];local.addTrack(track);for(const p of peers.values())if(p.attached)p.pc.addTrack(track,local);$('#local-video').srcObject=local;$('#toggle-camera').classList.remove('off');}});
-    $('#flip-camera').onclick=guard(async()=>{const old=local.getVideoTracks()[0];if(!old)throw new Error('Сначала включите камеру');const facing=old.getSettings().facingMode==='environment'?'user':'environment';const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});const track=stream.getVideoTracks()[0];track.enabled=old.enabled;try{for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}local.removeTrack(old);old.stop();local.addTrack(track);$('#local-video').srcObject=local;}catch(e){track.stop();throw e;}});
-    $('#call-check').onclick=guard(checkConnection);$('#share-screen').onclick=guard(toggleScreen);$('#call-devices').onclick=guard(devices);$('#hangup').onclick=guard(async()=>{try{await action('leave');}finally{stop();}});
-    $('#toggle-camera').classList.toggle('off',!local.getVideoTracks().length);
-    started=Date.now();clearInterval(timer);timer=setInterval(()=>{if(!current)return;const seconds=Math.floor((Date.now()-started)/1000);if($('#call-timer'))$('#call-timer').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;},1000);
-    
+    const face=waitingFace();
+    root.innerHTML=`<section class="call-overlay tg-call ${minimized?'minimized':''}">
+      <div class="call-stage" id="video-grid"><div class="call-wait" id="call-wait">${voiceFace(face.name,face.avatar)}</div></div>
+      <header class="call-head"><button type="button" class="call-round" id="minimize-call" aria-label="Свернуть / развернуть">${icon('down')}</button><div class="call-title"><h3>${esc(chatOf()?.title||current.name||face.name)}</h3><p><span class="call-state" id="call-state">Соединение…</span> · <span id="call-timer">00:00</span></p></div></header>
+      <div class="call-self" id="local-tile" hidden><video id="local-video" class="mirror" autoplay playsinline muted></video><button type="button" class="call-flip" id="flip-camera" aria-label="Переключить камеру">${icon('flip')}</button></div>
+      <div class="call-controls">${controlButton('toggle-camera','video','Камера')}${controlButton('toggle-mic','mic','Микрофон')}${controlButton('hangup','phone','Завершить','hangup')}</div>
+    </section>`;
+    $('#local-video').srcObject=local;
+    $('#minimize-call').onclick=e=>{e.stopPropagation();minimized=!minimized;$('.call-overlay').classList.toggle('minimized',minimized);};
+    $('.call-overlay').onclick=e=>{if(minimized&&!e.target.closest('#hangup')){minimized=false;$('.call-overlay').classList.remove('minimized');}};
+    $('#toggle-mic').onclick=()=>{local.getAudioTracks().forEach(t=>t.enabled=!t.enabled);controls();};
+    $('#toggle-camera').onclick=guard(async()=>{const track=local.getVideoTracks()[0];if(track)track.enabled=!track.enabled;else{const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:540},facingMode:facing}});const track=stream.getVideoTracks()[0];local.addTrack(track);for(const p of peers.values())if(p.attached)p.pc.addTrack(track,local);$('#local-video').srcObject=local;}tellCamera();controls();});
+    $('#flip-camera').onclick=guard(async e=>{e.stopPropagation();const old=local.getVideoTracks()[0];if(!old)throw new Error('Сначала включите камеру');const next=facing==='user'?'environment':'user';const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:540},facingMode:{exact:next}},audio:false}).catch(()=>navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:next}},audio:false}));const track=stream.getVideoTracks()[0];track.enabled=old.enabled;try{for(const p of peers.values()){const sender=p.pc.getSenders().find(s=>s.track===old);if(sender)await sender.replaceTrack(track);}local.removeTrack(old);old.stop();local.addTrack(track);facing=track.getSettings().facingMode||next;$('#local-video').srcObject=local;controls();}catch(error){track.stop();throw error;}});
+    $('#hangup').onclick=guard(async e=>{e.stopPropagation();try{await action('leave');}finally{stop();}});
+    draggable($('#local-tile'));controls();
+    started=Date.now();clearInterval(timer);timer=setInterval(()=>{if(!current)return;const seconds=Math.floor((Date.now()-started)/1000);if($('#call-timer'))$('#call-timer').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;refreshTiles();},500);
+  }
+  // Buttons and the small self-view follow the real track state.
+  function controls(){
+    const mic=!!local?.getAudioTracks()[0]?.enabled,camera=cameraOn(),micButton=$('#toggle-mic'),cameraButton=$('#toggle-camera');if(!micButton)return;
+    micButton.classList.toggle('off',!mic);micButton.querySelector('span').innerHTML=icon(mic?'mic':'micoff');
+    cameraButton.classList.toggle('on',camera);cameraButton.querySelector('span').innerHTML=icon(camera?'video':'videooff');
+    const self=$('#local-tile');self.hidden=!camera;$('#local-video').classList.toggle('mirror',facing==='user');
+    $('.call-overlay')?.classList.toggle('self-video',camera);
+  }
+  function tellCamera(){const on=cameraOn();for(const p of peers.values())if(p.attached)p.send({camera:on}).catch(()=>{});}
+  // A remote tile shows the picture only while frames really arrive; otherwise the avatar with a voice ring.
+  function refreshTiles(){
+    const tiles=[...root.querySelectorAll('[data-remote]')];
+    for(const tile of tiles){
+      const video=tile.querySelector('video'),track=video?.srcObject?.getVideoTracks?.().find(t=>t.readyState==='live');
+      const p=peers.get(tile.dataset.remote),live=!!track&&!track.muted&&p?.remoteCamera!==false&&video.videoWidth>0;
+      tile.classList.toggle('has-video',live);
+      const level=tile.rtcMedia?.level?.()||0,prev=Number(tile.dataset.level||0),next=Math.max(level,prev*.6);
+      tile.dataset.level=next;tile.style.setProperty('--voice',next.toFixed(3));
+    }
+    const wait=$('#call-wait');if(wait)wait.hidden=tiles.length>0;
+    $('#video-grid')?.setAttribute('data-count',String(Math.min(tiles.length,4)));
+  }
+  // The self-view can be dragged and sticks to the nearest corner, like in Telegram.
+  function draggable(el){
+    let start=null;
+    el.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;start={x:e.clientX,y:e.clientY,rect:el.getBoundingClientRect()};el.setPointerCapture(e.pointerId);el.classList.add('dragging');});
+    el.addEventListener('pointermove',e=>{if(!start)return;el.style.transform=`translate(${e.clientX-start.x}px,${e.clientY-start.y}px)`;});
+    const end=e=>{if(!start)return;const r=el.getBoundingClientRect(),box=el.parentElement.getBoundingClientRect();const right=r.left+r.width/2>box.left+box.width/2,bottom=r.top+r.height/2>box.top+box.height/2;el.classList.toggle('at-left',!right);el.classList.toggle('at-bottom',bottom);el.style.transform='';el.classList.remove('dragging');start=null;};
+    el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
   }
   function peer(remote){
     if(peers.has(remote))return peers.get(remote);
@@ -102,7 +156,7 @@ export function createCalls(state,iceServers){
     p.send=signal=>(p.outbox=p.outbox.catch(()=>{}).then(()=>current?action('signal',{target:remote,signal}):null));
     // Only the impolite side sends the first offer. Simultaneous offers (glare) forced a rollback on slow networks,
     // and some mobile browsers then answered recvonly, so only one person could be heard.
-    p.attach=()=>{if(p.attached||!local)return;p.attached=true;clearTimeout(p.attachTimer);for(const track of local.getTracks())pc.addTrack(track,local);if(screen)p.screenSender=pc.addTrack(screen.getVideoTracks()[0],screen);};
+    p.attach=()=>{if(p.attached||!local)return;p.attached=true;clearTimeout(p.attachTimer);for(const track of local.getTracks())pc.addTrack(track,local);if(screen)p.screenSender=pc.addTrack(screen.getVideoTracks()[0],screen);p.send({camera:cameraOn()}).catch(()=>{});};
     // Ask for ICE restart from one side only, so both peers never race each other with fresh offers.
     p.restart=()=>{if(p.restarts++>=3||pc.signalingState==='closed')return;if(!p.polite)pc.restartIce();else p.send({restart:true}).catch(()=>{});};
     const expire=()=>{if(!current||pc.connectionState==='closed')return;toast('Не удалось установить соединение. Проверьте интернет и повторите звонок.');action('leave').catch(()=>{});stop();};
@@ -121,9 +175,8 @@ export function createCalls(state,iceServers){
       const key='remote-'+remote+'-'+stream.id;let tile=document.getElementById(key);
       if(!tile){
         tile=document.createElement('div');tile.className='video-tile';tile.id=key;tile.dataset.remote=remote;
-        tile.innerHTML=`<video autoplay playsinline muted></video><label>${esc(nameOf(remote))}</label>`;
-        $('#video-grid')?.append(tile);tile.rtcMedia=bindRemoteMedia(tile,stream,debug);
-        tile.ondblclick=()=>tile.requestFullscreen?.();
+        tile.innerHTML=`<video autoplay playsinline muted></video>${voiceFace(nameOf(remote),memberOf(remote)?.avatar)}<label>${esc(nameOf(remote))}</label>`;
+        $('#video-grid')?.append(tile);tile.rtcMedia=bindRemoteMedia(tile,stream,debug,()=>audioContext);refreshTiles();
       }else tile.rtcMedia.sync();
     };
     pc.onconnectionstatechange=()=>{
@@ -144,7 +197,8 @@ export function createCalls(state,iceServers){
     if(!p.polite)p.attach();else p.attachTimer=setTimeout(()=>{if(!p.attached&&!pc.remoteDescription)p.attach();},6000);
     return p;
   }
-  async function signal(data){if(!current||data.call!==current.id)return;try{const p=peer(data.from),pc=p.pc;const {description,candidate,restart}=data.signal;
+  async function signal(data){if(!current||data.call!==current.id)return;try{const p=peer(data.from),pc=p.pc;const {description,candidate,restart,camera}=data.signal;
+    if(typeof camera==='boolean'){p.remoteCamera=camera;refreshTiles();return;}
     if(restart){if(!p.polite&&pc.signalingState!=='closed'){debug('remote asked ICE restart');pc.restartIce();}return;}
     if(description){const ready=!p.makingOffer&&(pc.signalingState==='stable'||p.isSettingRemoteAnswerPending);const collision=description.type==='offer'&&!ready;p.ignoreOffer=!p.polite&&collision;if(p.ignoreOffer)return;p.isSettingRemoteAnswerPending=description.type==='answer';try{await pc.setRemoteDescription(description);}finally{p.isSettingRemoteAnswerPending=false;}if(description.type==='offer'&&!p.attached)p.attach();for(const c of p.candidates)await pc.addIceCandidate(c).catch(e=>debug('late candidate',e.name));p.candidates=[];if(description.type==='offer'){await pc.setLocalDescription();await p.send({description:pc.localDescription});}}
     else if(candidate){if(p.ignoreOffer)return;if(pc.remoteDescription)await pc.addIceCandidate(candidate).catch(e=>debug('candidate rejected',e.name));else p.candidates.push(candidate);}
@@ -156,50 +210,6 @@ export function createCalls(state,iceServers){
     if(data.state==='ringing'&&data.caller!==state.user.id&&!current&&!incoming){incoming=data;root.innerHTML=`<section class="incoming"><span class="eyebrow">ВХОДЯЩИЙ ${data.video?'ВИДЕО':'АУДИО'}ЗВОНОК</span><h3>${esc(data.name)}</h3><p class="muted">Хочет поговорить с вами</p><div class="row"><button class="primary" id="accept-call">${icon('phone')}Принять</button><button class="secondary danger" id="reject-call">Отклонить</button></div></section>`;$('#accept-call').onclick=guard(async()=>{if(starting)return;unlockAudio();starting=true;const ticket=generation;let acquired;try{acquired=await media(data.video);iceServers=(await api('/rtc-config')).iceServers;if(ticket!==generation){acquired.getTracks().forEach(t=>t.stop());return;}local=acquired;current=data;incoming=null;closeCallNotification(data.id).catch(()=>{});render();await action('join');for(const remote of data.participants)if(remote!==state.user.id)peer(remote);}catch(error){acquired?.getTracks().forEach(t=>t.stop());stop();throw error;}finally{starting=false;}});$('#reject-call').onclick=guard(async()=>{await api('/call-action','POST',{id:data.id,action:'reject'});incoming=null;root.innerHTML='';closeCallNotification(data.id).catch(()=>{});});navigator.vibrate?.([150,80,150]);return;}
     if(current?.id===data.id){current={...current,...data};for(const remote of data.participants)if(remote!==state.user.id)peer(remote);for(const [remote,p]of peers)if(!data.participants.includes(remote)){closePeer(p);peers.delete(remote);document.querySelectorAll(`[data-remote="${remote}"]`).forEach(el=>{el.rtcMedia?.dispose();el.remove();});}if(data.sharing)status(data.sharing===state.user.id?'Вы демонстрируете экран':nameOf(data.sharing)+' демонстрирует экран');else status(peers.size>0&&[...peers.values()].every(p=>p.pc.connectionState==='connected')?'Подключено':data.participants.length>1?'Соединение…':'Звоним…');}
   }
-  async function checkConnection(){
-    if(!current)return;
-    const callId=current.id;
-    const dialog=modal('Проверка связи','<p id="rtc-check">Проверяем передачу звука и видео…</p><button class="primary" id="rtc-play">Включить звук и видео</button><p class="note">Если связи нет, пришлите снимок этой проверки с обоих устройств.</p>');
-    $('#rtc-play').onclick=async()=>{
-      const elements=[...root.querySelectorAll('[data-remote] audio,[data-remote] video')].filter(el=>el.srcObject);
-      const results=await Promise.allSettled(elements.map(el=>el.play()));
-      toast(!elements.length?'Дорожки собеседника пока не получены':results.some(r=>r.status==='rejected')?'Браузер не запустил воспроизведение. Проверьте разрешения сайта.':'Воспроизведение запущено');
-    };
-    const kinds={audio:'Звук',video:'Видео'};
-    const describe=track=>!track?'нет':track.readyState==='ended'?'завершена':!track.enabled?'выключена':track.muted?'нет данных':'работает';
-    const take=async pc=>{const totals={};(await pc.getStats()).forEach(r=>{const kind=r.kind||r.mediaType;if(!kinds[kind]||r.isRemote)return;if(r.type==='inbound-rtp'||r.type==='outbound-rtp'){const key=(r.type==='inbound-rtp'?'in':'out')+kind;const t=totals[key]||={bytes:0,frames:0};t.bytes+=Number(r.bytesReceived??r.bytesSent??0);t.frames+=Number(r.framesDecoded??0);}});return totals;};
-    const snapshot=[...peers].map(([id,p])=>({id,p}));
-    await Promise.all(snapshot.map(async x=>{try{x.before=await take(x.p.pc);}catch{x.before={};}}));
-    await new Promise(resolve=>setTimeout(resolve,2000));
-    if(current?.id!==callId||!dialog.open)return;
-    const lines=['Проверка звонка · версия 2',...['audio','video'].map(kind=>kinds[kind]+' у вас: '+describe(local?.getTracks().find(t=>t.kind===kind)))];
-    for(const x of snapshot){
-      const pc=x.p.pc;let after;try{after=await take(pc);}catch{lines.push('Соединение уже закрыто');continue;}
-      lines.push('',nameOf(x.id), 'Соединение: '+pc.connectionState+' / '+pc.iceConnectionState, 'Согласование: '+pc.signalingState);
-      for(const kind of ['audio','video']){
-        const incoming=after['in'+kind],outgoing=after['out'+kind];
-        const delta=key=>Math.max(0,(after[key]?.bytes||0)-(x.before[key]?.bytes||0));
-        lines.push(kinds[kind]+': отправлено '+delta('out'+kind)+' Б / получено '+delta('in'+kind)+' Б за 2 с');
-        if(kind==='video')lines.push('Раскодировано кадров: '+(incoming?.frames||0));
-        const receivers=pc.getReceivers().map(r=>r.track).filter(t=>t.kind===kind);
-        lines.push('Дорожка собеседника: '+(receivers.map(describe).join(', ')||'нет'));
-        if(!incoming&&!outgoing)lines.push('Обмен ещё не начался');
-      }
-      for(const el of root.querySelectorAll('[data-remote]'))if(el.dataset.remote===x.id){
-        for(const media of el.querySelectorAll('audio,video'))if(media.srcObject)lines.push((media.tagName==='AUDIO'?'Динамик':'Экран')+': '+(media.paused?'пауза':'воспроизведение')+'; готовность '+media.readyState);
-      }
-      if(x.p.lastError)lines.push('Ошибка: '+x.p.lastError);
-    }
-    if(!snapshot.length)lines.push('Собеседник ещё не подключён');
-    const target=$('#rtc-check');if(target){target.style.whiteSpace='pre-wrap';target.style.fontSize='13px';target.textContent=lines.join('\n');}
-  }
-  async function toggleScreen(){
-    if(screen){await action('share',{enabled:false});for(const p of peers.values())if(p.screenSender){p.pc.removeTrack(p.screenSender);p.screenSender=null;}screen.getTracks().forEach(t=>t.stop());screen=null;$('#share-screen')?.classList.remove('off');status('Демонстрация завершена');return;}
-    if(!navigator.mediaDevices.getDisplayMedia)throw new Error('Этот браузер не поддерживает демонстрацию экрана');
-    const display=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false});try{await action('share',{enabled:true});}catch(error){display.getTracks().forEach(t=>t.stop());throw error;}
-    screen=display;for(const p of peers.values())if(p.attached)p.screenSender=p.pc.addTrack(display.getVideoTracks()[0],display);display.getVideoTracks()[0].onended=()=>{if(screen)guard(toggleScreen)();};$('#share-screen')?.classList.add('off');status('Вы демонстрируете экран');
-  }
-  async function devices(){const devices=await navigator.mediaDevices.enumerateDevices();const options=kind=>devices.filter(d=>d.kind===kind).map(d=>`<option value="${esc(d.deviceId)}">${esc(d.label||'Устройство')}</option>`).join('');modal('Устройства звонка',`<label class="field">Микрофон<select id="audio-device">${options('audioinput')}</select></label><label class="field">Камера<select id="video-device">${options('videoinput')}</select></label><label class="field">Вывод звука<select id="output-device">${options('audiooutput')}</select></label><button class="primary" id="apply-devices">Применить</button><p class="note">На телефоне динамик и Bluetooth могут переключаться системными средствами. Выбор аудиовыхода поддерживается не во всех браузерах.</p>`);$('#apply-devices').onclick=guard(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:$('#audio-device').value}},video:local.getVideoTracks().length?{deviceId:{exact:$('#video-device').value}}:false});await replaceCallTracks(local,peers,stream);$('#local-video').srcObject=local;const output=$('#output-device').value;for(const video of root.querySelectorAll('video,audio'))if(!video.muted&&video.setSinkId&&output)await video.setSinkId(output);$('#modal').close();});}
   return{dispose:stop,busy:()=>!!(current||starting),event,signal:data=>{signalQueue=signalQueue.then(()=>signal(data)).catch(e=>toast(e.message));return signalQueue;},reconnect:async()=>{const active=await api('/calls/active');if(current){if(!active.some(c=>c.id===current.id)){stop();return;}for(const p of peers.values()){p.restarts=0;p.restart();}}else for(const c of active)if(c.state==='ringing')await event(c);},start:async(chat,video)=>{if(current||incoming||starting||confirming)return;if(!chat)throw new Error('Чат недоступен');confirming=true;const peer=chat.members?.find(m=>m.user_id!==state.user.id),group=chat.kind!=='direct';const confirmed=await new Promise(resolve=>{const dialog=modal(group?'Начать звонок в «'+chat.title+'»?':(video?'Видеозвонок: ':'Позвонить: ')+chat.title+'?',`<div class="call-confirm">${avatar(chat.title,chat.avatar||peer?.avatar,'large')}<p>${group?'Участники группы смогут присоединиться к звонку.':'Вы действительно хотите начать '+(video?'видеозвонок':'аудиозвонок')+' пользователю '+esc(chat.title)+'?'}</p><div class="row"><button class="secondary" id="cancel-dial">Отмена</button><button class="primary" id="confirm-dial">${icon(video?'video':'phone')}${group?'Начать звонок':'Позвонить'}</button></div></div>`);let settled=false;function finish(value){if(settled)return;settled=true;dialog.removeEventListener('close',cancel);dialog.close();resolve(value);}const cancel=()=>finish(false);dialog.addEventListener('close',cancel,{once:true});$('#cancel-dial').onclick=cancel;$('#confirm-dial').onclick=()=>{unlockAudio();finish(true);};});confirming=false;if(!confirmed||current||incoming||starting)return;starting=true;try{local=await media(video);const config=await api('/rtc-config');iceServers=config.iceServers;current=await api('/calls','POST',{chat:chat.id,video});render();status('Звоним…');if(!config.relayConfigured)toast('Прямые звонки включены. Для сложных сетей администратору нужен TURN.');}catch(error){stop();throw error;}finally{starting=false;}}};
 }
 

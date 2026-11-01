@@ -102,3 +102,62 @@ button.primary.danger{background:var(--ci-danger,#e5534b);border-color:transpare
 .vip-locked p b{color:var(--text,inherit);font-size:17px}
 .vip-locked form{margin-top:16px;gap:8px}
 .vip-locked input{flex:1;min-width:0}
+
+/* Call screen in the Telegram layout: the other person fills the screen, your camera sits in a corner. */
+.call-overlay.tg-call{inset:0;padding:0;border:0;border-radius:0;background:radial-gradient(120% 80% at 50% 20%,#1d4a3c 0%,#0b1d18 55%,#050d0b 100%);overflow:hidden;color:#fff;backdrop-filter:none;z-index:40}
+.tg-call .call-stage{position:absolute;inset:0;display:grid;gap:4px;padding:0;grid-template-columns:1fr;grid-auto-rows:1fr}
+.tg-call .call-stage[data-count="2"]{grid-template-columns:1fr}
+.tg-call .call-stage[data-count="3"],.tg-call .call-stage[data-count="4"]{grid-template-columns:1fr 1fr}
+.tg-call .video-tile{position:relative;min-height:0;border:0;border-radius:0;background:transparent;display:block;overflow:hidden}
+.tg-call .video-tile video{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;opacity:0;transition:opacity .25s}
+.tg-call .video-tile.has-video video{opacity:1}
+.tg-call .video-tile.has-video .call-face{opacity:0;pointer-events:none}
+.tg-call .video-tile label{display:none}
+.tg-call .call-stage[data-count="2"] .video-tile label,.tg-call .call-stage[data-count="3"] .video-tile label,.tg-call .call-stage[data-count="4"] .video-tile label{display:block;bottom:12px;left:12px}
+.tg-call .video-tile>button.secondary{position:absolute;left:50%;bottom:180px;transform:translateX(-50%);z-index:3}
+.tg-call .call-wait,.tg-call .call-face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .25s}
+.tg-call .call-wait[hidden]{display:none}
+.tg-call .call-face b{font-size:22px;font-weight:600;text-shadow:0 1px 8px #0008}
+.tg-call .call-wait .call-face b{display:none}
+.tg-call .call-voice{--voice:0;position:relative;display:grid;place-items:center;width:140px;height:140px}
+.tg-call .video-tile .call-voice{--voice:inherit}
+.tg-call .call-voice .avatar.large{width:140px;height:140px;font-size:46px;position:relative;z-index:2;box-shadow:0 10px 40px #0007}
+.tg-call .call-voice i{position:absolute;inset:0;border-radius:50%;background:color-mix(in srgb,var(--accent,#83d9b5) 30%,transparent);transform:scale(calc(1 + var(--voice) * .55));transition:transform .12s ease-out;z-index:1}
+.tg-call .call-voice i+i{background:color-mix(in srgb,var(--accent,#83d9b5) 16%,transparent);transform:scale(calc(1 + var(--voice) * 1.05));transition-duration:.2s}
+.tg-call .call-wait .call-voice i{animation:tg-call-ring 2s ease-out infinite}
+.tg-call .call-wait .call-voice i+i{animation-delay:1s}
+@keyframes tg-call-ring{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+.tg-call .call-head{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:flex-start;gap:12px;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 40px;background:linear-gradient(#000a,#0000)}
+.tg-call .call-title{flex:1;min-width:0;text-align:center;padding-right:44px}
+.tg-call .call-title h3{margin:2px 0 2px;font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg-call .call-title p{margin:0;font-size:14px;color:#ffffffc0}
+.tg-call .call-round{width:40px;height:40px;flex:none;border:0;border-radius:50%;display:grid;place-items:center;background:#ffffff26;color:#fff;cursor:pointer;backdrop-filter:blur(12px)}
+.tg-call .call-round svg{width:22px;height:22px}
+.tg-call .call-self{position:absolute;z-index:6;top:calc(78px + env(safe-area-inset-top,0px));right:12px;width:min(28vw,132px);aspect-ratio:3/4;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 8px 28px #0009;touch-action:none;cursor:grab;transition:top .25s,bottom .25s,left .25s,right .25s}
+.tg-call .call-self[hidden]{display:none}
+.tg-call .call-self.dragging{transition:none;cursor:grabbing}
+.tg-call .call-self.at-left{right:auto;left:12px}
+.tg-call .call-self.at-bottom{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+.tg-call .call-self video{width:100%;height:100%;object-fit:cover;display:block}
+.tg-call .call-self video.mirror{transform:scaleX(-1)}
+.tg-call .call-flip{position:absolute;right:6px;bottom:6px;width:32px;height:32px;border:0;border-radius:50%;display:grid;place-items:center;background:#0000006b;color:#fff;cursor:pointer;backdrop-filter:blur(8px)}
+.tg-call .call-flip svg{width:18px;height:18px}
+.tg-call .call-controls{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;align-items:flex-start;gap:clamp(18px,8vw,44px);flex-wrap:nowrap;padding:48px 16px calc(26px + env(safe-area-inset-bottom,0px));background:linear-gradient(#0000,#000a)}
+.tg-call .call-controls .call-btn{display:flex;flex-direction:column;align-items:center;gap:7px;border:0;background:none;color:#fff;cursor:pointer;padding:0;width:72px;height:auto;border-radius:0;box-shadow:none}
+.tg-call .call-btn span{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:#ffffff2e;backdrop-filter:blur(14px);transition:background .2s,color .2s,transform .15s}
+.tg-call .call-btn:active span{transform:scale(.9)}
+.tg-call .call-btn svg{width:27px;height:27px}
+.tg-call .call-btn small{font-size:12.5px;color:#ffffffd9}
+.tg-call .call-btn.on span{background:#fff;color:#111}
+.tg-call .call-btn.off span{background:#fff;color:#111}
+.tg-call .call-btn.hangup span{background:#ec4e57;color:#fff;box-shadow:0 8px 24px #ec4e5766}
+.tg-call .call-btn.hangup svg{transform:rotate(135deg)}
+.tg-call.minimized{inset:auto 12px calc(90px + env(safe-area-inset-bottom,0px)) auto;width:150px;height:200px;border-radius:18px;box-shadow:0 10px 36px #000a;cursor:pointer}
+.tg-call.minimized .video-grid{display:grid}
+.tg-call.minimized .call-head,.tg-call.minimized .call-self,.tg-call.minimized .call-face b,.tg-call.minimized .call-btn small,.tg-call.minimized #toggle-mic,.tg-call.minimized #toggle-camera{display:none}
+.tg-call.minimized .call-voice,.tg-call.minimized .call-voice .avatar.large{width:64px;height:64px;font-size:22px}
+.tg-call.minimized .call-controls{padding:20px 0 10px}
+.tg-call.minimized .call-btn span{width:40px;height:40px}
+.tg-call.minimized .call-btn svg{width:20px;height:20px}
+@media (min-width:900px){.tg-call .call-self{width:220px;aspect-ratio:4/3}}
+@media (prefers-reduced-motion:reduce){.tg-call .call-wait .call-voice i{animation:none}}

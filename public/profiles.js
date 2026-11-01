@@ -7,6 +7,7 @@ import {renderCustom,renderToken} from './stickers.js';
 import {pickBadge,setBadge} from './badge-picker.js';
 import {$,esc,avatar,api,upload,modal,guard,toast,lastSeenText,vipBadge} from './ui.js';
 import {showStories,storyArchive} from './stories.js';
+import {prepareAvatar,pickImage} from './media-compress.js';
 let context;
 export function configureProfiles(c){context=c;}
 export const profileThemes={'Emerald Glass':['#153d32','#83d9b5'],Midnight:['#10172c','#a5b9ff'],'Black Glass':['#131719','#dce6e8'],Snow:['#e8f1ef','#236245'],Ocean:['#103149','#81c9ff'],Purple:['#312041','#d6adff'],Rose:['#452635','#ffb9db'],Bronze:['#3c2d21','#edbf89'],Aurora:['#183141','#acffe1'],Sunset:['#482d3a','#ffbc98']};
@@ -85,9 +86,11 @@ export async function editProfile(){
  function draw(){const draft=Object.fromEntries(new FormData(form));preview.innerHTML=profileVisual({...p.profile,description:draft.bio,badge:draft.badge||p.profile.badge,videoAvatar:avatarId===p.avatar?p.profile.videoAvatar:undefined},{...p,...draft,avatar:avatarId});
   const full=[draft.name,draft.surname].filter(Boolean).join(' ')||'Без имени';$('#pe-avatar').innerHTML=avatar(full,avatarId,'large');$('#pe-name').textContent=full;$('#pe-username').textContent=draft.username?'@'+draft.username:'Имя пользователя не задано';$('#pe-bio-count').textContent=(draft.bio||'').length+' / '+bioMax;$('#profile-avatar-remove').hidden=!avatarId;}
  form.oninput=()=>{dirty=true;validateUsername();draw();};validateUsername();draw();
- const choosePhoto=()=>pick('image/png,image/jpeg,image/webp,image/gif',async file=>{const button=$('#profile-avatar');button.disabled=true;button.classList.add('loading');uploading=true;try{const media=await upload(file);if(!form.isConnected)return;avatarId=media.id;dirty=true;draw();}finally{button.disabled=false;button.classList.remove('loading');uploading=false;}});
+ // The photo is saved right away, like in Telegram: no need to press "Save" after choosing it.
+ const savePhoto=async id=>{await api('/profile/details','PATCH',{avatar:id});p.avatar=id;avatarId=id;const r=await api('/me');if(context){context.state.user=r.user;await context.refresh();}window.dispatchEvent(new Event('profile-saved'));if(form.isConnected)draw();};
+ const choosePhoto=()=>pickImage(guard(async original=>{const button=$('#profile-avatar');button.disabled=true;button.classList.add('loading');uploading=true;try{const media=await upload(await prepareAvatar(original));await savePhoto(media.id);toast('Фото профиля обновлено');}finally{button.disabled=false;button.classList.remove('loading');uploading=false;}}));
  $('#profile-avatar').onclick=choosePhoto;$('#profile-avatar-pick').onclick=choosePhoto;
- $('#profile-avatar-remove').onclick=()=>{avatarId='';dirty=true;draw();};
+ $('#profile-avatar-remove').onclick=guard(async()=>{await savePhoto('');toast('Фото удалено');});
  form.onsubmit=saveAction(async()=>{
   if(uploading)throw new Error('Дождитесь загрузки фотографии.');
   const draft=Object.fromEntries(new FormData(form));

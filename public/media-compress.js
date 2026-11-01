@@ -25,3 +25,40 @@ export async function compressPhoto(file){
     return new File([blob],name,{type,lastModified:file.lastModified||Date.now()});
   }catch{return file;}
 }
+
+// Profile photos: any picture the phone offers (JPG, PNG, WebP, HEIC from iPhone, files with no type)
+// becomes a JPEG the server accepts. GIFs stay animated.
+const AVATAR_SIDE=1280,AVATAR_TYPES=new Set(['image/jpeg','image/png','image/webp','image/gif']);
+const EXTENSION_TYPES={jpg:'image/jpeg',jpeg:'image/jpeg',jfif:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',heic:'image/heic',heif:'image/heif'};
+async function decodeImage(file){
+  if(typeof createImageBitmap==='function'){try{return await createImageBitmap(file);}catch{}}
+  const url=URL.createObjectURL(file);
+  try{const img=new Image();img.src=url;await img.decode();return img;}finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
+}
+export async function prepareAvatar(file){
+  if(!file)throw new Error('Фото не выбрано');
+  const type=file.type||EXTENSION_TYPES[String(file.name||'').split('.').pop().toLowerCase()]||'';
+  if(type==='image/gif')return file.type===type?file:new File([file],file.name||'avatar.gif',{type});
+  let image;
+  try{image=await decodeImage(file);}catch{image=null;}
+  if(!image||!(image.width||image.naturalWidth)){
+    if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'avatar',{type});
+    throw new Error('Не удалось открыть фото. Выберите снимок в формате JPG или PNG.');
+  }
+  const w=image.width||image.naturalWidth,h=image.height||image.naturalHeight,scale=Math.min(1,AVATAR_SIDE/Math.max(w,h));
+  const width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
+  const canvas=Object.assign(document.createElement('canvas'),{width,height}),context=canvas.getContext('2d');
+  context.fillStyle='#fff';context.fillRect(0,0,width,height);context.drawImage(image,0,0,width,height);image.close?.();
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.9));
+  if(!blob){if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'avatar',{type});throw new Error('Не удалось обработать фото');}
+  return new File([blob],'avatar.jpg',{type:'image/jpeg',lastModified:Date.now()});
+}
+// iOS Safari may drop the change event of a file input that is not in the page, so keep it attached until used.
+export function pickImage(callback){
+  const input=document.createElement('input');input.type='file';input.accept='image/*';
+  input.style.cssText='position:fixed;left:-9999px;width:1px;height:1px;opacity:0';(document.querySelector('dialog[open]')||document.body).append(input);
+  const cleanup=()=>setTimeout(()=>input.remove(),0);
+  input.addEventListener('change',()=>{const file=input.files?.[0];cleanup();if(file)callback(file);},{once:true});
+  input.addEventListener('cancel',cleanup,{once:true});
+  input.click();
+}
