@@ -57,12 +57,29 @@ export function toast(message) { const el=$('#toast'); el.textContent=message; e
 // A response filter (end-to-end decryption) sees every JSON result before callers do.
 let responseFilter=null;
 export function setResponseFilter(fn){responseFilter=fn;}
-async function requestJSON(url,options,account=activeAccount()) {
-  const ticket=accountEpoch();
+// Render sometimes restarts the server, and for those seconds its proxy answers with an HTML error page
+// or drops the connection. Reads are safe to repeat, so they are retried quietly for about 25 seconds
+// before an error is shown. Errors written by the app itself (JSON with a message) are never retried.
+const RETRY_DELAYS=[700,1500,2500,4000,6000,10000];
+const wait=(ms,signal)=>new Promise((resolve,reject)=>{const timer=setTimeout(resolve,ms);signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Отменено','AbortError'));},{once:true});});
+async function requestOnce(url,options,account){
   let response;
-  try{response=await accountFetch(url,options,account);}catch(error){if(error.name==='AbortError')throw error;throw new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');}
-  let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502});}
-  if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status});}
+  try{response=await accountFetch(url,options,account);}catch(error){if(error.name==='AbortError')throw error;throw Object.assign(new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.'),{transient:true});}
+  let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502,transient:true});}
+  if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status,transient:!message&&[502,503,504].includes(response.status)});}
+  return result;
+}
+async function requestJSON(url,options,account=activeAccount()) {
+  const ticket=accountEpoch(),read=['GET','HEAD'].includes((options?.method||'GET').toUpperCase());
+  let result;
+  for(let attempt=0;;attempt++){
+    try{result=await requestOnce(url,options,account);break;}
+    catch(error){
+      if(!read||!error.transient||attempt>=RETRY_DELAYS.length||ticket!==accountEpoch())throw error;
+      await wait(RETRY_DELAYS[attempt],options?.signal);
+      if(ticket!==accountEpoch())throw new DOMException('Аккаунт переключён','AbortError');
+    }
+  }
   if(responseFilter)result=await responseFilter(result,account);
   if(ticket!==accountEpoch())throw new DOMException('Аккаунт переключён','AbortError');return result;
 }
