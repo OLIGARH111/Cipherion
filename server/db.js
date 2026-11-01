@@ -28,6 +28,37 @@ export function retryTransient(db){
   };
   return db;
 }
+// One API request often reads the same rows many times (a member's profile, privacy rules and
+// blocks for every chat and every message). With a remote database each read is a network round
+// trip that also holds up every other request, so identical reads made while one request is being
+// handled are answered once. The saved answers last only until the current task ends, and any
+// write or exec clears them at once, so a read never sees data older than the last write.
+const isRead=sql=>/^\s*SELECT\b/i.test(sql);
+const copyRow=row=>row&&typeof row==='object'?Object.assign(Object.create(Object.getPrototypeOf(row)),row):row;
+const keyOf=args=>JSON.stringify(args,(_,v)=>typeof v==='bigint'?'n:'+v:v);
+export function cacheReads(db){
+  const prepare=db.prepare.bind(db),exec=db.exec.bind(db);
+  let cache=null;
+  const clear=()=>{cache=null;};
+  const current=()=>{if(!cache){cache=new Map();setImmediate(clear);}return cache;};
+  db.exec=sql=>{clear();return exec(sql);};
+  db.prepare=sql=>{
+    let statement=null;const real=()=>statement||=prepare(sql);
+    if(!isRead(sql)){real();}
+    const read=(method,args)=>{
+      const store=current(),key=method+'\0'+sql+'\0'+keyOf(args);
+      if(!store.has(key))store.set(key,real()[method](...args));
+      const value=store.get(key);return Array.isArray(value)?value.map(copyRow):copyRow(value);
+    };
+    return new Proxy({},{get(_,prop){
+      if(isRead(sql)&&(prop==='get'||prop==='all'))return (...args)=>read(prop,args);
+      const value=real()[prop];
+      // Anything else (run, a write with RETURNING, iterate…) goes straight to the database.
+      return typeof value==='function'?(...args)=>{clear();try{return value.apply(real(),args);}finally{clear();}}:value;
+    }});
+  };
+  return db;
+}
 export function database(directory) {
   mkdirSync(directory, { recursive: true });
   const config=databaseConfig();
@@ -57,7 +88,7 @@ export function database(directory) {
     CREATE TABLE IF NOT EXISTS blocks(user_id TEXT, target TEXT, PRIMARY KEY(user_id,target));
     CREATE TABLE IF NOT EXISTS calls(id TEXT PRIMARY KEY, chat_id TEXT REFERENCES chats(id), user_id TEXT REFERENCES users(id), video INTEGER, created INTEGER, ended INTEGER, status TEXT);
   `);
-  return db;
+  return cacheReads(db);
 }
 
 

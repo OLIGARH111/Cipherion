@@ -181,7 +181,7 @@ const server = http.createServer(async (req, res) => {
       if (!file.startsWith(resolve(root, 'public') + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) fail(404, 'Не найдено');
       // Hashed icons never change; bundled sticker art changes only with a new versioned folder;
       // everything else is revalidated by ETag, which costs a tiny 304 instead of the whole file.
-      const cacheControl = versioned ? (versioned[1] === (await appShell.get()).version && /\.(js|css)$/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache') : /^\/brand\/icon-\d+-[a-f0-9]+\.png$/.test(filePath) ? 'public, max-age=31536000, immutable' : /^\/stickers(-v\d+)?\//.test(filePath) ? 'public, max-age=604800' : 'no-cache';
+      const cacheControl = versioned ? (versioned[1] === (await appShell.get()).version && /\.(js|css)$/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache') : /^\/brand\/icon-\d+-[a-f0-9]+\.(png|webp)$/.test(filePath) ? 'public, max-age=31536000, immutable' : /^\/stickers(-v\d+)?\//.test(filePath) ? 'public, max-age=604800' : 'no-cache';
       return await staticFiles.serve(req, res, file, { type: mime[extname(file)] || 'application/octet-stream', cacheControl }).catch(error => error.code === 'ENOENT' || error.code === 'EISDIR' || error.code === 'ENOTDIR' ? fail(404, 'Не найдено') : Promise.reject(error));
     }
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
