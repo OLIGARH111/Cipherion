@@ -136,3 +136,18 @@ body.glass-ui dialog.sheet:has(.tg-page),body.glass-ui dialog.sheet:has(.tg-page
   .short-viewport .rail{bottom:10px}
   .short-viewport .composer-wrap{padding-bottom:8px}
 }
+
+/* Group/channel header on phones: glass back circle, centered name pill, avatar circle. */
+@media (max-width:700px){
+  .conversation-header.pill-head{height:60px;min-height:60px;gap:10px;padding:0;border:0;border-radius:30px;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  .pill-head .conversation-peer{display:contents}
+  .pill-head .header-actions{display:none}
+  .pill-head>.mobile-back,.pill-head .conversation-title{border:1px solid var(--ci-hairline);background:var(--ci-island);box-shadow:var(--ci-island-shadow),inset 0 1px 0 rgba(255,255,255,.35);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%)}
+  .pill-head>.mobile-back{order:0;flex:none;width:56px;height:56px;border-radius:50%;color:var(--text)}
+  .pill-head>.mobile-back svg{width:24px;height:24px}
+  .pill-head .conversation-title{order:1;flex:0 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;max-width:calc(100% - 132px);height:56px;margin:0 auto;padding:0 22px;border-radius:28px;text-align:center}
+  .pill-head .conversation-title h3{max-width:100%;font-size:17px;font-weight:650;line-height:1.2}
+  .pill-head #chat-status{max-width:100%;font-size:13.5px;text-align:center}
+  .pill-head .avatar{order:2;flex:none;width:50px!important;height:50px!important;margin:0 3px;border-radius:50%;box-shadow:0 0 0 3px var(--ci-island),0 0 0 4.5px color-mix(in srgb,var(--accent) 50%,transparent),var(--ci-island-shadow)}
+  .pill-head .avatar img{border-radius:50%}
+}
