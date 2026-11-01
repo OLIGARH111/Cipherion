@@ -21,6 +21,9 @@ export function createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin}) {
     run('INSERT INTO users(id,username,name,password,bio,created) VALUES(?,?,?,?,?,?)',botId,username,OFFICIAL_NAME,'','Официальный аккаунт Cipherion: системные уведомления и обновления',now());
     run('INSERT INTO official_account(singleton,user_id) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET user_id=excluded.user_id',botId);
   }
+  // Take the main username back as soon as it becomes free.
+  if(one('SELECT username FROM users WHERE id=?',botId)?.username!==OFFICIAL_USERNAME&&!one('SELECT id FROM users WHERE username=?',OFFICIAL_USERNAME))
+    run('UPDATE users SET username=? WHERE id=?',OFFICIAL_USERNAME,botId);
   run('INSERT OR IGNORE INTO verified_accounts VALUES(?,?)',botId,now());
   // The site owner is verified as well.
   run('INSERT OR IGNORE INTO verified_accounts SELECT user_id,? FROM site_owner WHERE singleton=1 AND user_id IS NOT NULL',now());
