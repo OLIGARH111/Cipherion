@@ -8,7 +8,7 @@ import {request as httpRequest} from 'node:http';
 import {brotliDecompressSync} from 'node:zlib';
 import vm from 'node:vm';
 import {randomUUID} from 'node:crypto';
-import {encodingFor,etagMatches} from '../server/http-cache.js';
+import {encodingFor,etagMatches,createAppShell,createStaticFiles} from '../server/http-cache.js';
 
 let server,base,dir;
 before(async()=>{dir=await mkdtemp(join(tmpdir(),'cipherion-cache-'));server=spawn(process.execPath,['server/index.js'],{env:{...process.env,DATA_DIR:dir,PORT:'0',HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});base=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Startup timeout')),10000);server.stdout.on('data',d=>{const m=String(d).match(/http:\/\/127\.0\.0\.1:\d+/);if(m){clearTimeout(timer);resolve(m[0]);}});server.once('exit',code=>reject(Error('Server exit '+code)));});});
@@ -63,37 +63,115 @@ test('large API responses are compressed; media is cached privately and revalida
  const ids=body=>JSON.parse(body).map(m=>m.id+m.body);assert.deepEqual(ids(brotliDecompressSync(packed.body)),ids(plainJSON.body));
 });
 
-test('service worker serves the saved app shell when the network or server fails, never API data',async()=>{
- const listeners={},store=new Map();
- const cache={put:async(k,v)=>{store.set(typeof k==='string'?k:k.url,v);},match:async k=>store.get(typeof k==='string'?k:k.url)};
- let network=async()=>({ok:true,status:200,type:'basic',clone(){return this;},body:'fresh'});
- const context={self:{location:{origin:'https://c.test'},addEventListener:(n,f)=>listeners[n]=f,clients:{claim:async()=>{}}},URL,Date,setTimeout,caches:{open:async()=>cache,keys:async()=>[],delete:async()=>true},fetch:(...a)=>network(...a),Response:{error:()=>({error:true})}};
+// A tiny Cache Storage + fetch double for running sw.js in a sandbox.
+async function serviceWorker(network){
+ const listeners={},stores=new Map(),messages=[];
+ const keyOf=x=>{const u=new URL(typeof x==='string'?x:x.url,'https://c.test');return u.pathname+u.search;};
+ const open=async name=>{if(!stores.has(name))stores.set(name,new Map());const store=stores.get(name);return {put:async(key,v)=>{store.set(keyOf(key),v);},match:async key=>store.get(keyOf(key)),keys:async()=>[...store.keys()].map(p=>({url:'https://c.test'+p})),delete:async key=>store.delete(keyOf(key))};};
+ const context={self:{location:{origin:'https://c.test'},addEventListener:(n,f)=>listeners[n]=f,clients:{claim:async()=>{},matchAll:async()=>[{postMessage:m=>messages.push(m)}]}},URL,Date,setTimeout,caches:{open,keys:async()=>[...stores.keys()],delete:async n=>stores.delete(n)},fetch:(...a)=>network.fn(...a),Response:{error:()=>({error:true})}};
  vm.runInNewContext(await readFile('public/sw.js','utf8'),context);
- const fetchEvent=async request=>{let result;listeners.fetch({request,respondWith:p=>result=p});return result&&await result;};
+ const fetchEvent=async request=>{let result;const waits=[];listeners.fetch({request,respondWith:p=>result=p,waitUntil:p=>waits.push(p)});const value=result&&await result;return {value,settled:()=>Promise.all(waits)};};
+ return {fetchEvent,stores,messages};
+}
+const reply=(body,cacheControl='no-cache',status=200)=>({ok:status<400,status,type:'basic',headers:{get:n=>n==='Cache-Control'?cacheControl:null},clone(){return reply(body,cacheControl,status);},text:async()=>body,body});
+const pathOf=url=>new URL(String(url?.url||url),'https://c.test').pathname;
+
+test('service worker opens the saved app at once and never waits for the server; API data is never cached',async()=>{
+ const pageA='<link rel="stylesheet" href="/v/aaaaaaaaaaaa/bundle.css"><script type="module" src="/v/aaaaaaaaaaaa/bundle.js"></script>';
+ const network={fn:async url=>pathOf(url)==='/'?reply(pageA):reply('asset '+pathOf(url),'public, max-age=31536000, immutable')};
+ const sw=await serviceWorker(network);
  const page={method:'GET',mode:'navigate',url:'https://c.test/?x=1'};
- assert.equal((await fetchEvent(page)).body,'fresh');await new Promise(r=>setTimeout(r));assert.ok(store.has('/'));
- network=async()=>{throw new TypeError('offline');};assert.equal((await fetchEvent(page)).body,'fresh');
- network=async()=>({ok:false,status:503,type:'basic',body:'suspended'});assert.equal((await fetchEvent(page)).body,'fresh');
- assert.equal(await fetchEvent({method:'GET',mode:'cors',url:'https://c.test/api/chats'}),undefined);
- assert.equal(await fetchEvent({method:'POST',mode:'cors',url:'https://c.test/app.js'}),undefined);
- network=async()=>{throw new TypeError('offline');};assert.deepEqual(await fetchEvent({method:'GET',mode:'no-cors',url:'https://c.test/never-cached.js'}),{error:true});
+ // First start: from the network; the page is saved only together with every file it links.
+ const first=await sw.fetchEvent(page);assert.equal(first.value.body,pageA);await first.settled();
+ assert.equal(sw.stores.get('cipherion-shell-v2').get('/').body,pageA);
+ for(const file of ['bundle.js','bundle.css'])assert.ok(sw.stores.get('cipherion-assets-v1').has('/v/aaaaaaaaaaaa/'+file));
+ // Next start: a server that never answers does not delay the app.
+ network.fn=()=>new Promise(()=>{});
+ const started=Date.now(),again=await sw.fetchEvent(page);assert.equal(again.value.body,pageA);assert.ok(Date.now()-started<200,'saved page must open without waiting');
+ network.fn=async()=>{throw new TypeError('offline');};assert.equal((await sw.fetchEvent(page)).value.body,pageA);
+ assert.equal((await sw.fetchEvent({method:'GET',mode:'cors',url:'https://c.test/api/chats'})).value,undefined);
+ assert.equal((await sw.fetchEvent({method:'POST',mode:'cors',url:'https://c.test/app.js'})).value,undefined);
+ assert.deepEqual((await sw.fetchEvent({method:'GET',mode:'no-cors',url:'https://c.test/never-cached.js'})).value,{error:true});
 });
 
-test('the page links versioned files that are cached forever and preloads the whole module tree',async()=>{
+test('a new version is saved in the background only after all its files are downloaded',async()=>{
+ const pageA='<script type="module" src="/v/aaaaaaaaaaaa/bundle.js"></script>',pageB='<link rel="stylesheet" href="/v/bbbbbbbbbbbb/bundle.css"><script type="module" src="/v/bbbbbbbbbbbb/bundle.js"></script>';
+ let page=pageA,assetsReady=true;
+ const network={fn:async url=>pathOf(url)==='/'?reply(page):assetsReady?reply('asset '+pathOf(url),'public, max-age=31536000, immutable'):reply('busy','no-cache',503)};
+ const sw=await serviceWorker(network);
+ const nav={method:'GET',mode:'navigate',url:'https://c.test/'};
+ await (await sw.fetchEvent(nav)).settled();
+ // A deploy happened, but its files cannot be downloaded yet: keep the old, complete version.
+ page=pageB;assetsReady=false;
+ let opened=await sw.fetchEvent(nav);assert.equal(opened.value.body,pageA);await opened.settled();
+ assert.equal(sw.stores.get('cipherion-shell-v2').get('/').body,pageA);assert.equal(sw.messages.length,0);
+ // Files available: the new version is stored for the next start and the open app is told.
+ assetsReady=true;opened=await sw.fetchEvent(nav);assert.equal(opened.value.body,pageA,'this start still uses the saved version');await opened.settled();
+ assert.equal(sw.stores.get('cipherion-shell-v2').get('/').body,pageB);
+ assert.ok(sw.stores.get('cipherion-assets-v1').has('/v/bbbbbbbbbbbb/bundle.css'));
+ assert.equal(JSON.stringify(sw.messages),JSON.stringify([{type:'app-updated'}]));
+ assert.equal((await sw.fetchEvent(nav)).value.body,pageB);
+});
+
+test('hashed icons and sticker art open from the saved copy, also offline',async()=>{
+ const network={fn:async()=>reply('icon v1','public, max-age=31536000, immutable')};
+ const sw=await serviceWorker(network);
+ const icon={method:'GET',mode:'no-cors',url:'https://c.test/brand/icon-192-99e4c7990351.png'};
+ let r=await sw.fetchEvent(icon);assert.equal(r.value.body,'icon v1');await r.settled();
+ network.fn=async()=>{throw new TypeError('offline');};
+ r=await sw.fetchEvent(icon);assert.equal(r.value.body,'icon v1');await r.settled();
+});
+
+test('the page links one bundled script and one stylesheet, cached forever',async()=>{
  const page=await raw('/');assert.equal(page.status,200);assert.equal(page.headers['cache-control'],'no-cache');
- const html=page.body.toString();const version=html.match(/src="\/v\/([a-f0-9]{12})\/app\.js"/)?.[1];
- assert.ok(version,'app.js must be linked through /v/<version>/');
- assert.match(html,new RegExp(`href="/v/${version}/style.css"`));
- for(const module of ['ui.js','account-context.js','chat-ui.js','email-auth.js'])assert.match(html,new RegExp(`<link rel="modulepreload" href="/v/${version}/${module}">`));
- assert.ok(!html.includes(`modulepreload" href="/v/${version}/app.js"`),'entry scripts are not preloaded twice');
+ const html=page.body.toString();const version=html.match(/src="\/v\/([a-f0-9]{12})\/bundle\.js"/)?.[1];
+ assert.ok(version,'the bundle must be linked through /v/<version>/');
+ assert.equal((html.match(/<script /g)||[]).length,1,'one script for the whole app');
+ assert.equal((html.match(/rel="stylesheet"/g)||[]).length,1,'one stylesheet for the whole app');
+ assert.match(html,new RegExp(`<link rel="stylesheet" href="/v/${version}/bundle.css">`));
+ assert.ok(!html.includes('modulepreload'));
  assert.equal((await raw('/index.html')).headers.etag,page.headers.etag);
- const asset=await raw(`/v/${version}/ui.js`);assert.equal(asset.status,200);assert.equal(asset.headers['cache-control'],'public, max-age=31536000, immutable');
- assert.deepEqual(asset.body,await readFile('public/ui.js'));
- // An older version still loads, but is never stored for a year under the wrong name.
- assert.equal((await raw('/v/000000000000/ui.js')).headers['cache-control'],'no-cache');
+ const js=await raw(`/v/${version}/bundle.js`,{'Accept-Encoding':'br'});assert.equal(js.status,200);
+ assert.equal(js.headers['cache-control'],'public, max-age=31536000, immutable');assert.match(js.headers['content-type'],/text\/javascript/);assert.equal(js.headers['content-encoding'],'br');
+ const code=brotliDecompressSync(js.body).toString();
+ assert.ok(code.includes('cipherion-active-account'),'bundle carries the app code, with Russian text kept readable');
+ assert.ok(code.includes('Не удалось подключиться'));
+ assert.ok(!/(^|[;}])\s*import\s*[{"'*]/m.test(code)&&!/\bimport\(["']\.\//.test(code),'no module is loaded separately');
+ const css=(await raw(`/v/${version}/bundle.css`)).body.toString();
+ const sheets=[...(await readFile('public/index.html','utf8')).matchAll(/href="\/([\w.-]+\.css)"/g)].map(m=>m[1]);
+ // Stylesheets keep the page order, so the cascade is unchanged.
+ let at=-1;for(const name of sheets){const found=css.indexOf((await readFile('public/'+name,'utf8')).trim());assert.ok(found>at,name+' must follow the previous sheet');at=found;}
+ // An older version still loads today's bundle, but is never stored for a year under the wrong name.
+ assert.equal((await raw('/v/000000000000/bundle.js')).headers['cache-control'],'no-cache');
+ const asset=await raw(`/v/${version}/ui.js`);assert.equal(asset.status,200);assert.deepEqual(asset.body,await readFile('public/ui.js'));
  assert.equal((await raw(`/v/${version}/missing.js`)).status,404);
  assert.equal((await raw(`/v/${version}/%2e%2e/%2e%2e/package.json`)).status,404);
  assert.ok(!(await readFile('public/style.css','utf8')).includes('@import'),'no stylesheet waits for another one');
+});
+
+test('without bundling the page links the separate files and preloads the whole module tree',async()=>{
+ const previous=process.env.CIPHERION_BUNDLE;process.env.CIPHERION_BUNDLE='0';
+ try{
+  const built=await createAppShell(join(process.cwd(),'public'),createStaticFiles()).get();
+  const html=built.body.toString(),version=built.version;
+  assert.equal(built.bundled,false);
+  assert.match(html,new RegExp(`src="/v/${version}/app\\.js"`));assert.match(html,new RegExp(`href="/v/${version}/style.css"`));
+  for(const module of ['ui.js','account-context.js','chat-ui.js','email-auth.js'])assert.match(html,new RegExp(`<link rel="modulepreload" href="/v/${version}/${module}">`));
+  assert.ok(!html.includes(`modulepreload" href="/v/${version}/app.js"`),'entry scripts are not preloaded twice');
+ }finally{if(previous===undefined)delete process.env.CIPHERION_BUNDLE;else process.env.CIPHERION_BUNDLE=previous;}
+});
+
+test('a phone back from the background gets a fresh event stream at once, even with old ones still open',async()=>{
+ const auth=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true,username:'stream_user',password:'integration-password-123'})});
+ const cookie=auth.headers.get('set-cookie').split(';')[0];
+ const streams=[];
+ const open=()=>new Promise((resolve,reject)=>{const r=httpRequest(base+'/api/events',{headers:{Cookie:cookie}},res=>{let text='';const s={res,ended:false,text:()=>text};res.on('data',c=>{text+=c;if(text.includes('event: ready'))resolve(s);});res.on('end',()=>{s.ended=true;});res.on('close',()=>{s.ended=true;});});r.on('error',reject);r.end();streams.push(r);});
+ try{
+  const first=await open();assert.match(first.text(),/^retry: 1000\n/,'browsers retry after one second');
+  for(let i=0;i<6;i++)await open();
+  await new Promise(r=>setTimeout(r,100));
+  assert.ok(first.ended,'the oldest stream makes room for the new one');
+ }finally{for(const r of streams)r.destroy();}
 });
 
 test('service worker opens versioned files from its cache without the network',async()=>{

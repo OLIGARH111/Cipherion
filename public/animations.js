@@ -12,10 +12,12 @@ new MutationObserver(records => {
     for (const node of record.removedNodes) {
       if (node.id !== 'launch' || node.dataset.exit || calm()) continue;
       node.dataset.exit = '1';
-      document.body.append(node);
-      void node.offsetWidth; // зафиксировать стартовое состояние для transition
+      // Уход — CSS-анимация, а не transition: ей не нужен принудительный пересчёт всей страницы
+      // (offsetWidth), который на телефоне задерживал первый кадр со списком чатов.
       node.classList.add('leaving');
-      setTimeout(() => node.remove(), 750);
+      document.body.append(node);
+      // Сохранённые чаты уже на экране: короткое растворение, чтобы запуск ощущался мгновенным.
+      setTimeout(() => node.remove(), node.dataset.quick ? 220 : 650);
     }
   }
 }).observe(document.body, { childList: true });
@@ -92,8 +94,9 @@ function scanView() {
   lastView = key;
   if (calm()) return;
   view.querySelectorAll('.setting-card,.history-row,.person').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
-  view.classList.remove('view-in');
-  void view.offsetWidth;
+  // Новый экран начинает анимацию сам. Пересчёт вёрстки (offsetWidth) нужен только чтобы
+  // перезапустить её на том же элементе: на открытии чата он удваивал работу телефона.
+  if (view.classList.contains('view-in')) { view.classList.remove('view-in'); void view.offsetWidth; }
   view.classList.add('view-in');
 }
 new MutationObserver(scanView).observe(document.body, { childList: true, subtree: true });

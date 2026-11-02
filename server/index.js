@@ -169,6 +169,8 @@ let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const staticFiles = createStaticFiles();
 const appShell = createAppShell(resolve(root, 'public'), staticFiles);
+// The bundle is built at start-up, not on the first visitor's request.
+appShell.get().catch(error => logFailure('app_shell_failed', error));
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -195,6 +197,13 @@ const server = http.createServer(async (req, res) => {
       // a request for an older version gets today's file, revalidated as usual.
       const versioned = path.match(/^\/v\/([a-f0-9]{12})(\/.+)$/);
       const filePath = versioned ? versioned[2] : path;
+      // The joined bundle.js / bundle.css live in memory. An older version asks for today's bundle,
+      // which is complete on its own, revalidated as usual.
+      if (versioned && /^\/bundle\.(js|css)$/.test(filePath)) {
+        const shell = await appShell.get(), asset = shell.assets.get(filePath.slice(1));
+        if (!asset) fail(404, 'Не найдено');
+        return staticFiles.send(req, res, asset, { type: mime[extname(filePath)], cacheControl: versioned[1] === shell.version ? 'public, max-age=31536000, immutable' : 'no-cache' });
+      }
       const file = resolve(root, 'public', '.' + decodeURIComponent(filePath));
       if (!file.startsWith(resolve(root, 'public') + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) fail(404, 'Не найдено');
       // Hashed icons never change; bundled sticker art changes only with a new versioned folder;
@@ -303,8 +312,11 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/events' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
       if (!streams.has(user.id)) streams.set(user.id, new Set());
-      if (streams.get(user.id).size >= 6) { res.end(); return; }
-      res.sessionId = user.session.id; streams.get(user.id).add(res); res.write('event: ready\ndata: {}\n\n');
+      // A phone that was frozen in the background reconnects while its old stream still looks open
+      // here. The newest connection is the live one, so the oldest makes room instead of refusing it.
+      const open = streams.get(user.id);
+      while (open.size >= 6) { const oldest = open.values().next().value; open.delete(oldest); try { oldest.end(); } catch {} }
+      res.sessionId = user.session.id; open.add(res); res.write('retry: 1000\nevent: ready\ndata: {}\n\n');
       const heartbeat = setInterval(() => {
         try { if (!one('SELECT id FROM sessions WHERE id=? AND expires>?', user.session.id, now())) { res.end(); return; } }
         catch (error) { logFailure('stream_heartbeat_failed', error); }

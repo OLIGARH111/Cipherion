@@ -657,14 +657,30 @@ async function boot(){
   const head=early&&early.epoch===accountEpoch()?early:null;early=null;
   prefetchedChats=head?.chats||api('/chats');prefetchedChats.catch(()=>{});const result=await (head?.me||api('/me'));state.user=result.user;state.settings=result.settings;state.family=result.family;state.rtcDebug=result.rtcDebug===true;state.halloween=result.halloween||null;applyTheme(state.settings);if(result.family&&!result.family.linked){app.innerHTML='<main class="auth"><section class="auth-card glass"><h1>Привяжите родителя</h1><p>Детский аккаунт создан. До привязки обычные функции закрыты.</p><button class="primary" id="pending-family">Получить код для родителя</button><button class="secondary" id="pending-refresh">Проверить привязку</button><button class="secondary" id="pending-logout">Выйти</button></section></main>';$('#pending-family').onclick=guard(()=>familyPage(state));$('#pending-refresh').onclick=()=>location.reload();$('#pending-logout').onclick=guard(async()=>{await api('/logout','POST',{});location.reload();});return;}try{await refresh();}catch(e){if(!result.family)throw e;toast(e.message);}bootStarted=true;
   if(shownAccount===state.user.id){const me=avatar(state.user.name,state.user.avatar);document.querySelectorAll('.account').forEach(el=>el.innerHTML=me);}else shell();shownAccount=null;syncHalloween(state,saveSettings);maybeWhatsNew(state,saveSettings);synchronizer=createSync(state.user.id,rows=>{for(const chat of new Set(rows.map(m=>m.chat_id)))if(messagesByChat.has(chat)||state.chat===chat)acceptMessages(chat,rows.filter(m=>m.chat_id===chat));});ensureDevice(state.user.id).catch(()=>{});outbox=createOutbox(state.user.id,outboxChanged,async(chat,text)=>{const envelope=await seal(state.user.id,chat,text);return envelope&&{e2e:envelope,emoji:emojiKeys(text)};});await outbox.list();state.sendSticker=async(sticker)=>queueOutgoing(state.chat,{sticker});state.openSaved=openSaved;preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>startCall(chat,video)});initStories(state,openChat,refresh);initRoundVideos({canOpen:()=>!state.selection});setupNotificationLinks();connectBackgroundAccounts().catch(()=>{});const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.chat)loadMessages(false).catch(()=>{});});
+// Coming back to the screen. A phone freezes a background app and its live connection may be
+// silently dead, so after a pause the connection is reopened at once instead of after the browser's
+// own retry; its "ready" event then catches up on everything missed.
+let hiddenAt=0,updateReady=false;
+const canRestart=()=>!calls?.busy()&&!state.recording;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){hiddenAt=Date.now();return;}
+  const away=hiddenAt?Date.now()-hiddenAt:0;hiddenAt=0;
+  // A new version waits for a long pause: the app then starts it at once from the saved chats.
+  if(updateReady&&away>=600000&&canRestart()){location.reload();return;}
+  if(away>=300000)navigator.serviceWorker?.controller?.postMessage({type:'check-update'});
+  // During a call the stream is reopened only if it really closed: a reconnect restarts the call's links.
+  if(state.events&&bootStarted&&(state.events.readyState===2||away>=20000&&canRestart())){connectEvents();return;}
+  if(state.chat)loadMessages(false).catch(()=>{});
+});
+window.addEventListener('online',()=>{if(state.events&&bootStarted&&state.events.readyState!==1)connectEvents();});
+navigator.serviceWorker?.addEventListener('message',e=>{if(e.data?.type==='app-updated')updateReady=true;});
 window.addEventListener('beforeunload',()=>{state.recording?.stream.getTracks().forEach(t=>t.stop());});
 // The account opened last time starts loading at once, together with the account list. If the list
 // picks another account, switching aborts these requests and boot() asks again. Its saved chat list
 // is drawn right away and refreshed when the server answers.
 let early=null,shownAccount=null,bootStarted=false;
 try{const remembered=localStorage.getItem('cipherion-active-account');if(remembered){setActiveAccount(remembered);early={epoch:accountEpoch(),me:api('/me'),chats:api('/chats')};early.me.catch(()=>{});early.chats.catch(()=>{});
-  const snap=readSnapshot(remembered);if(snap){Object.assign(state,{user:snap.user,settings:snap.settings||{},halloween:snap.halloween||null,chats:snap.chats});applyTheme(state.settings);shell();setConnection(false);shownAccount=remembered;let finish;bootDone=new Promise(r=>finish=r);bootDone.finish=finish;document.getElementById('launch')?.remove();}}}catch{shownAccount=null;}
+  const snap=readSnapshot(remembered);if(snap){Object.assign(state,{user:snap.user,settings:snap.settings||{},halloween:snap.halloween||null,chats:snap.chats});applyTheme(state.settings);shell();setConnection(false);shownAccount=remembered;let finish;bootDone=new Promise(r=>finish=r);bootDone.finish=finish;const launch=document.getElementById('launch');if(launch){launch.dataset.quick='1';launch.remove();}}}}catch{shownAccount=null;}
 function start(){
   accountManager.initialize().then(async id=>{if(shownAccount&&id!==shownAccount){shownAccount=null;await resetAccount();}return id?boot():auth();}).catch(error=>{
     if(error.status===401){shownAccount=null;resetAccount().finally(auth);return;}

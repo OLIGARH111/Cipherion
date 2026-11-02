@@ -8,7 +8,6 @@
 #launch{
   background:radial-gradient(ellipse 80% 60% at 50% 38%,#12382c 0%,#09221e 50%,#050f0d 100%);
   color:#9ec4b5;overflow:hidden;
-  transition:opacity .55s ease,transform .7s cubic-bezier(.4,0,.2,1);
 }
 #launch img{
   position:relative;z-index:1;filter:drop-shadow(0 0 40px #83d9b544);
@@ -40,13 +39,16 @@
 #launch[data-exit]::before,#launch[data-exit]::after{animation:none}
 #launch[data-exit] p{opacity:1}
 #launch[data-exit]::after{opacity:0}
-#launch.leaving{opacity:0;transform:scale(1.07);pointer-events:none}
+#launch.leaving{pointer-events:none;animation:launch-leave .6s cubic-bezier(.4,0,.2,1) forwards}
+#launch.leaving[data-quick]{animation:launch-fade .18s ease forwards}
 
 @keyframes launch-logo{from{opacity:0;transform:translateY(14px) scale(.7)}to{opacity:1;transform:none}}
 @keyframes launch-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
 @keyframes launch-glow{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.92)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
 @keyframes launch-ring{0%{opacity:.55;transform:translate(-50%,-50%) scale(.6)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9)}}
 @keyframes launch-text{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes launch-leave{to{opacity:0;transform:scale(1.07)}}
+@keyframes launch-fade{to{opacity:0}}
 @keyframes launch-bar{from{background-position:200% 0}to{background-position:-200% 0}}
 
 @media(prefers-reduced-motion:reduce){

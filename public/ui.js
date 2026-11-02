@@ -52,7 +52,16 @@ export const button = (name, title, attrs = '') => `<button class="icon-button" 
 export const initials = name => { const words = String(name || '?').trim().split(/\s+/).filter(Boolean); const first = w => Array.from(w || '')[0] || ''; return ((first(words[0]) || '?') + (words.length > 1 ? first(words[1]) : '')).toUpperCase(); };
 export const tone = name => { let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h % 7; };
 export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}" data-tone="${tone(name)}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc(initials(name))}</span>`;
-export const time = t => new Date(t).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
+// Creating a date formatter is slow (it loads locale data each time) and a chat shows dozens of
+// times, so each format is made once and reused. The output is the same as toLocale*String.
+const formats = new Map();
+export function formatDate(t, options) {
+  const key = JSON.stringify(options);
+  let format = formats.get(key);
+  if (!format) formats.set(key, format = new Intl.DateTimeFormat('ru', options));
+  return format.format(new Date(t));
+}
+export const time = t => formatDate(t, {hour:'2-digit',minute:'2-digit'});
 export function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),4500); }
 // A response filter (end-to-end decryption) sees every JSON result before callers do.
 let responseFilter=null;
