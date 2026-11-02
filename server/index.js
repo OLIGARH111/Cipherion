@@ -24,6 +24,7 @@ import { createFamily } from './family.js';
 import { createVip } from './vip.js';
 import { createSocial } from './social.js';
 import { createAI } from './ai.js';
+import { validateWallpaperSettings } from './wallpapers.js';
 import { createE2E } from './e2e.js';
 import { createHalloween, GHOST_SECONDS } from './halloween.js';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
@@ -276,7 +277,7 @@ const server = http.createServer(async (req, res) => {
       if(settings.ai){if(typeof settings.ai!=='object'||Array.isArray(settings.ai))fail(400,'Некорректные настройки AI');if(settings.ai.chatIds!==undefined&&(!Array.isArray(settings.ai.chatIds)||settings.ai.chatIds.length>100||settings.ai.chatIds.some(v=>typeof v!=='string')))fail(400,'Некорректные разрешения чатов');}
       if(settings.folders!==undefined&&(!Array.isArray(settings.folders)||settings.folders.length>Math.max(vip.active(user.id)?50:10,JSON.parse(user.settings).folders?.length||0)))fail(400,'Превышен лимит папок');
       if(settings.pins!==undefined&&(!Array.isArray(settings.pins)||settings.pins.length>Math.max(vip.active(user.id)?20:5,JSON.parse(user.settings).pins?.length||0)))fail(400,'Превышен лимит закреплённых чатов');
-      const oldSettings=JSON.parse(user.settings);if(settings.theme!==oldSettings.theme&&['Emerald VIP','Diamond Glass','Golden Glass','Aurora VIP','Cosmic'].includes(settings.theme)&&!vip.active(user.id))fail(403,'Эта тема доступна с VIP');for(const k of ['vipGlow','vipBadge','presets'])if(JSON.stringify(settings[k])!==JSON.stringify(oldSettings[k])&&settings[k]&&!vip.active(user.id))fail(403,'Требуется VIP');
+      const oldSettings=JSON.parse(user.settings);const wallpaperError=validateWallpaperSettings(settings,oldSettings);if(wallpaperError)fail(400,wallpaperError);if(settings.theme!==oldSettings.theme&&['Emerald VIP','Diamond Glass','Golden Glass','Aurora VIP','Cosmic'].includes(settings.theme)&&!vip.active(user.id))fail(403,'Эта тема доступна с VIP');for(const k of ['vipGlow','vipBadge','presets'])if(JSON.stringify(settings[k])!==JSON.stringify(oldSettings[k])&&settings[k]&&!vip.active(user.id))fail(403,'Требуется VIP');
       if (b.name !== undefined && clean(b.name, 80).toLowerCase() === OFFICIAL_NAME.toLowerCase() && !official.isBot(user.id)) fail(400, 'Это имя зарезервировано для официального аккаунта');
       run('UPDATE users SET name=?,bio=?,avatar=?,settings=? WHERE id=?', clean(b.name ?? user.name, 80) || user.username, b.bio===undefined?user.bio:clean(b.bio, vip.active(user.id)?500:300), avatar, JSON.stringify(settings), user.id);
       emit(user.id,'settings',{});
