@@ -5,7 +5,7 @@ const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const format=key=>key.match(/.{4}/g).join('-');
 export const normalizeKey=value=>String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 export const hashPassword=password=>{const salt=randomBytes(16).toString('hex');return salt+':'+scryptSync(password,salt,64).toString('hex');};
-function matches(stored,value){
+export function matches(stored,value){
   const [salt,hash]=String(stored||'dummy:'+'0'.repeat(128)).split(':');
   const attempt=scryptSync(value,salt,64),expected=Buffer.from(hash||'','hex');
   return expected.length===attempt.length&&timingSafeEqual(attempt,expected);

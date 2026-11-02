@@ -540,7 +540,7 @@ const server = http.createServer(async (req, res) => {
       broadcast(call.chat,'call',{...call,participants:[...call.participants],state:'active'});return json({ok:true});
     }
     fail(404,'Не найдено');
-  } catch(error) { const requestId=!error.status?logFailure('request_failed',error):undefined; if(!res.headersSent) json({error:error.status?error.message:'Не удалось выполнить действие. Попробуйте позже.',...(requestId?{requestId}:{})},error.status||500); else res.end(); }
+  } catch(error) { const requestId=!error.status?logFailure('request_failed',error):undefined; if(!res.headersSent) json({error:error.status?error.message:'Не удалось выполнить действие. Попробуйте позже.',...(error.status&&error.need?{need:error.need}:{}),...(requestId?{requestId}:{})},error.status||500); else res.end(); }
 });
 // Each maintenance step is isolated: a transient database error must be logged, never crash the process.
 const maintenance=[()=>traffic.flush(),()=>social.tick(),()=>polls.tick(),()=>{for(const [key,value] of limits)if(value.until<now())limits.delete(key);},()=>{for(const call of liveCalls.values())if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');},()=>run('DELETE FROM sessions WHERE expires<?',now()),()=>{databaseHealth=health(db);}];

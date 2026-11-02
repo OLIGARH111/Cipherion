@@ -66,7 +66,7 @@ async function requestOnce(url,options,account){
   let response;
   try{response=await accountFetch(url,options,account);}catch(error){if(error.name==='AbortError')throw error;throw Object.assign(new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.'),{transient:true});}
   let result;try{result=await response.json();}catch{throw Object.assign(new Error('Сервер временно недоступен. Попробуйте позже.'),{status:response.status>=400?response.status:502,transient:true});}
-  if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status,transient:!message&&[502,503,504].includes(response.status)});}
+  if(!response.ok){const message=typeof result?.error==='string'?result.error:'';throw Object.assign(new Error(message||'Не удалось выполнить действие. Попробуйте позже.'),{status:response.status,need:typeof result?.need==='string'?result.need:undefined,transient:!message&&[502,503,504].includes(response.status)});}
   return result;
 }
 async function requestJSON(url,options,account=activeAccount()) {

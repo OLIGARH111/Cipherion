@@ -1,9 +1,9 @@
 import {createMailer} from './mail.js';
-import {hashPassword} from './recovery.js';
+import {hashPassword,matches} from './recovery.js';
 import {randomInt,createHmac,timingSafeEqual} from 'node:crypto';
 export const normalizeEmail=value=>String(value||'').trim().normalize('NFKC').toLowerCase();
 export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,env=process.env}) {
- const columns=all('PRAGMA table_info(users)');for(const [name,type]of [['email','TEXT'],['normalized_email','TEXT'],['email_verified','INTEGER DEFAULT 0']])if(!columns.some(c=>c.name===name))db.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+ const columns=all('PRAGMA table_info(users)');for(const [name,type]of [['email','TEXT'],['normalized_email','TEXT'],['email_verified','INTEGER DEFAULT 0'],['cloud_password','TEXT']])if(!columns.some(c=>c.name===name))db.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_normalized_email ON users(normalized_email) WHERE normalized_email IS NOT NULL;
  CREATE TABLE IF NOT EXISTS email_challenges(id TEXT PRIMARY KEY,purpose TEXT NOT NULL,user_id TEXT,email TEXT NOT NULL,payload TEXT NOT NULL,code_hash TEXT NOT NULL,expires INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,used INTEGER,created INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS email_challenges_email ON email_challenges(email,created);
@@ -12,6 +12,9 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
  const ready=()=>enabled&&mailer.ready()&&String(env.EMAIL_CODE_SECRET||'').length>=32&&!columns.find(c=>c.name==='username')?.notnull;
  const hash=(cid,code)=>createHmac('sha256',env.EMAIL_CODE_SECRET).update(cid+':'+code).digest();
  const neutral='Если аккаунт с таким адресом существует, мы отправили инструкции.';
+ // Cloud password: optional extra secret asked after the email code, like in Telegram.
+ const validCloud=value=>typeof value==='string'&&value.length>=6&&value.length<=256;
+ const needs=(status,message,need)=>{throw Object.assign(new Error(message),{status,need});};
  function validateEmail(value){const email=normalizeEmail(value);if(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail(400,'Проверьте электронную почту');return email;}
 
  async function issue(req,b,user){
@@ -40,6 +43,16 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
  async function route({path,req,res,b,user,json}) {
   if(path==='/api/auth/config'&&req.method==='GET'){json({email:ready(),passwordless:ready(),passwordRegistration:!enabled});return true;}
   if(path==='/api/auth/email/start'&&req.method==='POST'){json(await issue(req,b,user));return true;}
+  if(path==='/api/auth/cloud-password'){
+   if(!user)fail(401,'Войдите в аккаунт');
+   const stored=one('SELECT cloud_password FROM users WHERE id=?',user.id)?.cloud_password;
+   if(req.method==='GET'){json({enabled:!!stored});return true;}
+   rate('cloud-password:'+user.id,10,300000);
+   if(stored&&!matches(stored,String(b.current||'')))fail(403,'Неверный текущий облачный пароль');
+   if(req.method==='POST'){if(!validCloud(b.password))fail(400,'Облачный пароль: от 6 до 256 символов');run('UPDATE users SET cloud_password=? WHERE id=?',hashPassword(b.password),user.id);json({enabled:true});return true;}
+   if(req.method==='DELETE'){run('UPDATE users SET cloud_password=NULL WHERE id=?',user.id);json({enabled:false});return true;}
+   fail(405,'Метод не поддерживается');
+  }
   if(path!=='/api/auth/email/confirm'||req.method!=='POST')return false;
   if(!ready())fail(503,'Подтверждение email пока недоступно');rate('email-confirm:'+req.socket.remoteAddress,30,600000);
   const r=one('SELECT * FROM email_challenges WHERE id=?',String(b.challengeId));
@@ -50,13 +63,25 @@ export function createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,public
   const payload=JSON.parse(r.payload);if(r.purpose==='security'&&payload.sessionId!==user?.session?.id)fail(403,'Подтверждение относится к другой сессии');if(payload.blocked)fail(409,'Не удалось завершить действие. Попробуйте вход или восстановление доступа.');
   let approvalToken;let account=r.user_id?one('SELECT * FROM users WHERE id=?',r.user_id):null;
   if(r.purpose!=='register'&&!account)fail(400,'Не удалось подтвердить код');
-  if(account&&!['change','security'].includes(r.purpose))security.verify(account.id,b.secondFactor);
+  if(r.purpose==='register'&&b.cloudPassword!=null&&b.cloudPassword!==''&&!validCloud(b.cloudPassword))fail(400,'Облачный пароль: от 6 до 256 символов');
+  if(account&&!['change','security'].includes(r.purpose)){
+   // The code was right: further steps must not burn the code's attempts.
+   const refund=()=>run('UPDATE email_challenges SET attempts=attempts-1 WHERE id=?',r.id);
+   if(account.cloud_password){
+    if(!b.cloudPassword){refund();needs(401,'Введите облачный пароль','cloudPassword');}
+    rate('cloud-password:'+account.id,10,300000);
+    if(!matches(account.cloud_password,String(b.cloudPassword))){refund();needs(401,'Неверный облачный пароль','cloudPassword');}
+   }
+   const factor=one('SELECT 1 FROM second_factor WHERE user_id=? AND enabled=1',account.id);
+   if(factor&&!b.secondFactor){refund();needs(401,'Введите код двухэтапной аутентификации','secondFactor');}
+   try{security.verify(account.id,b.secondFactor);}catch(e){refund();e.need='secondFactor';throw e;}
+  }
   if(!['change','security'].includes(r.purpose))accounts.assertCapacity(req,account?.id);
   db.exec('BEGIN IMMEDIATE');try {
    if(!run('UPDATE email_challenges SET used=? WHERE id=? AND used IS NULL AND expires>?',now(),r.id,now()).changes)fail(400,'Код уже использован');
    if(r.purpose==='register'){
     if(one('SELECT id FROM users WHERE normalized_email=?',r.email))fail(409,'Не удалось создать аккаунт. Используйте вход.');
-    const uid=id();run('INSERT INTO users(id,username,name,password,email,normalized_email,email_verified,created) VALUES(?,NULL,?,?,?, ?,1,?)',uid,payload.firstName,'',r.email,r.email,now());run('INSERT INTO profile_details(user_id,surname,email,email_verified) VALUES(?,?,?,1)',uid,payload.lastName,r.email);account=one('SELECT * FROM users WHERE id=?',uid);
+    const uid=id();run('INSERT INTO users(id,username,name,password,email,normalized_email,email_verified,created,cloud_password) VALUES(?,NULL,?,?,?, ?,1,?,?)',uid,payload.firstName,'',r.email,r.email,now(),b.cloudPassword?hashPassword(b.cloudPassword):null);run('INSERT INTO profile_details(user_id,surname,email,email_verified) VALUES(?,?,?,1)',uid,payload.lastName,r.email);account=one('SELECT * FROM users WHERE id=?',uid);
    }else if(r.purpose==='change'){
     if(one('SELECT id FROM users WHERE normalized_email=? AND id!=?',r.email,user.id))fail(409,'Этот адрес недоступен');
     run('UPDATE users SET email=?,normalized_email=?,email_verified=1 WHERE id=?',r.email,r.email,user.id);run('INSERT INTO profile_details(user_id,email,email_verified) VALUES(?,?,1) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,email_verified=1',user.id,r.email);

@@ -1,5 +1,30 @@
-import {$,esc,api,guard} from './ui.js';
+import {esc,api,upload,toast} from './ui.js';
 import {passwordAuthView,passwordResetView} from './password-auth.js';
+import {prepareAvatar,pickImage} from './media-compress.js';
+
+// Showcase shown before choosing "Создать аккаунт" or "Войти".
+const FEATURES=[
+ {emoji:'🔐',orbit:['🔑','🛡️','🔒'],color:'#2fbf7a',title:'Сквозное шифрование',text:'Секретные чаты, которые не прочитает никто, кроме вас и собеседника'},
+ {emoji:'✨',orbit:['💡','📝','🪄'],color:'#8b6cff',title:'AI-помощник в чате',text:'Подскажет ответ, перескажет переписку и поможет написать сообщение'},
+ {emoji:'📞',orbit:['🎥','🎧','📡'],color:'#2f8fe8',title:'Звонки в HD',text:'Аудио- и видеозвонки с кем угодно, прямо из чата'},
+ {emoji:'🎨',orbit:['🖼️','🌌','🌈'],color:'#ff7a45',title:'Обои от ИИ',text:'Опишите идею — и ИИ нарисует обои для любого чата'},
+ {emoji:'🎭',orbit:['😎','🔥','🎉'],color:'#e94d8b',title:'Живые стикеры и истории',text:'Анимированные стикеры, кружки и истории для друзей'},
+ {emoji:'👥',orbit:['🙋','🧑‍💻','🙌'],color:'#14b8a6',title:'До 3 аккаунтов',text:'Переключайтесь между аккаунтами в одно касание'},
+];
+const BACK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CAMERA='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+
+// Full-screen greeting after a successful sign-in or registration.
+// A modal <dialog> sits in the top layer, so it also covers the "add account" window.
+export const splashTiming={hold:1900};
+export function authSplash(title,subtitle=''){
+ const el=document.createElement('dialog');el.className='auth-splash';el.setAttribute('aria-live','polite');
+ el.innerHTML=`<div class="auth-splash-burst" aria-hidden="true">${'<i></i>'.repeat(12)}</div><img class="auth-splash-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="96" height="96"><h1>${esc(title)}</h1>${subtitle?`<p>${esc(subtitle)}</p>`:''}`;
+ el.addEventListener('cancel',e=>e.preventDefault());
+ document.body.append(el);if(typeof el.showModal==='function')el.showModal();else el.setAttribute('open','');
+ return {hide(){el.classList.add('leaving');setTimeout(()=>{el.close?.();el.remove();},500);}};
+}
+
 // The same flow is used at first launch and when adding another account.
 export async function emailAuthView(target,{complete,cancel,changeEmail=false,purpose,email=''}) {
  const marker=document.createElement('p');marker.textContent='Загрузка…';target.replaceChildren(marker);
@@ -10,23 +35,130 @@ export async function emailAuthView(target,{complete,cancel,changeEmail=false,pu
   if(changeEmail||purpose){target.innerHTML='<p>Подтверждение по электронной почте пока недоступно.</p>'+(cancel?'<button class="secondary" id="auth-cancel">Назад</button>':'');target.querySelector('#auth-cancel')?.addEventListener('click',cancel);return;}
   return passwordAuthView(target,{complete,cancel,allowRegistration:config.passwordRegistration===true});
  }
- let mode=purpose|| (changeEmail?'change':'home'),step=purpose?1:0,busy=false,challenge=null,until=0;
- const draft={firstName:'',lastName:'',email,username:'',password:''};
+ // mode: intro | register | login | recovery | legacy | change | security
+ let mode=purpose||(changeEmail?'change':'intro'),step='email',busy=false,challenge=null,until=0,slide=0,timer=null,photo=null,photoURL='';
+ const draft={firstName:'',lastName:'',email,username:'',password:'',cloud:'',cloudRepeat:'',newPassword:'',code:''};
+ const history=[];
+ target.innerHTML='<section class="auth-card glass email-auth auth-flow"><div class="email-content"></div></section>';
  const content=()=>target.querySelector('.email-content');
- target.innerHTML='<section class="auth-card glass email-auth"><span class="eyebrow">CIPHERION</span><div class="email-content"></div></section>';
- async function perform(fn){if(busy)return;busy=true;const form=content().querySelector('form');const buttons=[...content().querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);const error=content().querySelector('[role="alert"]');if(error)error.textContent='';try{await fn();}catch(e){const el=content()?.querySelector('[role="alert"]');if(el)el.textContent=e.message;}finally{busy=false;for(const b of buttons)b.disabled=false;}}
+ const remember=()=>{for(const input of content()?.querySelectorAll('input[name]')||[])if(input.name in draft)draft[input.name]=input.value;};
+ const go=(next,nextMode=mode)=>{remember();history.push([mode,step]);mode=nextMode;step=next;draw();};
+ function back(){
+  remember();
+  if(history.length){[mode,step]=history.pop();draw();return;}
+  if(changeEmail||purpose){cancel?.();return;}
+  mode='intro';draw();
+ }
+ async function perform(fn){
+  if(busy)return;busy=true;const el=content(),buttons=[...el.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+  const alert=el.querySelector('[role="alert"]');if(alert)alert.textContent='';
+  try{await fn();}catch(e){if(e.name==='AbortError')return;const box=content()?.querySelector('[role="alert"]');if(box)box.textContent=e.message;}
+  finally{busy=false;for(const b of buttons)b.disabled=false;}
+ }
+ async function start(){
+  challenge=await api('/auth/email/start','POST',{firstName:draft.firstName,lastName:draft.lastName,email:draft.email,purpose:mode});
+  until=Date.now()+challenge.retryAfter*1000;
+ }
+ // Confirms the email code; for sign-in the server then says whether a cloud password or 2FA code is needed.
+ async function confirm(){
+  const body={challengeId:challenge.challengeId,code:draft.code};
+  if(draft.cloud)body.cloudPassword=draft.cloud;
+  if(draft.secondFactor)body.secondFactor=draft.secondFactor;
+  if(mode==='recovery'&&draft.newPassword)body.newPassword=draft.newPassword;
+  let r;
+  try{r=await api('/auth/email/confirm','POST',body);}
+  catch(e){
+   if(e.need==='cloudPassword'&&step!=='cloud'){draft.cloud='';go('cloud');return;}
+   if(e.need==='secondFactor'&&step!=='second'){go('second');return;}
+   throw e;
+  }
+  await finish(r);
+ }
+ async function finish(r){
+  if(!r?.user){await complete(r);return;}
+  stopTimer();
+  if(mode==='register'&&photo){
+   try{const media=await upload(await prepareAvatar(photo),r.user.id);await api('/profile/details','PATCH',{avatar:media.id},undefined,r.user.id);}
+   catch(e){if(e.name!=='AbortError')toast('Не удалось загрузить фото: '+e.message);}
+  }
+  const name=[r.user.name||draft.firstName,mode==='register'?draft.lastName:''].filter(Boolean).join(' ');
+  const splash=authSplash(mode==='register'?'Добро пожаловать!':'С возвращением!',name);
+  await new Promise(resolve=>setTimeout(resolve,splashTiming.hold));
+  try{await complete(r);}finally{splash.hide();}
+ }
+ function stopTimer(){clearInterval(timer);timer=null;}
+
+ function shell(title,body,{note='',dots=0,at=0,footer=''}={}){
+  return `<div class="flow-top"><button type="button" class="flow-back" id="email-back" aria-label="Назад">${BACK}</button>${dots?`<div class="flow-steps" aria-label="Шаг ${at+1} из ${dots}">${Array.from({length:dots},(_,i)=>`<i class="${i<=at?'on':''}"></i>`).join('')}</div>`:''}</div><div class="flow-body"><h2>${title}</h2>${note?`<p class="flow-note">${note}</p>`:''}<form class="stack" id="email-form" novalidate>${body}<p role="alert"></p>${footer}</form></div>`;
+ }
+ const pill=(label,extra='')=>`<button class="primary pill" type="submit" ${extra}>${label}</button>`;
+ const field=(label,name,attrs='')=>`<label class="field">${label}<input name="${name}" value="${esc(draft[name]||'')}" ${attrs}></label>`;
+
+ function drawIntro(el){
+  const f=FEATURES[slide];
+  el.innerHTML=`<div class="intro"><div class="intro-stage" style="--f:${f.color}" aria-hidden="true"><div class="intro-ring r1"></div><div class="intro-ring r2"></div><div class="intro-ring r3"></div><div class="intro-orbit">${f.orbit.map((o,i)=>`<span style="--i:${i}">${o}</span>`).join('')}</div><div class="intro-core">${f.emoji}</div></div><div class="intro-text" aria-live="polite"><h2>${esc(f.title)}</h2><p>${esc(f.text)}</p></div><div class="intro-dots">${FEATURES.map((x,i)=>`<button type="button" class="${i===slide?'on':''}" data-slide="${i}" aria-label="${esc(x.title)}"></button>`).join('')}</div><div class="intro-actions"><button class="primary pill" data-mode="register">Создать аккаунт</button><button class="secondary pill" data-mode="login">Войти</button><button class="link-button" data-mode="legacy">Войти по username и паролю</button>${cancel?'<button class="link-button" id="auth-cancel">Назад к аккаунту</button>':''}</div></div>`;
+  el.querySelectorAll('[data-slide]').forEach(b=>b.onclick=()=>{slide=+b.dataset.slide;restart();drawIntro(el);});
+  el.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{stopTimer();draft.cloud=draft.cloudRepeat='';draft.secondFactor='';history.length=0;history.push(['intro','email']);mode=b.dataset.mode;step=mode==='legacy'?'legacy':'email';draw();});
+  el.querySelector('#auth-cancel')?.addEventListener('click',()=>{stopTimer();cancel();});
+  const stage=el.querySelector('.intro');let x0=null;
+  stage.addEventListener('pointerdown',e=>{x0=e.clientX;});
+  stage.addEventListener('pointerup',e=>{if(x0===null)return;const dx=e.clientX-x0;x0=null;if(Math.abs(dx)<40)return;slide=(slide+(dx<0?1:FEATURES.length-1))%FEATURES.length;restart();drawIntro(el);});
+ }
+ function restart(){
+  stopTimer();
+  if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
+  timer=setInterval(()=>{const el=content();if(!el||mode!=='intro'){stopTimer();return;}slide=(slide+1)%FEATURES.length;drawIntro(el);},3600);
+ }
+
  function draw(){
   const el=content();if(!el)return;
-  if(mode==='home'){el.innerHTML='<h2>Добро пожаловать</h2><button class="primary" data-mode="register">Создать аккаунт</button><button class="secondary" data-mode="login">Войти</button><button class="secondary" data-mode="legacy">Войти по username и паролю</button>'+ (cancel?'<button class="secondary" id="auth-cancel">Назад к аккаунту</button>':'')+'<p role="alert"></p>';el.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;step=mode==='register'?0:1;draw();});if(cancel)el.querySelector('#auth-cancel').onclick=cancel;return;}
-  const registration=mode==='register',code=step===2;
-  el.innerHTML=`${registration?`<small>${step+1} из 3 · ${['Имя','Email','Подтверждение'][step]}</small>`:''}<h2>${mode==='legacy'?'Вход по username':code?'Подтвердите электронную почту':registration&&step===0?'Как вас зовут?':mode==='recovery'?'Восстановление доступа':changeEmail?'Новая электронная почта':'Ваша электронная почта'}</h2><form class="stack" id="email-form">${mode==='legacy'?`<label class="field">Username<input name="username" value="${esc(draft.username)}" required autocomplete="username"></label><label class="field">Пароль<input name="password" type="password" required autocomplete="current-password" value="${esc(draft.password)}"></label><label class="field">Код 2FA, если включён<input name="secondFactor" autocomplete="one-time-code"></label>`:code?`<p>Мы отправили код на ${esc(challenge.email)}</p><label class="field">Код из email<input class="email-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" minlength="6" required aria-label="Шестизначный код"></label>${mode==='recovery'?'<label class="field">Новый пароль для входа по username (необязательно)<input name="newPassword" type="password" minlength="10" maxlength="256" autocomplete="new-password"></label>':''}${!registration&&!changeEmail&&mode!=='security'?'<label class="field">Код 2FA, если включён<input name="secondFactor" autocomplete="one-time-code"></label>':''}`:registration&&step===0?`<label class="field">Имя *<input name="firstName" value="${esc(draft.firstName)}" autocomplete="given-name" maxlength="80" required></label><label class="field">Фамилия *<input name="lastName" value="${esc(draft.lastName)}" autocomplete="family-name" maxlength="80" required></label>`:`<p>Она понадобится для входа и восстановления доступа к аккаунту.</p><label class="field">Электронная почта *<input name="email" type="email" ${mode==='security'?'readonly':''} value="${esc(draft.email)}" autocomplete="email" maxlength="254" required></label>`}<p role="alert"></p><button class="primary" type="submit">Продолжить</button></form>${code?'<button class="secondary" id="email-resend">Отправить код повторно</button>':''}<button class="secondary" id="email-back">Назад</button>${mode==='login'&&!code?'<button class="secondary" id="email-recovery">Не можете войти?</button>':''}${mode==='legacy'?'<button class="link-button" type="button" id="legacy-forgot">Забыли пароль?</button>':''}`;
-  const remember=()=>{for(const input of el.querySelectorAll('input[name]'))if(input.name in draft)draft[input.name]=input.value;};
-  el.querySelector('#email-back').onclick=()=>{remember();if(step===2){step=1;}else if(registration&&step===1){step=0;}else if(changeEmail||purpose){cancel?.();return;}else mode='home';draw();};
+  if(mode==='intro'){drawIntro(el);if(!timer)restart();return;}
+  stopTimer();
+  const reg=mode==='register';
+  if(step==='legacy'){
+   el.innerHTML=shell('Вход по username',`${field('Username','username','required autocomplete="username"')}${field('Пароль','password','type="password" required autocomplete="current-password"')}<label class="field">Код 2FA, если включён<input name="secondFactor" autocomplete="one-time-code"></label>${pill('Войти')}`,{footer:'<button class="link-button" type="button" id="legacy-forgot">Забыли пароль?</button>'});
+  }else if(step==='email'){
+   const title=mode==='security'?'Подтвердите действие':mode==='change'?'Новая электронная почта':mode==='recovery'?'Восстановление доступа':reg?'Ваш email':'Вход по email';
+   const note=reg?'Мы отправим на него код подтверждения':mode==='login'?'Введите почту, к которой привязан аккаунт':'Мы отправим код на электронную почту';
+   el.innerHTML=shell(title,`<label class="field">Электронная почта<input name="email" type="email" inputmode="email" ${mode==='security'?'readonly':''} value="${esc(draft.email)}" autocomplete="email" maxlength="254" required placeholder="name@example.com"></label>${pill('Продолжить')}`,{note,dots:reg?4:0,at:0,footer:mode==='login'?'<button class="link-button" type="button" id="email-recovery">Не можете войти?</button>':''});
+  }else if(step==='profile'){
+   el.innerHTML=shell('Как вас зовут?',`<button type="button" class="flow-photo${photoURL?' has':''}" id="flow-photo" aria-label="Добавить фото">${photoURL?`<img src="${esc(photoURL)}" alt="">`:CAMERA}<span>${photoURL?'Изменить фото':'Добавить фото'}</span></button>${field('Имя','firstName','autocomplete="given-name" maxlength="80" required')}${field('Фамилия','lastName','autocomplete="family-name" maxlength="80" required')}${pill('Продолжить')}`,{dots:4,at:1});
+   el.querySelector('#flow-photo').onclick=()=>pickImage(file=>{remember();photo=file;if(photoURL)URL.revokeObjectURL(photoURL);photoURL=URL.createObjectURL(file);draw();});
+  }else if(step==='cloud-setup'){
+   el.innerHTML=shell('Облачный пароль',`${field('Пароль','cloud','type="password" minlength="6" maxlength="256" autocomplete="new-password"')}${field('Подтвердите пароль','cloudRepeat','type="password" minlength="6" maxlength="256" autocomplete="new-password"')}${pill('Зарегистрироваться')}<button class="secondary pill" type="button" id="flow-skip">Пропустить</button>`,{note:'Советуем добавить облачный пароль. Его спросят при входе на новом устройстве — даже если кто-то получит доступ к вашей почте.',dots:4,at:2});
+   el.querySelector('#flow-skip').onclick=()=>{draft.cloud='';draft.cloudRepeat='';void perform(async()=>{await start();go('code');});};
+  }else if(step==='code'){
+   el.innerHTML=shell('Введите код',`<label class="field">Код из письма<input class="email-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" minlength="6" required aria-label="Шестизначный код"></label>${mode==='recovery'?field('Новый пароль для входа по username (необязательно)','newPassword','type="password" minlength="10" maxlength="256" autocomplete="new-password"'):''}${pill('Продолжить')}`,{note:`Мы отправили код на ${esc(challenge?.email||draft.email)}`,dots:reg?4:0,at:3,footer:'<button class="link-button" type="button" id="email-resend">Отправить код повторно</button>'});
+   el.querySelector('#email-resend').onclick=()=>perform(async()=>{if(Date.now()<until)throw new Error(`Повторите через ${Math.ceil((until-Date.now())/1000)} сек.`);await start();});
+  }else if(step==='cloud'){
+   el.innerHTML=shell('Облачный пароль',`${field('Облачный пароль','cloud','type="password" required autocomplete="current-password" autofocus')}${pill('Продолжить')}`,{note:'Аккаунт защищён облачным паролем. Введите его, чтобы войти.'});
+  }else if(step==='second'){
+   el.innerHTML=shell('Двухэтапная защита',`<label class="field">Код из приложения или резервный код<input name="secondFactor" autocomplete="one-time-code" required></label>${pill('Продолжить')}`,{note:'Введите код из приложения-аутентификатора.'});
+  }
+  el.querySelector('#email-back').onclick=back;
+  el.querySelector('#email-recovery')?.addEventListener('click',()=>go('email','recovery'));
   el.querySelector('#legacy-forgot')?.addEventListener('click',()=>{remember();passwordResetView(target,{complete,back:()=>emailAuthView(target,{complete,cancel,changeEmail,purpose,email}),hint:'<p class="note">Если к аккаунту привязана подтверждённая почта, можно вернуться назад и выбрать «Войти» → «Не можете войти?»: код придёт на email.</p>'});});
-  if(el.querySelector('#email-recovery'))el.querySelector('#email-recovery').onclick=()=>{remember();mode='recovery';step=1;draw();};
-  async function start(){challenge=await api('/auth/email/start','POST',{...draft,purpose:mode});until=Date.now()+challenge.retryAfter*1000;step=2;draw();}
-  if(code)el.querySelector('#email-resend').onclick=()=>perform(async()=>{if(Date.now()<until)throw new Error(`Повторите через ${Math.ceil((until-Date.now())/1000)} сек.`);await start();});
-  el.querySelector('form').onsubmit=e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.currentTarget));remember();void perform(async()=>{if(mode==='legacy'){const r=await api('/auth','POST',{username:draft.username,password:draft.password,code:values.secondFactor});draft.password='';await complete(r);return;}if(registration&&step===0){step=1;draw();return;}if(!code){await start();return;}const r=await api('/auth/email/confirm','POST',{challengeId:challenge.challengeId,code:values.code,secondFactor:values.secondFactor,...(values.newPassword?{newPassword:values.newPassword}:{})});await complete(r);});};
+  el.querySelector('form').onsubmit=e=>{
+   e.preventDefault();remember();const form=e.currentTarget;
+   if(step==='second')draft.secondFactor=form.elements.secondFactor.value;
+   void perform(async()=>{
+    if(step==='legacy'){const r=await api('/auth','POST',{username:draft.username,password:draft.password,code:form.elements.secondFactor.value});draft.password='';await complete(r);return;}
+    if(step==='email'){
+     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()))throw new Error('Проверьте электронную почту');
+     if(reg){go('profile');return;}
+     await start();go('code');return;
+    }
+    if(step==='profile'){if(!draft.firstName.trim()||!draft.lastName.trim())throw new Error('Укажите имя и фамилию');go('cloud-setup');return;}
+    if(step==='cloud-setup'){
+     if(draft.cloud||draft.cloudRepeat){if(draft.cloud.length<6)throw new Error('Облачный пароль — минимум 6 символов');if(draft.cloud!==draft.cloudRepeat)throw new Error('Пароли не совпадают');}
+     await start();go('code');return;
+    }
+    if(step==='code'&&!/^\d{6}$/.test(draft.code))throw new Error('Введите шестизначный код');
+    if(step==='cloud'&&!draft.cloud)throw new Error('Введите облачный пароль');
+    await confirm();
+   });
+  };
+  el.querySelector('input:not([readonly])')?.focus?.({preventScroll:true});
  }
  draw();
 }

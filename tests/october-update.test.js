@@ -100,3 +100,18 @@ test('passwordless 2FA requires a fresh session-bound email approval and protect
  assert.equal((await request('/security/2fa',p.d,'DELETE',{approvalToken:proof,code:confirmed.data.codes[1]})).status,200);
  assert.equal((await request('/security/2fa',p.d)).data.enabled,false);
 });
+
+test('cloud password is set at registration and asked after the email code on login',async()=>{
+ const email='cloud@example.test',d=device();
+ const reg=await request('/auth/email/start',d,'POST',{purpose:'register',email,firstName:'Облако',lastName:'Паролев'});
+ assert.equal((await request('/auth/email/confirm',d,'POST',{challengeId:reg.data.challengeId,code:mailbox.at(-1).code,cloudPassword:'123'})).status,400);
+ const made=await request('/auth/email/confirm',d,'POST',{challengeId:reg.data.challengeId,code:mailbox.at(-1).code,cloudPassword:'cloud-secret'});assert.equal(made.status,200,JSON.stringify(made.data));d.user=made.data.user.id;
+ assert.deepEqual((await request('/auth/cloud-password',d)).data,{enabled:true});
+ sql(db=>db.prepare('UPDATE email_cooldowns SET last_sent=0 WHERE email=?').run(email));
+ const other=device(),login=await request('/auth/email/start',other,'POST',{purpose:'login',email});const code=mailbox.at(-1).code;
+ const missing=await request('/auth/email/confirm',other,'POST',{challengeId:login.data.challengeId,code});assert.equal(missing.status,401);assert.equal(missing.data.need,'cloudPassword');
+ for(let i=0;i<5;i++){const wrong=await request('/auth/email/confirm',other,'POST',{challengeId:login.data.challengeId,code,cloudPassword:'nope-nope'});assert.equal(wrong.status,401);assert.equal(wrong.data.need,'cloudPassword');}
+ const ok=await request('/auth/email/confirm',other,'POST',{challengeId:login.data.challengeId,code,cloudPassword:'cloud-secret'});assert.equal(ok.status,200,JSON.stringify(ok.data));assert.equal(ok.data.user.id,d.user);assert.equal(ok.data.user.cloud_password,undefined);
+ assert.equal((await request('/auth/cloud-password',d,'DELETE',{current:'bad'})).status,403);
+ assert.deepEqual((await request('/auth/cloud-password',d,'DELETE',{current:'cloud-secret'})).data,{enabled:false});
+});
