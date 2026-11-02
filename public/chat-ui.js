@@ -1,3 +1,4 @@
+import {formatDate} from './ui.js';
 // Small UI building blocks for the Telegram-like layout: popover menus,
 // long press, swipe-back on phones, resizable chat list and date labels.
 const reduced = () => !!globalThis.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches || document.body.classList.contains('no-motion');
@@ -11,15 +12,15 @@ export function dayLabel(t) {
   if (day === today) return 'Сегодня';
   if (today - day <= 86400000 * 1.5 && today > day) return 'Вчера';
   const sameYear = new Date(t).getFullYear() === new Date().getFullYear();
-  return new Date(t).toLocaleDateString('ru', sameYear ? {day: 'numeric', month: 'long'} : {day: 'numeric', month: 'long', year: 'numeric'});
+  return formatDate(t, sameYear ? {day: 'numeric', month: 'long'} : {day: 'numeric', month: 'long', year: 'numeric'});
 }
 // Chat list: time for today, weekday for this week, short date otherwise.
 export function listTime(t) {
   if (!t) return '';
   const today = startOfDay(Date.now()), day = startOfDay(t);
-  if (day === today) return new Date(t).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
-  if (today - day < 86400000 * 6.5) return new Date(t).toLocaleDateString('ru', {weekday: 'short'});
-  return new Date(t).toLocaleDateString('ru', {day: '2-digit', month: '2-digit', year: '2-digit'});
+  if (day === today) return formatDate(t, {hour: '2-digit', minute: '2-digit'});
+  if (today - day < 86400000 * 6.5) return formatDate(t, {weekday: 'short'});
+  return formatDate(t, {day: '2-digit', month: '2-digit', year: '2-digit'});
 }
 
 // ---------- Delivery ticks ----------
