@@ -236,7 +236,7 @@ const server = http.createServer(async (req, res) => {
         const attempt = scryptSync(password, salt, 64);
         if (!account || !hash || Buffer.from(hash,'hex').length!==attempt.length || !timingSafeEqual(attempt, Buffer.from(hash, 'hex'))) fail(401, 'Неверный username или пароль');
       }
-      if(!b.register)security.verify(account.id,b.code);
+      if(!b.register){try{security.verify(account.id,b.code);}catch(e){e.need='secondFactor';throw e;}}
       accounts.create(req,res,account);
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode, ...(b.register?{recoveryKey:recovery.issue(account.id)}:{}) });
     }
