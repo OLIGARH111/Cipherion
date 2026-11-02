@@ -8,8 +8,11 @@ export function createFamily({db,one,all,run,fail,now,emit}) {
   const defaults={calls:'family',groups:false,media:false,links:false,ai:false,dailyMinutes:60,nightStart:21,nightEnd:8,timezone:'Europe/Moscow'};
   const child=u=>one('SELECT * FROM children WHERE user_id=? AND independent=0',u);
   const age=b=>{const d=new Date(b+'T00:00:00Z'),n=new Date(now());return n.getUTCFullYear()-d.getUTCFullYear()-Number(n.getUTCMonth()<d.getUTCMonth()||(n.getUTCMonth()===d.getUTCMonth()&&n.getUTCDate()<d.getUTCDate()));};
-  function register(u,birth){
+  function checkBirth(birth){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(birth||'')||!Number.isFinite(Date.parse(birth))||new Date(birth).toISOString().slice(0,10)!==birth||age(birth)<0||age(birth)>=18)fail(400,'Укажите действительную дату рождения ребёнка младше 18 лет');
+  }
+  function register(u,birth){
+    checkBirth(birth);
     const code=randomBytes(12).toString('hex');run('INSERT INTO children(user_id,birth,code_hash,expires,rules) VALUES(?,?,?,?,?)',u,birth,createHash('sha256').update(code).digest('hex'),now()+86400000,JSON.stringify(defaults));return code;
   }
   function info(u){const c=child(u);return c?{birth:c.birth,age:age(c.birth),linked:!!c.parent_id,parent:c.parent_id,rules:JSON.parse(c.rules),eligible:age(c.birth)>=18}:null;}
@@ -36,5 +39,5 @@ export function createFamily({db,one,all,run,fail,now,emit}) {
     if(path==='/api/family/sessions'&&req.method==='DELETE'){own(user.id,b.child);run('DELETE FROM sessions WHERE user_id=?',b.child);emit(b.child,'family',{});json({ok:true});return true;}
     fail(404,'Семейная операция не найдена');
   }
-  return {register,info,child,assertUse,contact,group,chatAccess,content,route};
+  return {register,info,child,assertUse,contact,group,chatAccess,content,route,checkBirth};
 }

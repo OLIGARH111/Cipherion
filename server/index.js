@@ -160,7 +160,7 @@ const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadc
 migrate(db);
 const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
-const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit});
+const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,family});
 const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
 const chatTools=createChatTools({db,one,all,run,fail,now,id,clean,membership,family,emit,broadcast,projectMessage:message});
 const contentProtection=createContentProtection({db,all,run,fail,membership,audit});
@@ -217,7 +217,7 @@ const server = http.createServer(async (req, res) => {
     if(await emailAuth.route({path,req,res,b,user,json}))return;
     if(await recovery.route({path,req,res,b,user,json}))return;
     if (path === '/api/auth' && req.method === 'POST') {
-      if(b.register&&emailAuth.enabled)fail(410,'Создайте аккаунт через подтверждение email');
+      if(b.register&&emailAuth.ready())fail(410,'Создайте аккаунт через подтверждение email');
       accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);
       rate('auth:' + req.socket.remoteAddress, 20, 900_000);
       const username = String(b.username ?? '').trim().toLowerCase(); const password = String(b.password || '');
@@ -244,7 +244,9 @@ const server = http.createServer(async (req, res) => {
     if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, ...await rtcConfigurationAsync(user.id) }); }
     if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
-    if(!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
+    // A child may finish the profile and manage parent linking before a parent is attached.
+    const setup=['/api/profile/details','/api/vip'].includes(path)||path==='/api/media'&&req.method==='POST'||path.startsWith('/api/family');
+    if(!setup&&!['/api/me','/api/logout','/api/sessions','/api/events'].includes(path)&&!(path==='/api/call-action'&&['leave','reject'].includes(b.action)))family.assertUse(user.id);
     if(await delivery.route({path,req,b,user,json,url}))return;
     if(path==='/api/rtc-config'&&req.method==='GET')return json(await rtcConfigurationAsync(user.id));
     if(path==='/api/activity'&&req.method==='POST')return json({ok:true});

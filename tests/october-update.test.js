@@ -115,3 +115,13 @@ test('cloud password is set at registration and asked after the email code on lo
  assert.equal((await request('/auth/cloud-password',d,'DELETE',{current:'bad'})).status,403);
  assert.deepEqual((await request('/auth/cloud-password',d,'DELETE',{current:'cloud-secret'})).data,{enabled:false});
 });
+
+test('child registers with an email code and gets a parent linking code',async()=>{
+ const email='kid@example.test',d=device();
+ assert.equal((await request('/auth/email/start',d,'POST',{purpose:'register',email,firstName:'Ребёнок',lastName:'Детский',child:true,birth:'1990-01-01'})).status,400);
+ const start=await request('/auth/email/start',d,'POST',{purpose:'register',email,firstName:'Ребёнок',lastName:'Детский',child:true,birth:'2015-05-05'});assert.equal(start.status,200,JSON.stringify(start.data));
+ const made=await request('/auth/email/confirm',d,'POST',{challengeId:start.data.challengeId,code:mailbox.at(-1).code});assert.equal(made.status,200,JSON.stringify(made.data));
+ assert.match(made.data.familyCode,/^[a-f0-9]{24}$/);d.user=made.data.user.id;
+ const fam=await request('/family',d);assert.equal(fam.data.child.linked,false);assert.equal(fam.data.child.birth,'2015-05-05');
+ assert.equal((await request('/auth/config',device())).data.passwordRegistration,false);
+});

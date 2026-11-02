@@ -82,3 +82,11 @@
 dialog.auth-splash,dialog.auth-splash:not(.story-viewer){inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0;padding:24px;box-shadow:none;backdrop-filter:none;overflow:hidden;animation:none;background:radial-gradient(circle at 50% 42%,color-mix(in srgb,var(--accent,#2fbf7a) 30%,#070c13),#070c13 70%)!important}
 dialog.auth-splash[open]{display:grid}
 dialog.auth-splash::backdrop{background:#070c13;backdrop-filter:none}
+/* Child registration */
+.intro-badge{display:inline-block;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:650;letter-spacing:.3px;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.family-stage{width:150px;height:150px;align-self:center;margin:0 0 8px}
+.family-stage .intro-ring.r1{inset:36px}.family-stage .intro-ring.r2{inset:12px}
+.family-stage .intro-core{font-size:52px}
+.family-code{display:block;text-align:center;font-size:20px;letter-spacing:1px;padding:16px;border-radius:16px;word-break:break-all;user-select:all;background:var(--hover);border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent)}
+.flow-actions{display:grid;gap:10px;margin-top:auto;padding-top:18px}
+.auth-flow input[type=date]{min-height:52px}

@@ -40,7 +40,7 @@ test('subscriber count uses Russian plural rules',()=>{assert.deepEqual([1,2,5,1
 
 test('without email the intro and step-by-step username flow are used, including child and 2FA',async()=>{
  setActiveAccount(null);const {emailAuthView,splashTiming}=await import('../public/email-auth.js');splashTiming.hold=0;let completed,posts=[];
- globalThis.fetch=async(path,options)=>{if(path.endsWith('/auth/config'))return {ok:true,json:async()=>({email:false,passwordRegistration:true})};const data=JSON.parse(options.body);posts.push({path,data});if(path.endsWith('/auth')&&!data.register&&!data.code)return {ok:false,status:401,json:async()=>({error:'Введите код',need:'secondFactor'})};return {ok:true,json:async()=>({user:{id:'password-user',name:'Alice'}})};};
+ globalThis.fetch=async(path,options)=>{if(path.endsWith('/auth/config'))return {ok:true,json:async()=>({email:false,passwordRegistration:true})};const data=JSON.parse(options.body);posts.push({path,data});if(path.endsWith('/auth')&&!data.register&&!data.code)return {ok:false,status:401,json:async()=>({error:'Введите код',need:'secondFactor'})};return {ok:true,json:async()=>({user:{id:'password-user',name:'Alice'},...(data.child?{familyCode:'abc123'}:{})})};};
  const target=document.querySelector('#auth'),submit=async()=>{target.querySelector('#email-form').dispatchEvent(new Event('submit',{cancelable:true}));await tick();await tick();};
  await emailAuthView(target,{complete:r=>completed=r});assert.ok(target.querySelector('.intro-stage'));
  target.querySelector('[data-mode=register]').click();assert.ok(target.querySelector('#flow-photo'));target.querySelector('[name=firstName]').value='Alice';target.querySelector('[name=lastName]').value='Smith';await submit();
@@ -51,7 +51,13 @@ test('without email the intro and step-by-step username flow are used, including
  await emailAuthView(target,{complete:r=>completed=r});target.querySelector('[data-mode=login]').click();target.querySelector('[name=username]').value='old';await submit();target.querySelector('[name=password]').value='strong-password';await submit();
  assert.equal(completed,null);target.querySelector('[name=secondFactor]').value='123456';await submit();assert.equal(posts.at(-1).data.code,'123456');assert.equal(posts.at(-1).data.username,'old');assert.equal(completed.user.id,'password-user');
  assert.match(document.querySelector('.auth-splash').textContent,/С возвращением/);document.querySelectorAll('.auth-splash').forEach(e=>e.remove());
- await emailAuthView(target,{complete:r=>completed=r});target.querySelector('#intro-child').click();assert.ok(target.querySelector('[name=birth]'));assert.equal(target.querySelector('[name=username]').getAttribute('pattern'),'[a-zA-Z0-9_]{5,32}');
+ completed=null;await emailAuthView(target,{complete:r=>completed=r});target.querySelector('#intro-child').click();assert.match(target.textContent,/Только одобренные контакты|Под присмотром родителя/);assert.ok(target.querySelector('.intro-badge'));
+ target.querySelector('[data-child="1"]').click();assert.match(target.textContent,/Как зовут ребёнка/);target.querySelector('[name=firstName]').value='Kid';target.querySelector('[name=lastName]').value='Smith';await submit();
+ target.querySelector('[name=birth]').value='1990-01-01';await submit();assert.match(target.querySelector('[role=alert]').textContent,/младше 18/);target.querySelector('[name=birth]').value='2015-05-05';await submit();
+ target.querySelector('[name=username]').value='kid_smith';await submit();target.querySelector('[name=password]').value='strong-password';target.querySelector('[name=passwordRepeat]').value='strong-password';await submit();
+ const childPost=posts.find(p=>p.data.username==='kid_smith');assert.equal(childPost.data.child,true);assert.equal(childPost.data.birth,'2015-05-05');
+ assert.match(target.querySelector('.family-code').textContent,/abc123/);assert.equal(completed,null);target.querySelector('#family-done').click();await tick();await tick();assert.equal(completed.user.id,'password-user');document.querySelectorAll('.auth-splash').forEach(e=>e.remove());
+ await emailAuthView(target,{complete:r=>completed=r});target.querySelector('#intro-child').click();target.querySelector('[data-mode=register]:not([data-child])').click();assert.match(target.textContent,/Как вас зовут/);
  await emailAuthView(target,{changeEmail:true,complete(){}});assert.equal(target.querySelector('form'),null);assert.match(target.textContent,/пока недоступно/);
 });
 
