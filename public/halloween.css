@@ -8,6 +8,11 @@ body[data-palette=potion] .ambient{background:var(--wallpaper,none),radial-gradi
 body[data-palette=pumpkin] .message.own .bubble{background:linear-gradient(135deg,#ff9a3d,#ff6a3d);color:#2a1200}
 body[data-palette=potion] .message.own .bubble{background:linear-gradient(135deg,#a6e85f,#5fc46a);color:#102a06}
 body[data-palette=pumpkin] .message.own .bubble :is(time,.edited,.message-footer),body[data-palette=potion] .message.own .bubble :is(time,.edited,.message-footer){color:inherit;opacity:.7}
+/* Name, @mentions, links and the comment button use accent tones that vanish on the bright bubble — draw them in the bubble's dark ink instead. */
+body:is([data-palette=pumpkin],[data-palette=potion]) .message.own .bubble :is(.author,.mention,a,.comment-link,.member-tag){color:inherit}
+body:is([data-palette=pumpkin],[data-palette=potion]) .message.own .bubble .author{font-weight:700}
+body:is([data-palette=pumpkin],[data-palette=potion]) .message.own .bubble .mention{font-weight:650;text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:2px}
+body:is([data-palette=pumpkin],[data-palette=potion]) .message.own .bubble .comment-link{border-top-color:color-mix(in srgb,currentColor 18%,transparent);font-weight:600}
 
 /* Ambient: moon and fog live in the background layer, a few bats fly over the app now and then. */
 .hw-layer{position:absolute;inset:0;pointer-events:none}

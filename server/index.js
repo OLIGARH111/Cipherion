@@ -60,7 +60,8 @@ const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
 const emojiTokens = keys => (Array.isArray(keys) ? keys.slice(0, 51) : []).map(k => `:ce[${String(k).replace(/[^a-zA-Z0-9-]/g, '')}]`).join(' ');
 const publicUser = (u, viewer) => ({...privacy.project(u, viewer, streams.has(u?.id)),...(u&&bots?.isBot(u.id)?{bot:true}:{}),...(u?.id===viewer?{isAdmin:adminAccess.isAdmin(u.id),email:u.email||null,emailVerified:!!u.email_verified,surname:one('SELECT surname FROM profile_details WHERE user_id=?',u.id)?.surname||''}:{})});
 const streams = new Map(), liveCalls = new Map(), limits = new Map();
-let uploadsInFlight=0;
+// Uploads are streamed to disk, so several can run at once; a per-user cap keeps one account from taking them all.
+let uploadsInFlight=0;const userUploads=new Map();
 function rate(key, count, window = 60_000) {
   const entry = limits.get(key);
   if (!entry || entry.until < now()) { limits.set(key, { n: 1, until: now() + window }); return; }
@@ -580,19 +581,19 @@ const server = http.createServer(async (req, res) => {
       broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id}); return json({ok:true});
     }
     if(path==='/api/media' && req.method==='POST') {
-      storage.writable();rate('upload:'+user.id,30);
+      storage.writable();rate('upload:'+user.id,60);
       if(family.child(user.id)&&!JSON.parse(family.child(user.id).rules).media)fail(403,'Вложения отключены родителем');
       const mediaId=id(); let type=clean(req.headers['content-type']||'application/octet-stream',100).split(';')[0];
       let name=clean(decodeURIComponent(req.headers['x-file-name']||'file'),200);
-      if(uploadsInFlight>=2)fail(429,'Сервер занят загрузками. Повторите немного позже.');
+      if(uploadsInFlight>=16||(userUploads.get(user.id)||0)>=4)fail(429,'Сервер занят загрузками. Повторите немного позже.');
       const maximum=vip.uploadMB(user.id)*1024*1024;
       if((one('SELECT SUM(size) n FROM media WHERE user_id=?',user.id).n||0)>20*1024*1024*1024)fail(413,'Лимит хранилища аккаунта: 20 ГБ');
-      uploadsInFlight++;let file,size=0;const destination=resolve(data,'media',mediaId);
+      uploadsInFlight++;userUploads.set(user.id,(userUploads.get(user.id)||0)+1);let file,size=0;const destination=resolve(data,'media',mediaId);
       try{file=await open(destination,'wx');for await(const chunk of req){size+=chunk.length;if(size>maximum)fail(413,'Файл превышает лимит аккаунта');await file.write(chunk);}if(!size)fail(400,'Пустой файл');await file.close();file=null;validateUpload(await storage.bytes('media',mediaId,'bytes=0-31'),type,name);
         // Videos are re-encoded once here so every later download is several times smaller.
         if(type.startsWith('video/')){const packed=await compressVideo(destination);if(packed){size=packed.size;type=packed.type;name=name.replace(/\.[^.]*$/,'')+'.mp4';}}
         await storage.persist('media',mediaId,user.id,destination,type);run('INSERT INTO media VALUES(?,?,?,?,?,?)',mediaId,user.id,name,type,size,now());}
-      catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;}
+      catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;const left=(userUploads.get(user.id)||1)-1;if(left)userUploads.set(user.id,left);else userUploads.delete(user.id);}
       await storage.releaseLocal('media',mediaId);return json({id:mediaId,name,type,size},201);
     }
     if(path.startsWith('/api/media/') && req.method==='GET') {
