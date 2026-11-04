@@ -1,0 +1,14 @@
+# Mirror: users in Russia open this address, the server forwards everything to Render.
+# Caddy gets the HTTPS certificate by itself.
+MIRROR_DOMAIN {
+	encode zstd gzip
+	reverse_proxy https://UPSTREAM_HOST {
+		header_up Host {upstream_hostport}
+		# Live updates (SSE) must not be buffered.
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+}

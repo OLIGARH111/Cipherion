@@ -195,6 +195,8 @@ let databaseHealth=health(db);
 setInterval(()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)),3000).unref();
 const staticFiles = createStaticFiles();
 const appShell = createAppShell(resolve(root, 'public'), staticFiles);
+// Comma-separated list, e.g. MIRROR_ORIGINS=https://cipherion.ru,https://1-2-3-4.sslip.io
+const mirrorOrigins = new Set(String(process.env.MIRROR_ORIGINS || '').split(',').map(value => value.trim().replace(/\/+$/, '')).filter(value => /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(value)));
 // The bundle is built at start-up, not on the first visitor's request.
 appShell.get().catch(error => logFailure('app_shell_failed', error));
 const server = http.createServer(async (req, res) => {
@@ -238,7 +240,10 @@ const server = http.createServer(async (req, res) => {
       return await staticFiles.serve(req, res, file, { type: mime[extname(file)] || 'application/octet-stream', cacheControl }).catch(error => error.code === 'ENOENT' || error.code === 'EISDIR' || error.code === 'ENOTDIR' ? fail(404, 'Не найдено') : Promise.reject(error));
     }
     const protocol = process.env.TRUST_PROXY === '1' ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
-    const expectedOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
+    // Mirrors (MIRROR_ORIGINS) are extra addresses that proxy to this server, e.g. a Russian
+    // domain for users whose provider blocks the main host. Each one acts as its own origin.
+    const mainOrigin = process.env.PUBLIC_ORIGIN || `${protocol}://${req.headers.host}`;
+    const expectedOrigin = req.headers.origin && mirrorOrigins.has(req.headers.origin) ? req.headers.origin : mainOrigin;
     if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && req.headers.origin !== expectedOrigin) fail(403, 'Недопустимый источник запроса');
     rate(req.socket.remoteAddress, 600);
     const user = accounts.authenticate(req);

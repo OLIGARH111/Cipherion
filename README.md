@@ -141,6 +141,8 @@ npm test
 
 ## Развёртывание
 
+Вход из России без VPN — через зеркало на российском сервере, см. [docs/RU-MIRROR.md](docs/RU-MIRROR.md).
+
 Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит загрузки локально (`MEDIA_STORAGE_MODE=temporary`): на бесплатном Render такие файлы могут пропасть при перезапуске. Для постоянного хранения нужны рабочее S3-хранилище и `MEDIA_STORAGE_MODE=durable`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
 
 ## Архитектура
