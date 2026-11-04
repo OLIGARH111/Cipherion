@@ -1,0 +1,31 @@
+# Generate the Xcode project on a Mac:  brew install xcodegen && cd ios && xcodegen
+name: Cipherion
+options:
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    # Your Apple Developer Team ID (developer.apple.com → Membership).
+    DEVELOPMENT_TEAM: ""
+targets:
+  Cipherion:
+    type: application
+    platform: iOS
+    sources:
+      - path: Cipherion
+        excludes:
+          - Info.plist
+          - Cipherion.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cipherion.app
+        PRODUCT_NAME: Cipherion
+        INFOPLIST_FILE: Cipherion/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Cipherion/Cipherion.entitlements
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO

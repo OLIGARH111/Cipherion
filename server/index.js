@@ -146,6 +146,7 @@ function endCall(call, status = 'ended') {
   run('UPDATE calls SET ended=?,status=? WHERE id=?', now(), status, call.id);
   broadcast(call.chat, 'call', { ...call, participants: [...call.participants], state: status });
   liveCalls.delete(call.id);
+  delivery.endNativeCall(call.id, status).catch(e => logFailure('native_call_end_failed', e));
 }
 const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '.jpg':'image/jpeg', '.gif':'image/gif', '.txt':'text/plain; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.webmanifest':'application/manifest+json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const storage=createStorage({db,one,run,data});
@@ -214,7 +215,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/health' && req.method === 'GET') {
       // Liveness must not wait on the remote database: a slow Turso round trip would make
       // Render restart a healthy instance. Database state comes from the background probe.
-      const result=databaseHealth;return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},200);
+      const result=databaseHealth;return json({...result.body,notifications:'web-push-v2',pushConfigured:delivery.configured(),nativePushConfigured:delivery.nativeConfigured(),mediaConfigured:storage.configured,mediaStorage:storage.mode,emailAuthConfigured:!!emailAuth.ready()},200);
     }
     if (!path.startsWith('/api/')) {
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, 'Метод не поддерживается');
@@ -596,7 +597,7 @@ const server = http.createServer(async (req, res) => {
     }
     if(path==='/api/call-action' && req.method==='POST') {
       const call=liveCalls.get(b.id);if(!call)fail(404,'Звонок завершён');membership(call.chat,user.id);if(!['leave','reject'].includes(b.action))family.chatAccess(call.chat,user.id,true);
-      if(b.action==='join') {for(const m of all('SELECT user_id FROM members WHERE chat_id=?',call.chat))if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');if([...liveCalls.values()].some(c=>c.id!==call.id&&c.participants.has(user.id)))fail(409,'Вы уже в другом звонке');if(call.participants.size>=6&&!call.participants.has(user.id))fail(409,'В этом выпуске до 6 участников');call.participants.add(user.id);run("UPDATE calls SET status='active' WHERE id=?",call.id);}
+      if(b.action==='join') {for(const m of all('SELECT user_id FROM members WHERE chat_id=?',call.chat))if(m.user_id!==user.id)privacy.assertContact(user.id,m.user_id,'calls');if([...liveCalls.values()].some(c=>c.id!==call.id&&c.participants.has(user.id)))fail(409,'Вы уже в другом звонке');if(call.participants.size>=6&&!call.participants.has(user.id))fail(409,'В этом выпуске до 6 участников');call.participants.add(user.id);run("UPDATE calls SET status='active' WHERE id=?",call.id);delivery.endNativeCall(call.id,'answered',user.id).catch(e=>logFailure('native_call_end_failed',e));}
       else if(b.action==='leave') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');call.participants.delete(user.id);if(call.sharing===user.id)call.sharing=null;if(call.participants.size<2){endCall(call,'ended');return json({ok:true});}}
       else if(b.action==='reject') {if(one('SELECT kind FROM chats WHERE id=?',call.chat).kind==='direct'){endCall(call,'declined');return json({ok:true});}return json({ok:true});}
       else if(b.action==='share') {if(!call.participants.has(user.id))fail(403,'Вы не в звонке');if(b.enabled&&call.sharing&&call.sharing!==user.id)fail(409,'Другой участник уже демонстрирует экран');call.sharing=b.enabled?user.id:null;}
