@@ -1,7 +1,10 @@
 // Telegram-like conveniences around a conversation: cloud drafts, swipe to
 // reply, double tap to react, and sending files by drag & drop or Ctrl+V.
 import {$,esc,api,icon,modal,guard} from './ui.js';
-import {draftKey} from './account-context.js';
+import {draftKey,activeAccount} from './account-context.js';
+import {sealDraft} from './e2e.js';
+// The server copy of a draft is encrypted with the account's history key when this device has it.
+const putDraft=(chat,body)=>{const account=activeAccount();return sealDraft(account,body).catch(()=>body).then(value=>api(`/chats/${encodeURIComponent(chat)}/draft`,'PUT',{body:value})).catch(()=>{});};
 
 // ---------- Drafts ----------
 // The device copy is written on every keystroke; the server copy follows with a
@@ -24,10 +27,10 @@ export function saveDraft(chat,body,{immediate=false}={}){
   // An empty value is kept as a dated tombstone so an older server copy cannot resurface.
   try{localStorage.setItem(draftKey(chat),JSON.stringify(value));sessionStorage.removeItem(draftKey(chat));}catch{}
   clearTimeout(timers.get(chat));
-  const push=()=>{timers.delete(chat);api(`/chats/${encodeURIComponent(chat)}/draft`,'PUT',{body}).catch(()=>{});};
+  const push=()=>{timers.delete(chat);putDraft(chat,body);};
   if(immediate)push();else timers.set(chat,setTimeout(push,900));
 }
-export function flushDrafts(){for(const [chat,timer] of [...timers]){clearTimeout(timer);timers.delete(chat);const value=readLocal(chat);api(`/chats/${encodeURIComponent(chat)}/draft`,'PUT',{body:value?.body||''}).catch(()=>{});}}
+export function flushDrafts(){for(const [chat,timer] of [...timers]){clearTimeout(timer);timers.delete(chat);const value=readLocal(chat);putDraft(chat,value?.body||'');}}
 export function forgetDraft(chat){try{localStorage.setItem(draftKey(chat),JSON.stringify({body:'',updated:Date.now()}));sessionStorage.removeItem(draftKey(chat));}catch{}clearTimeout(timers.get(chat));timers.delete(chat);}
 
 // ---------- Swipe to reply / double tap to react (touch) ----------

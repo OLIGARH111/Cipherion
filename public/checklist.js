@@ -1,3 +1,4 @@
+import {revealPoll,sealItem} from './e2e.js';
 // Shared checklists: a poll whose options are tasks that members tick off together.
 import {$,esc,icon,api,modal,guard} from './ui.js';
 
@@ -12,12 +13,12 @@ export function bindChecklists(root,state,apply){
     const m=state.messages.find(x=>x.id===b.dataset.message);if(!m?.poll)return;
     const item=Number(b.dataset.check),done=!b.classList.contains('done');
     b.classList.toggle('done',done);
-    const poll=await api(`/polls/${m.id}/check`,'POST',{item,done});apply(m,poll);
+    const poll=await api(`/polls/${m.id}/check`,'POST',{item,done});apply(m,await revealPoll(m.id,poll));
   }));
   root.querySelectorAll('.check-add').forEach(form=>form.onsubmit=guard(async e=>{
     e.preventDefault();const input=form.querySelector('input'),text=input.value.trim();if(!text)return;
     const m=state.messages.find(x=>x.id===form.dataset.message);input.disabled=true;
-    try{const poll=await api(`/polls/${m.id}/items`,'POST',{text});input.value='';apply(m,poll);}finally{input.disabled=false;}
+    try{let sent=text;if(m.poll.sealed){sent=await sealItem(m.id,text);if(!sent)throw new Error('Не удалось зашифровать пункт. Обновите чат.');}const poll=await api(`/polls/${m.id}/items`,'POST',{text:sent});input.value='';apply(m,await revealPoll(m.id,poll));}finally{input.disabled=false;}
   }));
 }
 export function checklistEditor(send){

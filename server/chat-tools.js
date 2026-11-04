@@ -56,7 +56,9 @@ export function createChatTools({db,one,all,run,fail,now,id,clean,membership,fam
     if(!match)return false;
     const {chat,member}=membership(match[1],user.id),action=match[2];
     if(action==='draft'&&req.method==='PUT'){
-      const body=clean(b.body,4000);
+      // Drafts encrypted with the account's history key (e2d1:…) are opaque here and longer than the text.
+      const raw=String(b.body??'').trim(),sealed=/^e2d1:[a-f0-9]{32}:[A-Za-z0-9+/=]{16}:[A-Za-z0-9+/=]{24,22000}$/.test(raw);
+      const body=sealed?raw:clean(b.body,4000);
       if(body)run('INSERT INTO drafts VALUES(?,?,?,?) ON CONFLICT(user_id,chat_id) DO UPDATE SET body=excluded.body,updated=excluded.updated',user.id,chat.id,body,now());
       else run('DELETE FROM drafts WHERE user_id=? AND chat_id=?',user.id,chat.id);
       emit(user.id,'draft',{chat:chat.id,body,updated:now()});json({ok:true});return true;

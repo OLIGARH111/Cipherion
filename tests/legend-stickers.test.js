@@ -15,10 +15,10 @@ test('legendary «Сифа» pack: every sticker animates and has a still poster
  }
 });
 
-test('chat list has a search button next to the pencil and no folders',async()=>{
+test('chat list has a search button next to the pencil; folders live in their own module',async()=>{
  const app=await readFile('public/app.js','utf8');
  assert.match(app,/id="open-search"[^]*id="new-chat"/);
  assert.match(app,/id="side-search" hidden/);
- assert.doesNotMatch(app,/folderTabs|manage-folders|data-filter|Непрочитанные/);
+ assert.match(app,/id="folder-bar"/);
  assert.doesNotMatch(await readFile('public/extensions.js','utf8'),/foldersPage/);
 });
