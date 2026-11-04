@@ -35,30 +35,42 @@ async function decodeImage(file){
   const url=URL.createObjectURL(file);
   try{const img=new Image();img.src=url;await img.decode();return img;}finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
 }
-export async function prepareAvatar(file){
+export function imageType(file){return file?.type||EXTENSION_TYPES[String(file?.name||'').split('.').pop().toLowerCase()]||'';}
+// Any photo from the phone becomes a small JPEG the server accepts (re-encoding also drops EXIF such as GPS).
+// Stories, avatars and the profile gallery use it.
+export async function preparePhoto(file,side=2160){
   if(!file)throw new Error('Фото не выбрано');
-  const type=file.type||EXTENSION_TYPES[String(file.name||'').split('.').pop().toLowerCase()]||'';
-  if(type==='image/gif')return file.type===type?file:new File([file],file.name||'avatar.gif',{type});
-  let image;
-  try{image=await decodeImage(file);}catch{image=null;}
+  const type=imageType(file);
+  if(type==='image/gif')return file.type===type?file:new File([file],file.name||'photo.gif',{type});
+  let image;try{image=await decodeImage(file);}catch{image=null;}
   if(!image||!(image.width||image.naturalWidth)){
-    if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'avatar',{type});
+    if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'photo',{type});
     throw new Error('Не удалось открыть фото. Выберите снимок в формате JPG или PNG.');
   }
-  const w=image.width||image.naturalWidth,h=image.height||image.naturalHeight,scale=Math.min(1,AVATAR_SIDE/Math.max(w,h));
+  const w=image.width||image.naturalWidth,h=image.height||image.naturalHeight,scale=Math.min(1,side/Math.max(w,h));
   const width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
   const canvas=Object.assign(document.createElement('canvas'),{width,height}),context=canvas.getContext('2d');
   context.fillStyle='#fff';context.fillRect(0,0,width,height);context.drawImage(image,0,0,width,height);image.close?.();
-  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.9));
-  if(!blob){if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'avatar',{type});throw new Error('Не удалось обработать фото');}
-  return new File([blob],'avatar.jpg',{type:'image/jpeg',lastModified:Date.now()});
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.86));
+  if(!blob){if(AVATAR_TYPES.has(type))return file.type===type?file:new File([file],file.name||'photo',{type});throw new Error('Не удалось обработать фото');}
+  return new File([blob],String(file.name||'photo').replace(/\.[^.]*$/,'')+'.jpg',{type:'image/jpeg',lastModified:Date.now()});
 }
+export async function prepareAvatar(file){return preparePhoto(file,AVATAR_SIDE);}
 // iOS Safari may drop the change event of a file input that is not in the page, so keep it attached until used.
 export function pickImage(callback){
   const input=document.createElement('input');input.type='file';input.accept='image/*';
   input.style.cssText='position:fixed;left:-9999px;width:1px;height:1px;opacity:0';(document.querySelector('dialog[open]')||document.body).append(input);
   const cleanup=()=>setTimeout(()=>input.remove(),0);
   input.addEventListener('change',()=>{const file=input.files?.[0];cleanup();if(file)callback(file);},{once:true});
+  input.addEventListener('cancel',cleanup,{once:true});
+  input.click();
+}
+// Several photos at once (profile gallery). Same iOS precaution as pickImage.
+export function pickImages(callback){
+  const input=document.createElement('input');input.type='file';input.accept='image/*';input.multiple=true;
+  input.style.cssText='position:fixed;left:-9999px;width:1px;height:1px;opacity:0';(document.querySelector('dialog[open]')||document.body).append(input);
+  const cleanup=()=>setTimeout(()=>input.remove(),0);
+  input.addEventListener('change',()=>{const files=[...(input.files||[])];cleanup();if(files.length)callback(files);},{once:true});
   input.addEventListener('cancel',cleanup,{once:true});
   input.click();
 }

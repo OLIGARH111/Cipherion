@@ -164,3 +164,18 @@ dialog#modal .comment-body header>*{flex:none}
 .bot-docs code{font-family:ui-monospace,monospace;font-size:11.5px;background:var(--hover);padding:1px 4px;border-radius:5px;overflow-wrap:anywhere}
 .bot-docs ul{padding-left:18px;display:grid;gap:3px}
 @media (max-width:700px){.mention-next{right:12px;bottom:70px}.link-card{max-width:100%}}
+
+/* Profile photo gallery in the profile editor */
+.pe-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.pe-gallery-item{position:relative;margin:0;aspect-ratio:1;border-radius:14px;overflow:hidden;background:var(--ci-line,rgba(127,127,127,.2))}
+.pe-gallery-item img{width:100%;height:100%;object-fit:cover;display:block}
+.pe-gallery-item.loading img{opacity:.55;filter:blur(1px)}
+.pe-gallery-item.loading i{position:absolute;inset:50% auto auto 50%;width:24px;height:24px;margin:-12px 0 0 -12px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pe-spin .8s linear infinite}
+.pe-gallery-item button{position:absolute;top:4px;width:26px;height:26px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:15px;line-height:26px;cursor:pointer}
+.pe-gallery-remove{right:4px}
+.pe-gallery-main{left:4px}
+.pe-gallery-add{aspect-ratio:1;display:grid;place-content:center;justify-items:center;gap:2px;border:1.5px dashed var(--muted,#888);border-radius:14px;background:transparent;color:inherit;cursor:pointer}
+.pe-gallery-add small{color:var(--muted)}
+/* Story viewer: spinner until the photo or video has loaded */
+.story-content.story-loading::after{content:"";position:absolute;inset:50% auto auto 50%;width:34px;height:34px;margin:-17px 0 0 -17px;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:pe-spin .8s linear infinite;pointer-events:none}
+@keyframes pe-spin{to{transform:rotate(360deg)}}
