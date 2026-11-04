@@ -1,7 +1,18 @@
 import {api,upload} from './ui.js';
 import {compressPhoto} from './media-compress.js';
 import {encryptFile,SEAL_LIMIT} from './sealed-media.js';
-const sealable=new Set(['text','photo','video','file','voice','round','location']);
+const sealable=new Set(['text','photo','video','file','voice','round','location','poll']);
+// Built-in sticker packs are public static files, so their stickers can be sent encrypted.
+const builtinSticker=id=>/^v\d+-[a-z0-9-]+$/.test(String(id||''));
+// Parts that must not reach the server in the clear once the message is encrypted.
+function hiddenParts(payload){
+ const extra={};
+ if(payload.quote)extra.q=String(payload.quote);
+ if(payload.wave)extra.w=String(payload.wave);
+ if(payload.sticker&&builtinSticker(payload.sticker))extra.s=String(payload.sticker);
+ if(payload.kind==='poll'&&payload.poll){const p=payload.poll;extra.p={o:(p.options||[]).map(String),d:String(p.description||''),x:String(p.explanation||'')};}
+ return extra;
+}
 let connection;
 function database(){return connection ||= new Promise((resolve,reject)=>{const r=indexedDB.open('cipherion-outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('messages',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>{connection=null;reject(r.error);};});}
 async function transaction(mode,action){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('messages',mode);const r=action(tx.objectStore('messages'));tx.oncomplete=()=>resolve(r?.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
@@ -32,9 +43,22 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
      delete item.file;await save(item);
     }
     // Encrypt once and keep the envelope: a retry must repeat the identical request.
-    if(encrypt&&!item.sealed&&!item.payload.sticker&&sealable.has(item.payload.kind||'text')&&(String(item.payload.body||'').trim()||item.fileKey||item.payload.sealedFile)){const fileKey=item.fileKey||item.payload.sealedFile||null;const sealed=await encrypt(item.chat,String(item.payload.body||'').trim(),fileKey);if(fileKey&&!sealed)throw Object.assign(new Error('Не удалось зашифровать вложение для всех участников. Отправьте файл заново.'),{status:400});item.sealed=true;if(sealed)Object.assign(item.payload,sealed);await save(item);}
-    let message=await request(item.payload.forward?'/messages/'+item.payload.forward+'/forward':item.payload.sticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{
-      ...item.payload,sealedFile:undefined,...(item.payload.e2e?{body:undefined}:{}),...((item.payload.sticker||item.payload.forward)?{chat:item.chat}:{}),clientMessageId:item.id,clientId:item.id
+    const stickerSeal=item.payload.sticker&&builtinSticker(item.payload.sticker)&&!item.payload.forward;
+    if(encrypt&&!item.sealed&&(stickerSeal||!item.payload.sticker&&sealable.has(item.payload.kind||'text')&&(String(item.payload.body||'').trim()||item.fileKey||item.payload.sealedFile))){
+     const fileKey=item.fileKey||item.payload.sealedFile||null,extra=hiddenParts(item.payload);
+     const sealed=await encrypt(item.chat,String(item.payload.body||'').trim(),fileKey,extra);
+     if(fileKey&&!sealed)throw Object.assign(new Error('Не удалось зашифровать вложение для всех участников. Отправьте файл заново.'),{status:400});
+     item.sealed=true;
+     if(sealed){
+      Object.assign(item.payload,sealed);delete item.payload.quote;delete item.payload.wave;
+      if(stickerSeal){item.stickerId=item.payload.sticker;delete item.payload.sticker;item.payload.sealedSticker=true;}if(extra.q)item.quote=extra.q;
+      if(item.payload.poll)item.payload.poll={...item.payload.poll,options:item.payload.poll.options.map((_,i)=>String(i+1)),description:'',explanation:''};
+     }
+     await save(item);
+    }
+    const toSticker=item.payload.sticker||item.payload.sealedSticker;
+    let message=await request(item.payload.forward?'/messages/'+item.payload.forward+'/forward':toSticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{
+      ...item.payload,sealedFile:undefined,sealedSticker:undefined,...(item.payload.e2e?{body:undefined}:{}),...((toSticker||item.payload.forward)?{chat:item.chat}:{}),clientMessageId:item.id,clientId:item.id
     },AbortSignal.timeout(30000));
     if(!message.chat_id)message=await request('/messages/'+message.id);
     // Merge the acknowledgement before removing the durable request.

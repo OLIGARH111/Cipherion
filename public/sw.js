@@ -105,22 +105,34 @@ self.addEventListener('message',event=>{
   // The page asks for a check when it comes back to the screen after a while.
   if(event.data?.type==='check-update')event.waitUntil(refreshShell({url:new URL('/',self.location.origin).href}).then(updated=>updated&&announceUpdate()));
 });
+// Incoming calls ring like a phone call even when Cipherion is closed: a long vibration, buttons to
+// answer or decline, and the notification is replaced when the call ends («Пропущенный звонок»).
+const RING=[600,300,600,300,600,300,600,300,600];
 self.addEventListener('push',event=>{event.waitUntil((async()=>{
   let p={};try{p=event.data?.json()||{};}catch{}
-  const call=p.type==='calls',expired=call&&p.expiresAt<=Date.now();
+  const call=p.type==='calls',expired=call&&p.expiresAt<=Date.now(),ended=p.type==='call-end';
+  if(ended)for(const n of await self.registration.getNotifications({tag:p.tag}))n.close();
   // Every push must display a notification (including an already expired call).
   await self.registration.showNotification(p.title||'Cipherion',{
     body:expired?'Пропущенный звонок':p.body||'У вас новое сообщение',
     icon:'/brand/icon-192-99e4c7990351.png',badge:'/brand/icon-192-99e4c7990351.png',
-    tag:p.tag||'cipherion',silent:!!p.silent,...(!p.silent?{vibrate:p.vibrate||[]}:{}),
+    tag:p.tag||'cipherion',renotify:call&&!expired,silent:!!p.silent,...(!p.silent?{vibrate:call&&!expired?RING:p.vibrate||[]}:{}),
     requireInteraction:call&&!expired,
-    ...(call?{actions:[{action:'open',title:expired?'Открыть':'Открыть звонок'}]}:{}),
-    data:{url:p.url||'/',account:p.account,call:p.call,expiresAt:p.expiresAt}
+    ...(call&&!expired?{actions:[{action:'answer',title:'Ответить'},{action:'decline',title:'Отклонить'}]}:{}),
+    data:{url:p.url||'/',account:p.account,call:p.call,expiresAt:p.expiresAt,kind:p.type}
   });
+  // The call was answered on another device: the notice only replaces the ringing one.
+  if(p.quiet)setTimeout(()=>self.registration.getNotifications({tag:p.tag}).then(list=>list.forEach(n=>n.close())),3000);
 })());});
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{
   const data=event.notification.data||{};
+  // Declining needs no window: the service worker tells the server directly.
+  if(event.action==='decline'&&data.call){
+    await fetch('/api/call-action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',...(data.account?{'X-Cipherion-Account':data.account}:{})},body:JSON.stringify({id:data.call,action:'reject'})}).catch(()=>{});
+    return;
+  }
   const url=new URL(data.url||'/',self.location.origin);if(url.origin!==self.location.origin)return;
+  if(event.action==='answer'&&data.call)url.hash+=(url.hash?'&':'#')+'answer=1';
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
   for(const client of windows){if(new URL(client.url).origin===url.origin){
     // Navigating a live window destroys its microphone and peer connections.

@@ -27,7 +27,7 @@ import { applyTheme, settingsPage, themes } from './settings.js';
 import {applyChatWallpaper,wallpaperPicker} from './wallpapers.js';
 import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,dayKey,dayLabel,listTime,ticks,tickSVG,mobile} from './chat-ui.js';
 import { createCalls } from './calls.js';
-import { groupPanel } from './groups.js';
+import { groupPanel,verifyDialog } from './groups.js';
 import {syncProtection,restricted,isProtected,protectionText} from './content-protection.js';
 import {schedulePage} from './social.js';
 import {aiPage,familyPage} from './extensions.js';
@@ -43,9 +43,14 @@ import {checklistCard,bindChecklists,checklistEditor} from './checklist.js';
 import {locationCard,bindLocations,locationDialog} from './location.js';
 import {exportDialog} from './chat-export.js';
 import {SEALED_TYPE,hydrateSealed} from './sealed-media.js';
-import {canSeal} from './e2e.js';
+import {canSeal,openDraft,historyKey,prepareHistory} from './e2e.js';
 import {qrLoginDialog,approveDevice,passkeyLogin,passkeysSupported} from './passwordless.js';
 import {botsPage} from './bots.js';
+import {initPasscode} from './passcode.js';
+import {translateMessage,translationHTML,translationOf,looksForeign,readersDialog,setupQuoteSelection,selectedQuote,waveformOf,waveHTML,bindWaves,quoteLabel} from './message-tools.js';
+import {folderTabsHTML,bindFolderTabs,folderChats,folderMenuDialog} from './folders.js';
+import {botKeyboard,bindBotButtons} from './bot-buttons.js';
+import {sendTransfer,historyPage} from './key-transfer.js';
 
 export const state={user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,mode:'voice'};
 let outbox,synchronizer;
@@ -96,7 +101,7 @@ const accountManager=createAccountSessionManager({deactivate:resetAccount,canSwi
 state.accounts=accountManager;
 async function connectBackgroundAccounts(){const ticket=accountEpoch(),list=await accountManager.refresh();if(ticket!==accountEpoch())return;for(const a of list){if(a.user.id===state.user.id)continue;const ev=new EventSource(accountURL('/api/events',a.user.id));backgroundEvents.set(a.user.id,ev);ev.addEventListener('message',()=>{if(ticket===accountEpoch())toast('Новое сообщение — '+a.user.name);});ev.addEventListener('call',e=>{if(ticket!==accountEpoch())return;const call=JSON.parse(e.data);if(call.state!=='ringing')return;if(calls?.busy()){toast('Входящий звонок — '+a.user.name);return;}modal('Звонок — '+a.user.name,`<p>${esc(call.name)} звонит вашему аккаунту ${esc(a.user.name)}.</p><button class="primary" id="switch-call-account">Открыть звонок</button>`);$('#switch-call-account').onclick=guard(async()=>{$('#modal').close();await accountManager.switchTo(a.user.id);await calls.event(call);});});}}
 const calm=()=>!!globalThis.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches||document.body.classList.contains('no-motion');
-function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTML=`<main class="shell"><aside class="rail"><div class="brand"><img src="/brand/icon-192-99e4c7990351.png" alt="Cipherion"></div><nav class="nav" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="icon-button ${state.tab===key?'active':''}" data-tab="${key}" title="${title}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav><button class="account" id="main-menu" title="Профиль и меню" aria-label="Профиль и меню" aria-haspopup="menu" aria-expanded="false">${me}</button></aside><aside class="side" aria-label="Чаты"><div class="side-header"><div class="row between"><div><h1>Cipherion<span style="color:var(--accent)">.</span></h1><p class="count-label">Ваши разговоры, в одном месте</p></div><div class="side-actions">${button('search','Поиск','id="open-search" aria-expanded="false" aria-controls="side-search"')}${button('edit','Новый чат','id="new-chat"')}</div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="search side-search" id="side-search" hidden>${icon('search')}<input id="chat-search" type="search" placeholder="Поиск" aria-label="Поиск по чатам, людям и сообщениям" autocomplete="off" enterkeyhint="search"><button type="button" class="search-cancel" id="close-search">Отмена</button></div></div><div class="chat-list"></div><div class="side-foot" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div></aside><section class="workspace"></section></main>`;
+function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTML=`<main class="shell"><aside class="rail"><div class="brand"><img src="/brand/icon-192-99e4c7990351.png" alt="Cipherion"></div><nav class="nav" aria-label="Основная навигация">${tabs.map(([key,title])=>`<button class="icon-button ${state.tab===key?'active':''}" data-tab="${key}" title="${title}" aria-label="${title}" ${state.tab===key?'aria-current="page"':''}>${icon(key)}<span class="nav-label">${title}</span></button>`).join('')}</nav><button class="account" id="main-menu" title="Профиль и меню" aria-label="Профиль и меню" aria-haspopup="menu" aria-expanded="false">${me}</button></aside><aside class="side" aria-label="Чаты"><div class="side-header"><div class="row between"><div><h1>Cipherion<span style="color:var(--accent)">.</span></h1><p class="count-label">Ваши разговоры, в одном месте</p></div><div class="side-actions">${button('search','Поиск','id="open-search" aria-expanded="false" aria-controls="side-search"')}${button('edit','Новый чат','id="new-chat"')}</div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="search side-search" id="side-search" hidden>${icon('search')}<input id="chat-search" type="search" placeholder="Поиск" aria-label="Поиск по чатам, людям и сообщениям" autocomplete="off" enterkeyhint="search"><button type="button" class="search-cancel" id="close-search">Отмена</button></div></div><div id="folder-bar"></div><div class="chat-list"></div><div class="side-foot" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div></aside><section class="workspace"></section></main>`;
   document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=guard(()=>navigate(el.dataset.tab)));
   document.querySelectorAll('.account').forEach(el=>el.onclick=()=>mainMenu(el));$('#new-chat').onclick=()=>newChat();$('#chat-search').oninput=searchInput;
   $('#open-search').onclick=()=>openSearch();$('#close-search').onclick=()=>closeSearch();
@@ -154,10 +159,11 @@ function renderChats(){
   const target=$('.chat-list');if(!target)return;const q=($('#chat-search')?.value||'').trim().toLowerCase();
   $('.side')?.classList.toggle('searching',!!q);
   if(q){renderSearch(target,q);return;}
-  // One list without folders or an archive: every chat is shown, pinned ones first.
-  const pins=state.settings.pins||[];const chats=[...state.chats];
+  // Folder tabs above the list; inside a folder, pinned chats still come first.
+  const bar=$('#folder-bar');if(bar){const html=folderTabsHTML(state);if(bar.dataset.html!==html){bar.dataset.html=html;bar.innerHTML=html;bindFolderTabs($('.side'),state,saveSettings,renderChats);}}
+  const pins=state.settings.pins||[];const chats=folderChats(state,[...state.chats]);
   chats.sort((a,b)=>Number(pins.includes(b.id))-Number(pins.includes(a.id)));
-  target.innerHTML=chats.length?chats.map(c=>chatItem(c,pins)).join(''):`<div class="empty-list">${icon('chat')}Здесь появятся ваши разговоры.<br>Нажмите на карандаш, чтобы начать.</div>`;
+  target.innerHTML=chats.length?chats.map(c=>chatItem(c,pins)).join(''):state.chats.length?`<div class="empty-list">${icon('chat')}В этой папке пока нет чатов</div>`:`<div class="empty-list">${icon('chat')}Здесь появятся ваши разговоры.<br>Нажмите на карандаш, чтобы начать.</div>`;
   target.querySelectorAll('[data-chat]').forEach(el=>el.onclick=guard(()=>openChat(el.dataset.chat)));
 }
 // ---------- Global search: chats & people, messages, media, links ----------
@@ -210,6 +216,7 @@ function chatContextMenu(chatId,x,y){
   const c=state.chats.find(c=>c.id===chatId);if(!c)return;const pins=state.settings.pins||[],mine=c.members.find(m=>m.user_id===state.user.id),muted=chatMuted(c);
   const items=[['open','chat','Открыть'],['pin','pin',pins.includes(c.id)?'Открепить':'Закрепить'],['mute',muted?'bell':'mute',muted?'Включить звук':'Без звука']];
   if(c.unread&&c.last)items.push(['read','check','Отметить прочитанным']);
+  items.push(['folder','folder','Добавить в папку…']);
   items.push(['clear','eraser','Очистить историю']);
   if(['direct','saved'].includes(c.kind))items.push(['delete','trash','Удалить чат']);
   else items.push(mine?.role==='owner'?['manage','trash',c.kind==='channel'?'Удалить канал…':'Удалить группу…']:['leave','logout',c.kind==='channel'?'Покинуть канал':'Покинуть группу']);
@@ -221,6 +228,7 @@ function chatContextMenu(chatId,x,y){
     else if(action==='read'){await api(`/chats/${c.id}/read`,'POST',{message:c.last.id});await refresh();}
     else if(action==='leave'){if(confirm(`Покинуть «${c.title}»?`)){await api('/communities/'+c.id+'/leave','POST',{});await refresh();}}
     else if(action==='manage')await asSheet(()=>groupPanel(c,state,refresh));
+    else if(action==='folder')folderMenuDialog(state,saveSettings,renderChats,c);
     else if(action==='clear')clearHistory(c);
     else if(action==='delete')deleteChat(c);}));
 }
@@ -266,12 +274,14 @@ export async function openChat(chatId,fresh=false){
   if($('#audio-call'))$('#audio-call').onclick=guard(()=>startCall(c,false));
   if($('#video-call'))$('#video-call').onclick=guard(()=>startCall(c,true));
   if(state.topic){const title=state.topicInfo?.title||'Общее';$('.conversation-title h3').innerHTML=`${esc(state.topicInfo?.icon||'💬')} ${esc(title)}`;$('#chat-status').textContent=c.title;$('#chat-back').onclick=()=>{state.topic=null;openChat(chatId);};$('.conversation-title').onclick=()=>topicMenu(c,state.topicInfo,async removed=>{if(removed){state.topic=null;await openChat(chatId);}else{await openChat(chatId);}});}
-  $('#pinned-bar').insertAdjacentHTML('afterend',`<div id="mode-bar">${modeNotice(c)}</div>`);
+  $('#pinned-bar').insertAdjacentHTML('afterend',`<div id="mode-bar">${modeNotice(c)}</div><div id="room-bar"></div>`);
+  if(c.kind==='group')loadRoomBar(c.id);
   mentions?.dispose();mentions=createMentionNavigator({chatId,topic:()=>state.topic,find:id=>state.messages.some(m=>m.id===id),loadOlder,jump:id=>jumpTo(id)});
   bindMessageList();mentions.install();mentions.load();
   // The official Cipherion chat is read-only: only a mute toggle instead of the composer.
   if(official){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить уведомления':'Выключить уведомления'}</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});renderMessages(true);await loadMessages();return;}
   if(c.kind==='channel'&&!c.canPost){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить звук':'Выключить звук'}</button><button class="secondary" id="channel-leave">Покинуть канал</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});$('#channel-leave').onclick=guard(async()=>{await api('/communities/'+c.id+'/leave','POST',{});await refresh();});renderMessages(true);await loadMessages();return;}
+  if(c.needsVerify){$('.composer-wrap').innerHTML=`<div class="channel-actions verify-bar"><button class="primary" id="verify-member">${icon('shield')} Подтвердить, что вы не бот</button></div>`;$('#verify-member').onclick=guard(()=>verifyDialog(c,async()=>{await refresh();await openChat(chatId);}));renderMessages(true);await loadMessages();return;}
   warmKeys(state.user.id,chatId);
   $('#composer').onsubmit=guard(async e=>{e.preventDefault();await sendText();});decorateComposer(state,c);
   $('#draft').value=chatDraft(c)?.body||'';
@@ -284,11 +294,13 @@ export async function openChat(chatId,fresh=false){
   if(!mobile())$('#draft').focus({preventScroll:true});
   await loadMessages();
 }
+let quoteCleanup=null;
 function bindMessageList(){
   const box=$('.messages');
+  quoteCleanup?.();quoteCleanup=setupQuoteSelection(box,{canQuote:id=>{const c=selected(),m=state.messages.find(x=>x.id===id);return !!m&&!m.pending&&!m.deleted&&!!$('#draft')&&(c?.kind!=='channel'||c.canPost)&&!restricted(c);},onQuote:(id,text)=>startQuote(id,text)});
   box.addEventListener('scroll',updateScrollDown,{passive:true});
   $('#scroll-down').onclick=()=>{box.scrollTo({top:box.scrollHeight,behavior:calm()?'auto':'smooth'});state.unseen=0;updateScrollDown();};
-  box.oncontextmenu=e=>{const article=e.target.closest('.message[data-id]');if(!article||state.selection||e.target.closest('a[href],video,audio,input,textarea'))return;const sel=getSelection?.();if(sel&&String(sel)&&article.contains(sel.anchorNode))return;e.preventDefault();messageMenu(article.dataset.id,{x:e.clientX,y:e.clientY});};
+  box.oncontextmenu=e=>{const article=e.target.closest('.message[data-id]');if(!article||state.selection||e.target.closest('a[href],video,audio,input,textarea'))return;e.preventDefault();messageMenu(article.dataset.id,{x:e.clientX,y:e.clientY});};
   longPress(box,'.message[data-id] .bubble',(e,bubble)=>{if(!state.selection)messageMenu(bubble.closest('.message').dataset.id,{x:e.clientX,y:e.clientY});});
   bindMessageGestures(box,{
     canReply:id=>{const c=selected(),m=state.messages.find(x=>x.id===id);return !!m&&!m.deleted&&!m.pending&&!!$('#draft')&&(c?.kind!=='channel'||c.canPost);},
@@ -327,7 +339,7 @@ function messageHTML(m,{first,last,kind,others}){
       else if(m.kind==='photo')content+=`<div class="media sealed-media"><img data-sealed="${id}" alt="${esc(f.n)}" draggable="false"></div>`;
       else if(m.kind==='round')content+=`<div class="sealed-media"><video class="round" data-sealed="${id}" controls playsinline preload="metadata" disablepictureinpicture></video></div>`;
       else if(m.kind==='video')content+=`<div class="sealed-media"><video data-sealed="${id}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video></div>`;
-      else if(m.kind==='voice')content+=`<div class="sealed-media"><audio data-sealed="${id}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button></div>`;
+      else if(m.kind==='voice')content+=`<div class="sealed-media voice-note">${waveHTML(m)}<audio data-sealed="${id}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button></div>`;
       else if(locked)content+=`<div class="file file-locked"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
       else content+=`<a class="file sealed-media" data-sealed="${id}" href="#" download="${esc(f.n)}"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · ${icon('lock')} зашифровано</small></span>${icon('download')}</a>`;
     }
@@ -335,11 +347,11 @@ function messageHTML(m,{first,last,kind,others}){
       if(m.kind==='photo'){visual=true;content+=locked?`<div class="media"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`:`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
       else if(m.kind==='round'){visual=true;content+=`<div class="round-note" role="button" tabindex="0" data-round="${source}" aria-label="Воспроизвести видео-кружок"><video class="round" src="${source}#t=0.001" muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video><span class="round-duration"></span><span class="round-muted" aria-hidden="true">${icon('speakeroff')}</span></div>`;}
       else if(m.kind==='video'){visual=true;content+=`<video src="${source}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video>`;}
-      else if(m.kind==='voice')content+=`<div class="waveform" aria-hidden="true">${Array.from({length:35},(_,i)=>`<i style="height:${7+Math.sin(i*4.3)**2*17}px;animation-delay:${i*.04}s"></i>`).join('')}</div><audio src="${source}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button>`;
+      else if(m.kind==='voice')content+=`${waveHTML(m)}<audio src="${source}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button>`;
       else if(locked)content+=`<div class="file file-locked" title="Сохранение запрещено защитой контента"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
       else content+=`<a class="file" href="${source}" download="${esc(m.media.name)}"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ</small></span>${icon('download')}</a>`;
     }
-    if(m.reply_id){const original=state.messages.find(r=>r.id===m.reply_id);const who=original?authorName(original):'';content=`<button type="button" class="reply-preview" data-jump="${esc(m.reply_id)}" data-tone="${tone(who)}"><b>${esc(who||'Ответ')}</b><span>${esc(original?preview(original):'Сообщение недоступно')}</span></button>`+content;}
+    if(m.reply_id){const original=state.messages.find(r=>r.id===m.reply_id);const who=original?authorName(original):'';content=`<button type="button" class="reply-preview${m.quote?' with-quote':''}" data-jump="${esc(m.reply_id)}" data-tone="${tone(who)}"><b>${esc(who||'Ответ')}</b><span>${m.quote?`${icon('quote')} ${esc(m.quote)}`:esc(original?preview(original):'Сообщение недоступно')}</span></button>`+content;}
     if(m.forwarded)content=`<div class="forward-label">Переслано от <b>${esc(m.forwarded)}</b></div>`+content;
     if(m.pending&&m.kind!=='text'&&m.kind!=='sticker')content+=`<div class="attachment-pending">${esc(m.attachmentName||mediaLabel[m.kind]||'Вложение')}</div>`;
     if(m.kind==='sticker'){visual=true;content+=`<img class="sent-sticker" src="${esc(accountURL(m.sticker?.poster||'/api/stickers/'+encodeURIComponent(m.body)+'/file'))}" ${m.sticker?.animated?`data-motion="${esc(accountURL(m.sticker.url))}" data-poster="${esc(accountURL(m.sticker.poster))}"`:""} alt="${esc(m.sticker?.label||'Стикер')}" loading="lazy">`;}
@@ -359,8 +371,10 @@ function messageHTML(m,{first,last,kind,others}){
   if(m.deleted)content=`<div class="body deleted">${icon('trash')}<span>Сообщение удалено</span>${footer}</div>`;
   else if(jumbo)content+=`<div class="jumbo-emoji jumbo-${jumbo}">${renderCustom(m.body.trim())}</div>`;
   else if(m.kind!=='sticker'&&m.kind!=='location'&&!m.poll?.checklist){card=hasText&&!m.pending&&state.settings.linkPreviews!==false&&m.kind==='text'?linkCard(firstURL(m.body)):'';content+=hasText||!visual?`<div class="body">${richText(m.body,{emoji:emojiHTML})}${!reactions&&!tail.length&&!card&&hasText?footer:''}</div>`:'';content+=card;}
+  if(hasText&&!m.pending){const t=translationHTML(m);if(t)tail.unshift(t);else if(!own&&state.settings.ai?.enabled&&state.settings.translateChip!==false&&looksForeign(m.body,state))tail.unshift(`<button type="button" class="chip translate-chip" data-translate="${esc(m.id)}">${icon('language')} Перевести</button>`);}
   content+=tail.join('');
   if(!m.deleted){if(reactions)content+=reactions;else if(!hasText||tail.length||card)content+=footer;}
+  content+=botKeyboard(m);
   if(c?.kind==='channel')content+=commentButton(m,c);
   const showAuthor=!['direct','saved'].includes(c?.kind)&&first&&!(mediaOnly&&m.kind==='sticker')&&(!own||state.user.vip);
   const author=showAuthor?`<button class="author profile-name" data-open-profile="${m.user_id}" data-tone="${tone(name)}">${esc(name)} ${vipBadge(own?state.user:member||m.author)}${member?.tag?`<span class="member-tag">${esc(member.tag)}</span>`:''}</button>`:'';
@@ -383,7 +397,8 @@ function renderMessages(scroll){
   box.querySelectorAll('.retry-send').forEach(el=>el.onclick=guard(()=>outbox.retry(el.dataset.clientId)));
   if(scroll||nearBottom)box.scrollTop=box.scrollHeight;else box.scrollTop=previous;
   bindPolls(box,state,loadMessages);bindHalloween(box,loadMessages);bindStickerEffects(box,state.messages,state.settings);
-  hydrateSealed(box,state.messages);bindLocations(box);mentions?.watch();
+  hydrateSealed(box,state.messages);bindLocations(box);bindBotButtons(box);bindWaves(box,state.messages);mentions?.watch();
+  box.querySelectorAll('[data-translate]').forEach(el=>el.onclick=guard(async e=>{e.stopPropagation();const m=state.messages.find(x=>x.id===el.dataset.translate);if(m)await translateMessage(m,state,()=>renderMessages(false));}));
   bindChecklists(box,state,(m,poll)=>{m.poll=poll;acceptMessages(m.chat_id,[{...m,poll}]);});
   box.querySelectorAll('[data-comments]').forEach(el=>el.onclick=guard(async()=>{const m=state.messages.find(x=>x.id===el.dataset.comments);if(!m)return;await openComments(m,selected(),richText(m.body||'',{emoji:emojiHTML}));}));
   box.querySelectorAll('.message-menu').forEach(el=>el.onclick=()=>messageMenu(el.dataset.message,{anchor:el}));
@@ -399,23 +414,36 @@ async function loadOlder(){
   if(!rows.length){$('#older')?.remove();return 0;}
   const height=box.scrollHeight;acceptMessages(chat,rows);box.scrollTop=box.scrollHeight-height;return rows.length;
 }
+// Voice room of a group: a bar above the messages while it is open.
+const rooms=new Map();
+function roomBar(chatId){
+  const bar=$('#room-bar');if(!bar||state.chat!==chatId)return;const r=rooms.get(chatId),mine=calls?.current?.()?.id===r?.id;
+  if(!r){bar.innerHTML='';return;}
+  const names=r.participants.map(id=>selected()?.members.find(m=>m.user_id===id)?.name?.split(' ')[0]).filter(Boolean);
+  bar.innerHTML=`<div class="room-bar">${icon('headphones')}<span><b>Голосовая комната</b><small>${r.participants.length?esc(names.slice(0,3).join(', ')+(names.length>3?` и ещё ${names.length-3}`:'')):'Пока никого нет'}</small></span>${mine?'<span class="room-here">Вы здесь</span>':`<button class="primary" id="room-join">Войти</button>`}</div>`;
+  $('#room-join')?.addEventListener('click',guard(()=>joinRoom(selected())));
+}
+async function loadRoomBar(chatId){const active=await api('/calls/active').catch(()=>[]);const r=active.find(c=>c.chat===chatId&&c.room);if(r)rooms.set(chatId,r);else rooms.delete(chatId);roomBar(chatId);}
+async function joinRoom(c){if(!c)return;if(calls)await calls.room(c);else{await bootDone;await calls?.room(c);}}
+window.addEventListener('voice-room',e=>{const r=e.detail;if(['ended'].includes(r.state))rooms.delete(r.chat);else rooms.set(r.chat,r);roomBar(r.chat);});
 function renderPinned(){const bar=$('#pinned-bar');if(!bar)return;const m=[...state.messages].reverse().find(x=>x.pinned&&!x.deleted);const key=m?m.id+':'+preview(m):'';if(bar.dataset.key===key)return;bar.dataset.key=key;if(!m){bar.innerHTML='';return;}bar.innerHTML=`<button type="button" class="pinned-bar"><span class="pinned-text"><b>Закреплённое сообщение</b><span>${esc(preview(m))}</span></span>${icon('pin')}</button>`;bar.firstElementChild.onclick=()=>jumpTo(m.id);}
 async function sendText(){
  const input=$('#draft'),text=input.value.trim(),chat=state.chat;if(!text||!chat)return;
  const editing=state.editing,current=selected();if(!editing&&!slowGuard(current))return;
- const mentioned=mentionIds(text,current,state.user.id),payload={body:text,reply:state.reply,...(mentioned.length?{mentions:mentioned}:{}),...(state.ghostMode&&!state.editing?{ghost:true}:{})};
+ const mentioned=mentionIds(text,current,state.user.id),payload={body:text,reply:state.reply,...(state.reply&&state.quote?{quote:state.quote}:{}),...(mentioned.length?{mentions:mentioned}:{}),...(state.ghostMode&&!state.editing?{ghost:true}:{})};
  // Capture and clear before the first await: Enter + submit cannot send twice.
  input.value='';input.dispatchEvent(new Event('input'));if(!editing)forgetDraft(chat);// the server drops the saved draft when the message arrives
- state.reply=null;state.editing=null;$('#reply-area').innerHTML='';
+ state.reply=null;state.quote=null;state.editing=null;$('#reply-area').innerHTML='';
  if(!editing){markSent(current);await queueOutgoing(chat,payload);return;}
  restoreStashedDraft();
  try{const original=state.messages.find(m=>m.id===editing),envelope=original?.e2e?await seal(state.user.id,chat,text):null;if(original?.e2e&&!envelope)throw new Error('Не удалось зашифровать изменённое сообщение для всех участников');await api('/messages/'+editing,'PATCH',envelope?{e2e:envelope,emoji:emojiKeys(text)}:{body:text});const updated=await api('/messages/'+editing);acceptMessages(chat,[updated]);}
  catch(error){if(state.chat===chat){state.stashedDraft=input.value;input.value=text;state.editing=editing;replyBar('Редактирование',text,'edit');input.dispatchEvent(new Event('input'));}throw error;}
 }
 
-function replyBar(title,text='',kind='reply'){$('#reply-area').innerHTML=`<div class="reply-bar ${kind}">${icon(kind==='edit'?'edit':'reply')}<div class="reply-bar-text"><b>${esc(title)}</b><span>${esc(text)}</span></div>${button('close','Отменить','id="cancel-reply"')}</div>`;$('#cancel-reply').onclick=cancelReply;$('#draft').focus();}
+function replyBar(title,text='',kind='reply'){$('#reply-area').innerHTML=`<div class="reply-bar ${kind}">${icon(kind==='edit'?'edit':kind==='quote'?'quote':'reply')}<div class="reply-bar-text"><b>${esc(title)}</b><span>${esc(text)}</span></div>${button('close','Отменить','id="cancel-reply"')}</div>`;$('#cancel-reply').onclick=cancelReply;$('#draft').focus();}
 function restoreStashedDraft(){const input=$('#draft'),text=state.stashedDraft||'';state.stashedDraft=null;if(!input)return;input.value=text;input.dispatchEvent(new Event('input'));}
-function cancelReply(){const editing=state.editing;state.reply=null;state.editing=null;if($('#reply-area'))$('#reply-area').innerHTML='';if(editing&&$('#draft'))restoreStashedDraft();}
+function startQuote(id,text){const m=state.messages.find(x=>x.id===id);if(!m||!$('#draft'))return;state.reply=id;state.quote=text;state.editing=null;replyBar(authorName(m)||'Ответ',quoteLabel(text),'quote');}
+function cancelReply(){const editing=state.editing;state.reply=null;state.quote=null;state.editing=null;if($('#reply-area'))$('#reply-area').innerHTML='';if(editing&&$('#draft'))restoreStashedDraft();}
 function startEdit(m){const input=$('#draft');if(!input)return;if(!state.editing)state.stashedDraft=input.value;state.editing=m.id;state.reply=null;input.value=m.body;input.dispatchEvent(new Event('input'));replyBar('Редактирование',preview(m),'edit');input.setSelectionRange(input.value.length,input.value.length);}
 function editLast(){const c=selected();if(c?.kind==='channel'&&!c.canEdit)return false;const m=[...state.messages].reverse().find(x=>x.user_id===state.user.id&&!x.deleted&&!x.pending&&x.kind==='text'&&x.body);if(!m)return false;startEdit(m);return true;}
 async function copyText(text){try{await navigator.clipboard.writeText(text);}catch{const area=document.createElement('textarea');area.value=text;area.style.cssText='position:fixed;opacity:0';document.body.append(area);area.select();document.execCommand?.('copy');area.remove();}}
@@ -440,8 +468,13 @@ function messageMenu(messageId,at={}){
   if(!channel||c.canPin)items.push(['pin','pin',m.pinned?'Открепить':'Закрепить']);
   if(channel?c.canEdit:own)items.push(['edit','edit','Изменить']);
   if(!channel||c.canDelete)items.push(['delete','trash','Удалить']);
-  items.push(['select','select','Выбрать'],['sep'],['ai','sparkles','Ответить с AI'],['translate','language','Перевести с AI'],['summarize','file','Резюме с AI']);
-  const article=[...document.querySelectorAll('.messages .message')].find(a=>a.dataset.id===m.id);article?.classList.add('menu-open');
+  const article=[...document.querySelectorAll('.messages .message')].find(a=>a.dataset.id===m.id);
+  const quote=post?selectedQuote(article):'';if(quote)items.unshift(['quote','quote','Ответить с цитатой']);
+  if(own&&c?.kind==='group'&&!m.pending)items.push(['readers','eye','Кто прочитал']);
+  items.push(['select','select','Выбрать'],['sep'],['ai','sparkles','Ответить с AI']);
+  if(String(m.body||'').trim()&&!['sticker','location'].includes(m.kind))items.push(['translate','language',translationOf(m.id)?'Показать оригинал':'Перевести']);
+  items.push(['summarize','file','Резюме с AI']);
+  article?.classList.add('menu-open');m.menuQuote=quote;
   const el=popover({...at,align:'end',className:'message-ctx',label:'Действия с сообщением',onClose:()=>article?.classList.remove('menu-open'),html:`${reactions?`<div class="ctx-reactions" role="group" aria-label="Реакции">${quickReactions.map((e,i)=>`<button type="button" data-quick-reaction="${e}" aria-label="Реакция ${e}" ${i>5?'class="extra"':''}>${e}</button>`).join('')}<button type="button" class="extra" data-quick-reaction="" aria-label="Убрать реакцию" title="Убрать реакцию">${icon('close')}</button><button type="button" class="more-reactions" aria-label="Все реакции" aria-expanded="false">${icon('down')}</button></div>`:''}${items.map(([action,ic,label])=>action==='sep'?'<div class="ctx-sep" role="separator"></div>':menuItem(`data-action="${action}"`,icon(ic),label,action==='delete'?'data-danger':'')).join('')}`});
   el.querySelector('.more-reactions')?.addEventListener('click',e=>{const row=el.querySelector('.ctx-reactions');row.classList.toggle('expanded');e.currentTarget.setAttribute('aria-expanded',String(row.classList.contains('expanded')));});
   el.querySelectorAll('[data-quick-reaction]').forEach(b=>b.onclick=guard(async()=>{closePopover();await api('/reactions','POST',{message:m.id,emoji:b.dataset.quickReaction});await loadMessages(false);}));
@@ -449,8 +482,11 @@ function messageMenu(messageId,at={}){
 }
 async function messageAction(action,m){
   const channel=selected()?.kind==='channel';
-  if(['ai','translate','summarize'].includes(action)){await aiPage(state,saveSettings,openChat,{compact:true,chat:state.chat});$('#ai-text').value=(action==='translate'?'Переведи на русский сообщение ':action==='summarize'?'Сделай резюме сообщения и доступной расшифровки ':'Помоги ответить на сообщение ')+m.id+'. Используй только разрешённые данные. Для записи без расшифровки объясни, что сначала нужна расшифровка. Ничего не отправляй.';}
-  else if(action==='reply'){state.reply=m.id;state.editing=null;replyBar(authorName(m)||'Ответ',preview(m));}
+  if(action==='translate')await translateMessage(m,state,()=>renderMessages(false));
+  else if(['ai','summarize'].includes(action)){await aiPage(state,saveSettings,openChat,{compact:true,chat:state.chat});$('#ai-text').value=(action==='summarize'?'Сделай резюме сообщения и доступной расшифровки ':'Помоги ответить на сообщение ')+m.id+'. Используй только разрешённые данные. Для записи без расшифровки объясни, что сначала нужна расшифровка. Ничего не отправляй.';}
+  else if(action==='readers')await readersDialog(m);
+  else if(action==='quote')startQuote(m.id,m.menuQuote);
+  else if(action==='reply'){state.reply=m.id;state.quote=null;state.editing=null;replyBar(authorName(m)||'Ответ',preview(m));}
   else if(action==='copy'){await copyText(m.body);toast('Текст скопирован');}
   else if(action==='select')enterSelection(m.id);
   else if(action==='edit'&&channel){modal('Редактировать публикацию',`<textarea id="edit-post">${esc(m.body)}</textarea><button class="primary" id="save-post">Сохранить</button>`);$('#save-post').onclick=saveAction(async()=>{await api('/messages/'+m.id,'PATCH',{body:$('#edit-post').value});await loadMessages(false);});}
@@ -538,6 +574,7 @@ function chatMenu(sheet){
   items.push(['chat-wallpaper','image','Обои чата']);
   const staff=['owner','admin'].includes(mine?.role);
   if(['direct','saved'].includes(c.kind)||staff)items.push(['chat-ttl','timer',c.ttl?'Автоудаление: вкл.':'Автоудаление…']);
+  if(c.kind==='group')items.push(['voice-room','headphones','Голосовая комната']);
   if(c.kind==='group'&&staff)items.push(['chat-slow','clock',c.slow_mode?'Медленный режим: вкл.':'Медленный режим…'],['chat-forum','topics',c.forum?'Выключить темы':'Включить темы']);
   if(c.kind==='channel'&&mine?.role==='owner')items.push(['chat-comments','comment',c.comments?'Выключить комментарии':'Включить комментарии']);
   if(!restricted(c))items.push(['export-chat','export','Экспорт чата']);
@@ -566,6 +603,7 @@ function chatMenu(sheet){
   for(const [el,key]of [['pin-chat','pins']])on(el,async()=>{const values=state.settings[key]||[];state.settings[key]=values.includes(c.id)?values.filter(v=>v!==c.id):[...values,c.id];await saveSettings();renderChats();});
   on('mute-chat',()=>muteChat(c.id,c.title));
   on('find-in-chat',()=>openFind());
+  on('voice-room',()=>joinRoom(c));
   on('e2e-info',()=>encryptionInfo(state.user.id,c));
   on('protect-content',()=>protectionDialog(c));
   on('select-messages',()=>enterSelection(null));
@@ -604,7 +642,7 @@ function applyCleared(chatId,at,hidden){
   else if(state.chat===chatId){state.messages=kept;renderMessages(true);}
   renderChats();scheduleChatRefresh(hidden?undefined:chatId);
 }
-const callStatus={missed:'Пропущен',declined:'Отклонён',active:'Активен',ringing:'Вызов',ended:'Завершён'};
+const callStatus={missed:'Пропущен',declined:'Отклонён',active:'Активен',ringing:'Вызов',ended:'Завершён',room:'Голосовая комната'};
 async function navigate(tab){if(state.recording){toast('Завершите или отмените запись');return;}const previous=state.tab,workspace=$('.workspace');if(previous===tab)return;closePopover();pageCache.set(previous,{nodes:[...workspace.childNodes],chat:state.chat,scroll:workspace.scrollTop});workspace.replaceChildren();state.tab=tab;state.chat=null;state.selection=null;state.find=null;markTab(tab);$('.shell').classList.remove('show-chat');$('.shell').classList.toggle('show-page',tab!=='chat');renderChats();const cached=pageCache.get(tab);if(cached&&tab!=='settings'){workspace.replaceChildren(...cached.nodes);workspace.scrollTop=cached.scroll;state.chat=cached.chat;if(tab==='chat'&&state.chat){$('.shell').classList.add('show-chat');renderChats();await loadMessages(false);}return;}if(tab==='chat'){renderChats();empty();return;}if(tab==='ai'){await aiPage(state,saveSettings,openChat);return;}if(tab==='settings'){settingsPage(state,saveSettings,()=>guard(()=>accountManager.logout())());return;}if(tab==='phone'){await callsPage();return;}
   $('.workspace').innerHTML=`<section class="panel-page"><header><span class="eyebrow">ВАШ КРУГ ОБЩЕНИЯ</span><h1>${tab==='people'?'Контакты':'Каналы'}</h1><p>${tab==='people'?'Найдите своих людей.':'Объединяйте людей вокруг ваших идей.'}</p></header><button class="primary" id="new-contact">${icon('plus')}${tab==='people'?'Найти человека':'Создать канал'}</button><div id="contacts">${state.chats.filter(c=>tab==='people'?c.kind==='direct':c.kind==='channel').map(c=>`<button class="chat-item" data-open="${c.id}">${avatar(c.title,c.avatar)}<strong>${esc(c.title)} ${chatVipBadge(c)}</strong></button>`).join('')}</div></section>`;$('#new-contact').onclick=()=>newChat(tab==='people'?'direct':'channel');document.querySelectorAll('[data-open]').forEach(el=>el.onclick=guard(()=>openChat(el.dataset.open)));
 }
@@ -663,7 +701,7 @@ async function beginRecording(){
   else $('#record-area').innerHTML=`<div class="record-bar"><span class="dot"></span><span class="record-time">0:00</span><small id="record-label">Влево — отмена · Вверх — закрепить</small><span class="spacer"></span>${button('lock','Закрепить запись','id="lock-record"')}${button('close','Отменить запись','id="cancel-record"')}${button('send','Отправить запись','id="send-record"')}</div>`;
   $('#cancel-record').onclick=()=>finishRecording(false);$('#send-record').onclick=()=>finishRecording(true);$('#lock-record').onclick=()=>{rec.locked=true;$('#record-label').textContent='Запись закреплена';rec.overlay?.classList.add('locked');};
   recorder.ondataavailable=e=>{if(e.data.size)rec.chunks.push(e.data);};
-  recorder.onstop=guard(async()=>{stream.getTracks().forEach(t=>t.stop());clearInterval(rec.timer);state.recording=null;$('#record-area').innerHTML='';rec.overlay?.remove();document.body.classList.remove('round-recording');if(rec.onkey)removeEventListener('keydown',rec.onkey);if(!rec.send)return;const blob=new Blob(rec.chunks,{type:recorder.mimeType});if(blob.size<100 || Date.now()-rec.started<350){toast('Слишком короткая запись');return;}toast('Отправляем запись…');const extension=recorder.mimeType.includes('mp4')?'mp4':'webm';const file=new File([blob],`${rec.kind}-${Date.now()}.${extension}`,{type:recorder.mimeType});await queueOutgoing(rec.chat,{kind:rec.kind},file);});
+  recorder.onstop=guard(async()=>{stream.getTracks().forEach(t=>t.stop());clearInterval(rec.timer);state.recording=null;$('#record-area').innerHTML='';rec.overlay?.remove();document.body.classList.remove('round-recording');if(rec.onkey)removeEventListener('keydown',rec.onkey);if(!rec.send)return;const blob=new Blob(rec.chunks,{type:recorder.mimeType});if(blob.size<100 || Date.now()-rec.started<350){toast('Слишком короткая запись');return;}toast('Отправляем запись…');const extension=recorder.mimeType.includes('mp4')?'mp4':'webm';const file=new File([blob],`${rec.kind}-${Date.now()}.${extension}`,{type:recorder.mimeType});const wave=rec.kind==='voice'?await waveformOf(blob):null;await queueOutgoing(rec.chat,{kind:rec.kind,...(wave?{wave}:{})},file);});
   recorder.start(1000);navigator.vibrate?.(20);rec.timer=setInterval(()=>{const seconds=Math.floor((Date.now()-rec.started)/1000);if($('.record-time'))$('.record-time').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;rec.overlay?.querySelector('.round-progress')?.style.setProperty('stroke-dashoffset',String(100-Math.min(100,(Date.now()-rec.started)/10/limit)));if(seconds>=limit)finishRecording(true);},250);
 }
 function finishRecording(send){const rec=state.recording;if(!rec||rec.recorder.state==='inactive')return;rec.send=send;rec.recorder.stop();}
@@ -677,7 +715,7 @@ function connectEvents(){state.events?.close();const events=new EventSource(acco
       if(state.settings.notifications!==false&&!(state.settings.muted||[]).includes(message.chat_id)&&state.chat!==message.chat_id&&!document.hidden)toast('Новое сообщение: '+(state.chats.find(c=>c.id===message.chat_id)?.title||''));
     }
   })().catch(()=>{});});
-  listen('chat-deleted',e=>{const d=JSON.parse(e.data);messagesByChat.delete(d.chat);pageCache.delete('chat');state.chats=state.chats.filter(c=>c.id!==d.chat);if(state.chat===d.chat){state.chat=null;state.messages=[];empty();$('.shell')?.classList.remove('show-chat');}renderChats();});listen('chat-cleared',e=>{const d=JSON.parse(e.data);applyCleared(d.chat,d.clearedAt,d.hidden);});listen('draft',e=>{const d=JSON.parse(e.data),c=state.chats.find(x=>x.id===d.chat);if(!c)return;c.draft=d.body?{body:d.body,updated:d.updated}:null;if(state.chat!==d.chat)renderChats();});listen('refresh',()=>{const previous=selected()?.canPost;refresh().then(()=>{if(state.chat&&previous!==selected()?.canPost)openChat(state.chat);}).catch(()=>{});});
+  listen('chat-deleted',e=>{const d=JSON.parse(e.data);messagesByChat.delete(d.chat);pageCache.delete('chat');state.chats=state.chats.filter(c=>c.id!==d.chat);if(state.chat===d.chat){state.chat=null;state.messages=[];empty();$('.shell')?.classList.remove('show-chat');}renderChats();});listen('chat-cleared',e=>{const d=JSON.parse(e.data);applyCleared(d.chat,d.clearedAt,d.hidden);});listen('draft',e=>{const d=JSON.parse(e.data),c=state.chats.find(x=>x.id===d.chat);if(!c)return;(String(d.body||'').startsWith('e2d1:')?openDraft(state.user.id,d.body):Promise.resolve(d.body)).then(body=>{c.draft=body?{body,updated:d.updated}:null;if(state.chat!==d.chat)renderChats();});});listen('refresh',()=>{const previous=selected()?.canPost;refresh().then(()=>{if(state.chat&&previous!==selected()?.canPost)openChat(state.chat);}).catch(()=>{});});
   listen('receipt',e=>{const data=JSON.parse(e.data);const member=state.chats.find(c=>c.id===data.chat)?.members.find(m=>m.user_id===data.user);if(member){if(data.read)member.read_at=Math.max(member.read_at||0,data.read);if(data.delivered)member.delivered_at=Math.max(member.delivered_at||0,data.delivered);}document.querySelectorAll('.message.own').forEach(el=>{const m=state.messages.find(m=>m.id===el.dataset.id);const people=(selected()?.members||[]).filter(p=>p.user_id!==state.user.id);const marker=el.querySelector('.message-footer .tick');if(marker&&m&&!m.pending){const read=people.length&&people.every(p=>p.read_at>=m.created);const delivered=people.length&&people.every(p=>p.delivered_at>=m.created);const status=read?'read':delivered?'delivered':'sent';marker.innerHTML=tickSVG(status);marker.classList.toggle('read',!!read);marker.classList.toggle('ticks',!!read);marker.title=read?'Прочитано':delivered?'Доставлено':'Отправлено';m.status=status;}});renderChats();});
   listen('typing',e=>{const d=JSON.parse(e.data);if(d.user===state.user.id)return;const chat=state.chats.find(c=>c.id===d.chat);if(!chat)return;const label=chat.kind==='direct'?'печатает':`${String(d.name||'Кто-то').split(' ')[0]} печатает`;typingNow.set(d.chat,label+'…');clearTimeout(typingTimers.get(d.chat));typingTimers.set(d.chat,setTimeout(()=>{typingNow.delete(d.chat);renderChats();if(state.chat===d.chat)setStatus();},3000));renderChats();const target=$('#chat-status');if(state.chat===d.chat&&target)target.innerHTML=`<span class="typing-status">${esc(label)}<span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;});
   listen('mention',e=>{const d=JSON.parse(e.data);if(state.chat===d.chat)mentions?.add(d.message);else if(state.settings.notifications!==false&&!document.hidden)toast(`${d.from} упоминает вас${d.title?' в «'+d.title+'»':''}`);scheduleChatRefresh(d.chat);});
@@ -688,20 +726,29 @@ function connectEvents(){state.events?.close();const events=new EventSource(acco
 async function openNotificationLink(href){
  const url=new URL(href,location.origin);if(url.origin!==location.origin)return;
  const link=new URLSearchParams(url.hash.slice(1));
- if(link.get('qr-login')){history.replaceState(null,'',location.pathname+location.search);await approveDevice(link.get('qr-login'));return;}
+ if(link.get('qr-login')){history.replaceState(null,'',location.pathname+location.search);await approveDevice(link.get('qr-login'),link.get('k'),state.user.id);return;}
+ if(link.get('e2e-transfer')){history.replaceState(null,'',location.pathname+location.search);await sendTransfer(state,link.get('e2e-transfer'),link.get('k'));return;}
  if(link.get('account')&&link.get('account')!==state.user.id){await accountManager.switchTo(link.get('account'));}
  if(link.get('community')){const cid=link.get('community'),invite=link.get('invite'),c=await api('/communities/'+encodeURIComponent(cid)+'?invite='+encodeURIComponent(invite||''));if(c.subscribed){await refresh();await openChat(cid);return;}modal(c.title,`<p>${peopleCount(c.count,c.kind==='channel')}</p><button class="primary" id="join-community">Присоединиться</button>`);$('#join-community').onclick=guard(async()=>{await api('/communities/'+cid+'/join','POST',{invite});$('#modal').close();await refresh();await openChat(cid);});return;}
  const chat=link.get('chat');if(!chat)return;
  await refresh();if(state.tab!=='chat')await navigate('chat');await openChat(chat);
  if(link.get('call')){
   const active=await api('/calls/active');const call=active.find(c=>c.id===link.get('call'));
-  if(call)await calls.event(call);else toast('Этот звонок уже завершён');
+  if(call){await calls.event(call);if(link.get('answer')==='1')$('#accept-call')?.click();}else toast('Этот звонок уже завершён');
   return;
  }
  const key=link.get('message');if(!key)return;
  if(!state.messages.some(m=>m.id===key)){const m=await api('/messages/'+encodeURIComponent(key));if(m.chat_id===state.chat){acceptMessages(m.chat_id,[m]);}}
  const target=document.querySelector('[data-id="'+CSS.escape(key)+'"]');target?.scrollIntoView({block:'center'});
 }
+// The history key is created (or checked) at start, and old history is wrapped for transfer in the
+// background at most every three days, so a new phone can read it later.
+function scheduleHistory(user){
+ historyKey(user).then(h=>{if(!h)return;const key='accounts/'+user+'/history-prepared';let last=0;try{last=Number(localStorage.getItem(key)||0);}catch{}
+  if(Date.now()-last<3*86400000)return;setTimeout(()=>{if(state.user?.id!==user)return;prepareHistory(user).then(()=>{try{localStorage.setItem(key,String(Date.now()));}catch{}}).catch(()=>{});},30000);}).catch(()=>{});
+}
+window.addEventListener('folders-changed',()=>renderChats());
+window.addEventListener('e2e-history',e=>{if(e.detail?.user!==state.user?.id)return;messagesByChat.clear();refresh().catch(()=>{});if(state.chat)loadMessages(false).catch(()=>{});});
 let notificationLinksReady=false;
 function setupNotificationLinks(){if(notificationLinksReady)return;notificationLinksReady=true;
  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
@@ -714,7 +761,7 @@ async function boot(){
   // The chat list is requested together with the profile instead of after it: one round trip less before the app appears.
   const head=early&&early.epoch===accountEpoch()?early:null;early=null;
   prefetchedChats=head?.chats||api('/chats');prefetchedChats.catch(()=>{});const result=await (head?.me||api('/me'));state.user=result.user;state.settings=result.settings;state.family=result.family;state.rtcDebug=result.rtcDebug===true;state.halloween=result.halloween||null;applyTheme(state.settings);if(result.family&&!result.family.linked){app.innerHTML='<main class="auth"><section class="auth-card glass"><h1>Привяжите родителя</h1><p>Детский аккаунт создан. До привязки обычные функции закрыты.</p><button class="primary" id="pending-family">Получить код для родителя</button><button class="secondary" id="pending-refresh">Проверить привязку</button><button class="secondary" id="pending-logout">Выйти</button></section></main>';$('#pending-family').onclick=guard(()=>familyPage(state));$('#pending-refresh').onclick=()=>location.reload();$('#pending-logout').onclick=guard(async()=>{await api('/logout','POST',{});location.reload();});return;}try{await refresh();}catch(e){if(!result.family)throw e;toast(e.message);}bootStarted=true;
-  if(shownAccount===state.user.id){const me=avatar(state.user.name,state.user.avatar);document.querySelectorAll('.account').forEach(el=>el.innerHTML=me);}else shell();shownAccount=null;syncHalloween(state,saveSettings);maybeWhatsNew(state,saveSettings);synchronizer=createSync(state.user.id,rows=>{for(const chat of new Set(rows.map(m=>m.chat_id)))if(messagesByChat.has(chat)||state.chat===chat)acceptMessages(chat,rows.filter(m=>m.chat_id===chat));});ensureDevice(state.user.id).catch(()=>{});outbox=createOutbox(state.user.id,outboxChanged,async(chat,text,file)=>{const envelope=await seal(state.user.id,chat,text,file);return envelope&&{e2e:envelope,emoji:emojiKeys(text)};},chat=>canSeal(state.user.id,chat));onPreviewsReady(()=>{if(state.chat)renderMessages(false);});await outbox.list();state.sendSticker=async(sticker)=>queueOutgoing(state.chat,{sticker});state.openSaved=openSaved;preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>startCall(chat,video)});initStories(state,openChat,refresh);initRoundVideos({canOpen:()=>!state.selection});setupNotificationLinks();connectBackgroundAccounts().catch(()=>{});const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
+  if(shownAccount===state.user.id){const me=avatar(state.user.name,state.user.avatar);document.querySelectorAll('.account').forEach(el=>el.innerHTML=me);}else shell();shownAccount=null;syncHalloween(state,saveSettings);maybeWhatsNew(state,saveSettings);synchronizer=createSync(state.user.id,rows=>{for(const chat of new Set(rows.map(m=>m.chat_id)))if(messagesByChat.has(chat)||state.chat===chat)acceptMessages(chat,rows.filter(m=>m.chat_id===chat));});ensureDevice(state.user.id).then(()=>scheduleHistory(state.user.id)).catch(()=>{});outbox=createOutbox(state.user.id,outboxChanged,async(chat,text,file,extra)=>{const envelope=await seal(state.user.id,chat,text,file,extra);return envelope&&{e2e:envelope,emoji:emojiKeys(text)};},chat=>canSeal(state.user.id,chat));onPreviewsReady(()=>{if(state.chat)renderMessages(false);});await outbox.list();state.sendSticker=async(sticker)=>queueOutgoing(state.chat,{sticker});state.openSaved=openSaved;state.saveSettings=saveSettings;preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>startCall(chat,video)});initStories(state,openChat,refresh);initRoundVideos({canOpen:()=>!state.selection});setupNotificationLinks();connectBackgroundAccounts().catch(()=>{});const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
 // Coming back to the screen. A phone freezes a background app and its live connection may be
 // silently dead, so after a pause the connection is reopened at once instead of after the browser's
 // own retry; its "ready" event then catches up on everything missed.
@@ -739,6 +786,9 @@ window.addEventListener('beforeunload',()=>{state.recording?.stream.getTracks().
 let early=null,shownAccount=null,bootStarted=false;
 try{const remembered=localStorage.getItem('cipherion-active-account');if(remembered){setActiveAccount(remembered);early={epoch:accountEpoch(),me:api('/me'),chats:api('/chats')};early.me.catch(()=>{});early.chats.catch(()=>{});
   const snap=readSnapshot(remembered);if(snap){Object.assign(state,{user:snap.user,settings:snap.settings||{},halloween:snap.halloween||null,chats:snap.chats});applyTheme(state.settings);shell();setConnection(false);shownAccount=remembered;let finish;bootDone=new Promise(r=>finish=r);bootDone.finish=finish;const launch=document.getElementById('launch');if(launch){launch.dataset.quick='1';launch.remove();}}}}catch{shownAccount=null;}
+// The passcode screen covers the app before anything is drawn. Forgetting the code signs every
+// account out of this device.
+initPasscode(async()=>{for(let i=0;i<10;i++){const list=await accountManager.refresh().catch(()=>[]);if(!list.length)break;await accountManager.logout().catch(()=>{});}try{indexedDB.deleteDatabase('cipherion-e2e');}catch{}location.reload();});
 function start(){
   accountManager.initialize().then(async id=>{if(shownAccount&&id!==shownAccount){shownAccount=null;await resetAccount();}return id?boot():auth();}).catch(error=>{
     if(error.status===401){shownAccount=null;resetAccount().finally(auth);return;}

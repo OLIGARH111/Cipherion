@@ -16,7 +16,8 @@
     "@aws-sdk/client-s3": "^3.1146.0",
     "esbuild": "0.28.2",
     "libsql": "0.5.29",
-    "web-push": "3.6.7"
+    "web-push": "3.6.7",
+    "werift": "0.26.0"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.2",

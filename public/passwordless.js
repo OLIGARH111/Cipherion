@@ -3,6 +3,7 @@
 import {$,esc,icon,api,modal,guard,toast} from './ui.js';
 import {qrSVG} from './qr.js';
 import {describeAgent} from './devices.js';
+import {transferReceiver,wrapHistoryFor,fromUrlKey,fingerprint} from './e2e.js';
 
 const b64url=buffer=>{const bytes=new Uint8Array(buffer);let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};
 const fromB64url=text=>Uint8Array.from(atob(String(text).replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((String(text).length+3)%4)),c=>c.charCodeAt(0));
@@ -15,15 +16,17 @@ export function qrLoginDialog(complete){
   let stopped=false,timer;
   const dialog=modal('Вход по QR-коду','<div class="qr-login"><div class="qr-box" id="qr-box"><div class="skeleton-list"></div></div><ol class="qr-steps"><li>Откройте Cipherion на телефоне, где вы уже вошли.</li><li>Наведите камеру телефона на код или откройте <b>Настройки → Устройства → Подключить устройство</b>.</li><li>Подтвердите вход на телефоне.</li></ol><p class="muted" id="qr-code-text"></p></div>');
   dialog.addEventListener('close',()=>{stopped=true;clearTimeout(timer);},{once:true});
+  // A one-time key for receiving the history key from the approving phone (see key-transfer.js).
+  const receiver=transferReceiver().catch(()=>null);
   async function issue(){
-    const r=await post('/qr-login');if(stopped)return;
+    const keys=await receiver;const r=await post('/qr-login',keys?{pub:keys.pub}:{});if(stopped)return;
     $('#qr-box').innerHTML=qrSVG(r.link,{label:'QR-код для входа'});
-    $('#qr-code-text').innerHTML=`Код для ручного ввода: <b class="qr-manual">${esc(r.code.slice(0,4)+'-'+r.code.slice(4))}</b>`;
+    $('#qr-code-text').innerHTML=`Код для ручного ввода: <b class="qr-manual">${esc(r.code.slice(0,4)+'-'+r.code.slice(4))}</b>${keys?`<br>Проверочные цифры: <b>${esc(keys.fingerprint)}</b>`:''}`;
     const poll=async()=>{
       if(stopped)return;
       try{
         const s=await post('/qr-login/status',{secret:r.secret});
-        if(s.state==='approved'){stopped=true;dialog.close();toast('Вход выполнен');await complete(s);return;}
+        if(s.state==='approved'){stopped=true;dialog.close();if(s.history&&keys)await keys.accept(s.user.id,s.history).catch(()=>toast('Не удалось перенести историю. Её можно перенести позже в «Устройствах».'));toast(s.history?'Вход выполнен, история перенесена':'Вход выполнен');await complete(s);return;}
         if(s.state==='expired'){await issue();return;}
       }catch(error){if(error.status===404){await issue();return;}}
       timer=setTimeout(poll,2000);
@@ -34,12 +37,16 @@ export function qrLoginDialog(complete){
 }
 
 // ---------- Signed-in phone: approve a code ----------
-export async function approveDevice(code){
+// urlKey is the new device's public key read from the QR picture; a typed code has none, so the
+// check digits are shown for comparison instead.
+export async function approveDevice(code,urlKey=null,user=null){
   const info=await api('/qr-login/info?code='+encodeURIComponent(code));
-  const d=describeAgent(info.agent);
-  modal('Подключить устройство?',`<div class="stack"><div class="device-confirm">${icon(d.type==='desktop'?'screen':d.type)}<div><b>${esc(d.model)}</b><small>${esc([d.app,d.os].filter(Boolean).join(' · '))}</small></div></div><p class="note"><b>Подтверждайте, только если вы сами открыли Cipherion на этом устройстве.</b> Если код вам прислал кто-то другой, это попытка получить доступ к вашему аккаунту.</p><button class="primary" id="qr-approve">Подключить</button><button class="secondary" id="qr-cancel">Отмена</button></div>`);
+  const d=describeAgent(info.agent),scanned=urlKey?fromUrlKey(urlKey):null;
+  const canTransfer=!!info.pub&&(!urlKey||scanned===info.pub);
+  const digits=canTransfer&&!scanned?await fingerprint(info.pub).catch(()=>''):'';
+  modal('Подключить устройство?',`<div class="stack"><div class="device-confirm">${icon(d.type==='desktop'?'screen':d.type)}<div><b>${esc(d.model)}</b><small>${esc([d.app,d.os].filter(Boolean).join(' · '))}</small></div></div><p class="note"><b>Подтверждайте, только если вы сами открыли Cipherion на этом устройстве.</b> Если код вам прислал кто-то другой, это попытка получить доступ к вашему аккаунту.</p>${canTransfer?`<label class="check-row"><input type="checkbox" id="qr-history" checked> Перенести историю зашифрованных сообщений</label>${digits?`<p class="muted">Проверочные цифры на новом устройстве: <b>${esc(digits)}</b></p>`:''}`:''}<button class="primary" id="qr-approve">Подключить</button><button class="secondary" id="qr-cancel">Отмена</button></div>`);
   $('#qr-cancel').onclick=()=>$('#modal').close();
-  $('#qr-approve').onclick=guard(async()=>{await api('/qr-login/approve','POST',{code});$('#modal').close();toast('Устройство подключено');});
+  $('#qr-approve').onclick=guard(async()=>{const account=user||(await api('/me')).user.id;const history=canTransfer&&$('#qr-history')?.checked?await wrapHistoryFor(account,info.pub).catch(()=>null):null;await api('/qr-login/approve','POST',{code,...(history?{history}:{})});$('#modal').close();toast(history?'Устройство подключено, история передана':'Устройство подключено');});
 }
 // Scan with the camera where the browser can read QR codes; otherwise type the code.
 export function connectDeviceDialog(){
@@ -51,7 +58,7 @@ export function connectDeviceDialog(){
   if(scan)$('#qr-scan').onclick=guard(async()=>{
     const video=$('#qr-video');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});video.srcObject=stream;video.hidden=false;await video.play();
     const detector=new BarcodeDetector({formats:['qr_code']});
-    const look=async()=>{if(!stream)return;try{const [hit]=await detector.detect(video);const code=hit&&/qr-login=([A-Z0-9]{8})/.exec(hit.rawValue||'')?.[1];if(code){stop();await approveDevice(code);return;}}catch{}requestAnimationFrame(look);};
+    const look=async()=>{if(!stream)return;try{const [hit]=await detector.detect(video);const found=hit&&/qr-login=([A-Z0-9]{8})(?:&k=([A-Za-z0-9_-]+))?/.exec(hit.rawValue||'');if(found){stop();await approveDevice(found[1],found[2]||null);return;}}catch{}requestAnimationFrame(look);};
     look();
   });
 }

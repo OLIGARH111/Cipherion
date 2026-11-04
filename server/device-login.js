@@ -4,6 +4,7 @@
 //    a separate secret, so a photo of the screen cannot be used to take over the session.
 //  • Passkeys (WebAuthn / Face ID / Touch ID / Windows Hello). Signatures are verified
 //    here with node:crypto; the private key never leaves the authenticator.
+import {parseTransfer,validPoint} from './e2e.js';
 import {createHash,createPublicKey,randomBytes,verify as verifySignature,timingSafeEqual} from 'node:crypto';
 
 const sha256=data=>createHash('sha256').update(data).digest();
@@ -73,6 +74,8 @@ export function createDeviceLogin({db,one,all,run,fail,now,id,rate,accounts,publ
     CREATE TABLE IF NOT EXISTS passkeys(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),public_key TEXT NOT NULL,alg INTEGER NOT NULL,counter INTEGER DEFAULT 0,name TEXT,transports TEXT DEFAULT '[]',created INTEGER NOT NULL,last_used INTEGER);
     CREATE INDEX IF NOT EXISTS passkeys_owner ON passkeys(user_id);
     CREATE TABLE IF NOT EXISTS webauthn_challenges(challenge TEXT PRIMARY KEY,user_id TEXT,purpose TEXT NOT NULL,expires INTEGER NOT NULL);`);
+  // The new device's one-time public key and the history key wrapped for it (see e2e.js).
+  for(const column of ['pub','history'])if(!all('PRAGMA table_info(qr_logins)').some(c=>c.name===column))db.exec(`ALTER TABLE qr_logins ADD COLUMN ${column} TEXT`);
   const digest=text=>createHash('sha256').update(String(text)).digest('hex');
   const code=()=>Array.from(randomBytes(8),b=>CODE_ALPHABET[b%CODE_ALPHABET.length]).join('');
   const normalizeCode=text=>String(text||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
@@ -101,9 +104,10 @@ export function createDeviceLogin({db,one,all,run,fail,now,id,rate,accounts,publ
     if(path==='/api/qr-login'&&req.method==='POST'){
       rate('qr-login:'+req.socket.remoteAddress,20,600_000);
       run('DELETE FROM qr_logins WHERE expires<?',now()-60_000);
-      const secret=randomBytes(32).toString('hex'),value=code();
-      run('INSERT INTO qr_logins(secret,code,agent,created,expires) VALUES(?,?,?,?,?)',digest(secret),value,String(req.headers['user-agent']||'').slice(0,200),now(),now()+3*60_000);
-      json({secret,code:value,link:`${origin}/#qr-login=${value}`,expires:now()+3*60_000});return true;
+      const secret=randomBytes(32).toString('hex'),value=code(),pub=validPoint(b.pub)?b.pub:null;
+      run('INSERT INTO qr_logins(secret,code,agent,created,expires,pub) VALUES(?,?,?,?,?,?)',digest(secret),value,String(req.headers['user-agent']||'').slice(0,200),now(),now()+3*60_000,pub);
+      // The key travels inside the QR picture too, so the approving phone does not have to trust the server's copy.
+      json({secret,code:value,link:`${origin}/#qr-login=${value}${pub?'&k='+Buffer.from(pub,'base64').toString('base64url'):''}`,expires:now()+3*60_000});return true;
     }
     if(path==='/api/qr-login/status'&&req.method==='POST'){
       rate('qr-status:'+req.socket.remoteAddress,200,600_000);
@@ -114,18 +118,19 @@ export function createDeviceLogin({db,one,all,run,fail,now,id,rate,accounts,publ
       const changed=run('UPDATE qr_logins SET used=1 WHERE secret=? AND used=0',row.secret);if(!changed.changes)fail(409,'Код уже использован');
       const account=one('SELECT * FROM users WHERE id=?',row.approved_by);if(!account)fail(404,'Аккаунт не найден');
       accounts.create(req,res,account);privacy.event(account.id,'qr_login');
-      json({state:'approved',user:publicUser(account,account.id),settings:JSON.parse(account.settings)});return true;
+      json({state:'approved',user:publicUser(account,account.id),settings:JSON.parse(account.settings),history:row.history?JSON.parse(row.history):null});return true;
     }
     if(path==='/api/qr-login/info'&&req.method==='GET'){
       if(!user)fail(401,'Войдите в аккаунт');rate('qr-approve:'+user.id,30,600_000);
-      const row=one('SELECT code,agent,created,expires FROM qr_logins WHERE code=? AND used=0 AND approved_by IS NULL AND expires>?',normalizeCode(url.searchParams.get('code')),now());
+      const row=one('SELECT code,agent,created,expires,pub FROM qr_logins WHERE code=? AND used=0 AND approved_by IS NULL AND expires>?',normalizeCode(url.searchParams.get('code')),now());
       if(!row)fail(404,'Код не найден или устарел. Обновите QR-код на новом устройстве.');
       json(row);return true;
     }
     if(path==='/api/qr-login/approve'&&req.method==='POST'){
       if(!user)fail(401,'Войдите в аккаунт');rate('qr-approve:'+user.id,30,600_000);
       if(family.child(user.id))fail(403,'Новые устройства детского аккаунта подключает родитель');
-      const changed=run('UPDATE qr_logins SET approved_by=? WHERE code=? AND used=0 AND approved_by IS NULL AND expires>?',user.id,normalizeCode(b.code),now());
+      const history=b.history?JSON.stringify(parseTransfer(b.history)):null;
+      const changed=run('UPDATE qr_logins SET approved_by=?,history=? WHERE code=? AND used=0 AND approved_by IS NULL AND expires>?',user.id,history,normalizeCode(b.code),now());
       if(!changed.changes)fail(404,'Код не найден или устарел. Обновите QR-код на новом устройстве.');
       privacy.event(user.id,'qr_login_approved');json({ok:true});return true;
     }

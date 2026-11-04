@@ -49,7 +49,7 @@ export function reconcileMessages(box,html){
 }
 export function optimisticMessage(item){
   return {id:'local:'+item.id,clientMessageId:item.id,client_id:item.id,user_id:item.user,chat_id:item.chat,
-    kind:item.payload.sticker?'sticker':item.payload.kind||'text',body:item.payload.body||item.payload.sticker||'',
+    kind:item.payload.sticker||item.stickerId?'sticker':item.payload.kind||'text',body:item.payload.body||item.payload.sticker||item.stickerId||'',quote:item.payload.quote||item.quote,
     forwarded:item.payload.forwarded,reply_id:item.payload.reply,...(item.payload.topic?{topic:item.payload.topic}:{}),...(item.payload.ghost?{ghost:1}:{}),created:item.created,pending:true,status:item.error?'failed':'sending',error:item.error,
     attachmentName:item.file?.name};
 }

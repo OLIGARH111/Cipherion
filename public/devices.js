@@ -1,6 +1,8 @@
 // "Устройства": readable names for sessions instead of raw User-Agent strings.
 import {$,esc,icon,api,modal,guard,toast} from './ui.js';
 import {connectDeviceDialog,passkeysPage} from './passwordless.js';
+import {historyPage} from './key-transfer.js';
+import {activeAccount} from './account-context.js';
 
 const version=(ua,re)=>(ua.match(re)||[])[1]||'';
 export function describeAgent(agent=''){
@@ -33,8 +35,8 @@ const row=(s,current)=>{const d=describeAgent(s.agent),seen=current?'в сети
 
 export async function devicesPage(){
   const sessions=await api('/sessions');const current=sessions.find(s=>s.current),others=sessions.filter(s=>!s.current).sort((a,b)=>b.active-a.active);
-  modal('Устройства',`<div class="tg-page"><div class="device-actions"><button class="primary" id="device-connect">${icon('qr')} Подключить устройство</button><button class="secondary" id="device-passkeys">${icon('key')} Ключи доступа</button></div><p class="group-caption">Это устройство</p><div class="settings-group">${current?row(current,true):''}${others.length?'<button class="tg-danger" id="end-others">Завершить все другие сеансы</button>':''}</div><p class="tg-hint">Выход на других устройствах сохранит только этот сеанс.</p>${others.length?`<p class="group-caption">Активные сеансы (${others.length})</p><div class="settings-group">${others.map(s=>row(s,false)).join('')}</div><p class="tg-hint">Не узнаёте устройство? Завершите его сеанс и смените пароль.</p>`:'<p class="tg-hint">Других активных сеансов нет — аккаунт открыт только здесь.</p>'}</div>`);
+  modal('Устройства',`<div class="tg-page"><div class="device-actions"><button class="primary" id="device-connect">${icon('qr')} Подключить устройство</button><button class="secondary" id="device-passkeys">${icon('key')} Ключи доступа</button><button class="secondary" id="device-history">${icon('shield')} Перенос истории</button></div><p class="group-caption">Это устройство</p><div class="settings-group">${current?row(current,true):''}${others.length?'<button class="tg-danger" id="end-others">Завершить все другие сеансы</button>':''}</div><p class="tg-hint">Выход на других устройствах сохранит только этот сеанс.</p>${others.length?`<p class="group-caption">Активные сеансы (${others.length})</p><div class="settings-group">${others.map(s=>row(s,false)).join('')}</div><p class="tg-hint">Не узнаёте устройство? Завершите его сеанс и смените пароль.</p>`:'<p class="tg-hint">Других активных сеансов нет — аккаунт открыт только здесь.</p>'}</div>`);
   document.querySelectorAll('[data-end-session]').forEach(btn=>btn.onclick=guard(async()=>{const name=btn.closest('.device-row').querySelector('b').textContent;if(!confirm(`Завершить сеанс на устройстве «${name}»?`))return;await api('/sessions','DELETE',{id:btn.dataset.endSession});toast('Сеанс завершён');await devicesPage();}));
-  $('#device-connect').onclick=()=>connectDeviceDialog();$('#device-passkeys').onclick=guard(()=>passkeysPage());
+  $('#device-connect').onclick=()=>connectDeviceDialog();$('#device-history').onclick=guard(()=>historyPage({user:{id:activeAccount()}}));$('#device-passkeys').onclick=guard(()=>passkeysPage());
   const all=$('#end-others');if(all)all.onclick=guard(async()=>{if(!confirm('Завершить все сеансы, кроме этого устройства?'))return;await api('/sessions','DELETE',{id:'all'});toast('Другие сеансы завершены');await devicesPage();});
 }

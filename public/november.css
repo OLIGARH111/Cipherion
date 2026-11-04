@@ -1,0 +1,81 @@
+/* Bot buttons */
+.bot-keyboard{display:grid;gap:4px;margin-top:6px;min-width:min(260px,70vw)}
+.bot-row{display:flex;gap:4px}
+.bot-button{flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:8px 10px;border-radius:10px;border:0;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font:inherit;font-size:14px;font-weight:560;cursor:pointer;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bot-button:hover{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+.bot-button.busy{opacity:.6;cursor:progress}
+.bot-button span{font-size:11px;opacity:.7}
+
+/* Chat folders */
+#folder-bar:empty{display:none}
+.folder-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:2px 12px 6px;border-bottom:1px solid var(--line)}
+.folder-tabs::-webkit-scrollbar{display:none}
+.folder-tab{flex:none;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:0;background:none;color:var(--muted);font:inherit;font-size:14px;font-weight:560;cursor:pointer;white-space:nowrap}
+.folder-tab.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.folder-tab svg{width:16px;height:16px}
+.folder-count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--on-accent,#fff);font-size:11px;line-height:18px;text-align:center}
+.folder-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.folder-row:last-child{border-bottom:0}
+.folder-emoji{font-size:22px;width:28px;text-align:center}
+.folder-name{flex:1;min-width:0;display:grid}.folder-name small{color:var(--muted)}
+.folder-tools{display:flex;gap:2px}
+.folder-presets{display:flex;flex-wrap:wrap;gap:6px}
+.folder-chats{display:grid;gap:2px;max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px}
+.folder-chat{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px}
+.folder-chat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-chat select{max-width:130px}
+.folder-emoji-field{width:76px}.folder-emoji-field input{text-align:center}
+
+/* Translation */
+.translation{margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);border-radius:8px;background:color-mix(in srgb,var(--accent) 8%,transparent);display:grid;gap:4px;white-space:pre-wrap}
+.translation small{color:var(--muted);font-size:12px}
+.translation .chip{justify-self:start;font-size:12px;padding:2px 8px}
+.translation.loading{color:var(--muted);font-style:italic}
+.translate-chip{margin-top:4px;font-size:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px}
+.translate-chip svg{width:14px;height:14px}
+
+/* Quote */
+.reply-preview.with-quote span{font-style:italic;display:inline-flex;gap:4px;align-items:flex-start}
+.reply-preview.with-quote svg{width:14px;height:14px;flex:none;opacity:.7}
+.quote-chip{position:fixed;z-index:60;padding:7px 12px;border-radius:999px;border:0;background:var(--accent);color:var(--on-accent,#fff);font:inherit;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
+.reply-bar.quote .reply-bar-text span{font-style:italic}
+
+/* Real voice waveform */
+.waveform.real i,.waveform.pending i{animation:none;opacity:.45;transition:opacity .15s}
+.waveform.real i.played{opacity:1}
+.waveform.real{cursor:pointer;gap:2px}
+.waveform.pending i{opacity:.25}
+
+/* Who read it */
+.readers{display:grid;gap:4px}
+.reader-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.reader-row span{display:grid}.reader-row small{color:var(--muted)}
+
+/* Passcode lock */
+.passcode-lock{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:16px;background:var(--bg,#070c13)}
+body.passcode-locked>#app,body.passcode-locked>#call-root{visibility:hidden}
+.passcode-card{width:min(340px,100%);display:grid;justify-items:center;gap:10px;text-align:center;color:var(--text)}
+.passcode-card img{border-radius:18px}
+.passcode-card form{display:grid;gap:10px;width:100%}
+.passcode-card input{text-align:center;font-size:22px;letter-spacing:.3em;padding:12px}
+.passcode-error{min-height:1.2em;color:#e0444b;margin:0}
+.passcode-card .link-button{background:none;border:0;color:var(--accent);font:inherit;cursor:pointer}
+.passcode-card.shake{animation:passcode-shake .35s}
+@keyframes passcode-shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+/* Voice room */
+#room-bar:empty{display:none}
+.room-bar{display:flex;align-items:center;gap:10px;margin:6px 12px 0;padding:8px 12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,var(--bg,transparent));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.room-bar>svg{width:22px;height:22px;color:var(--accent);flex:none}
+.room-bar span{flex:1;min-width:0;display:grid}.room-bar small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-bar .primary{padding:6px 14px;min-height:0}
+.room-here{color:var(--accent);font-weight:600;font-size:13px}
+
+/* History transfer */
+.kt-status{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--text) 6%,transparent)}
+.kt-status svg{width:24px;height:24px;flex:none}
+.kt-status div{display:grid;gap:2px}.kt-status small{color:var(--muted)}
+.kt-status.ok svg{color:#2b9a5a}.kt-status.warn svg{color:#d9730d}
+.key-transfer>button{width:100%}
+.verify-bar{justify-content:center}
+@media (max-width:700px){.folder-tabs{padding:2px 10px 6px}.room-bar{margin:6px 8px 0}}
