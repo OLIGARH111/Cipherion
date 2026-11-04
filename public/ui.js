@@ -96,9 +96,23 @@ async function requestJSON(url,options,account=activeAccount()) {
 export async function api(path, method='GET', data, signal, account=activeAccount()) {
   return requestJSON('/api'+path,{method,signal,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)},account);
 }
+// The account's upload limit rarely changes: ask once per account instead of before every photo.
+const uploadLimits=new Map();
+async function uploadLimit(account){
+  const key=account||'';const cached=uploadLimits.get(key);if(cached&&Date.now()-cached.time<600000)return cached.mb;
+  const mb=(await api('/vip','GET',undefined,undefined,account)).uploadMB;uploadLimits.set(key,{mb,time:Date.now()});return mb;
+}
+// A busy server (429) or a dropped connection is retried a few times, so a photo is not lost to a short hiccup.
+const UPLOAD_RETRIES=[800,2000,4000];
+export async function sendMedia(file,account,send){
+  for(let attempt=0;;attempt++){
+    try{return await send();}
+    catch(error){if(error.name==='AbortError'||attempt>=UPLOAD_RETRIES.length||!(error.transient||error.status===429))throw error;await wait(UPLOAD_RETRIES[attempt]);}
+  }
+}
 export async function upload(file,account=activeAccount()) {
-  const limit=(await api('/vip','GET',undefined,undefined,account)).uploadMB;if(file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
-  return requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name)},body:file},account);
+  const limit=await uploadLimit(account).catch(()=>0);if(limit&&file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
+  return sendMedia(file,account,()=>requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'file')},body:file},account));
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;

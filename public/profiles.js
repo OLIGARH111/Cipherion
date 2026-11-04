@@ -7,7 +7,7 @@ import {renderCustom,renderToken} from './stickers.js';
 import {pickBadge,setBadge} from './badge-picker.js';
 import {$,esc,avatar,api,upload,modal,guard,toast,lastSeenText,vipBadge} from './ui.js';
 import {showStories,storyArchive} from './stories.js';
-import {prepareAvatar,pickImage} from './media-compress.js';
+import {prepareAvatar,pickImage,pickImages,preparePhoto} from './media-compress.js';
 let context;
 export function configureProfiles(c){context=c;}
 export const profileThemes={'Emerald Glass':['#153d32','#83d9b5'],Midnight:['#10172c','#a5b9ff'],'Black Glass':['#131719','#dce6e8'],Snow:['#e8f1ef','#236245'],Ocean:['#103149','#81c9ff'],Purple:['#312041','#d6adff'],Rose:['#452635','#ffb9db'],Bronze:['#3c2d21','#edbf89'],Aurora:['#183141','#acffe1'],Sunset:['#482d3a','#ffbc98']};
@@ -68,6 +68,7 @@ export async function editProfile(){
  const link=(id,ic,title,hint)=>`<button type="button" class="pe-link" id="${id}"><i>${icon(ic)}</i><span><b>${title}</b><small>${hint}</small></span>${icon('chevron')}</button>`;
  modal('Изменить профиль',`<div class="profile-editor">
  <div class="pe-hero"><button type="button" class="pe-photo" id="profile-avatar" aria-label="Изменить фото"><span id="pe-avatar"></span><i>${icon('image')}</i></button><h3 id="pe-name"></h3><p id="pe-username"></p><div class="pe-photo-actions"><button type="button" class="pe-text-button" id="profile-avatar-pick">Выбрать фото</button><button type="button" class="pe-text-button danger" id="profile-avatar-remove">Убрать</button></div></div>
+ <section class="pe-group pe-gallery-group"><h4>Фото профиля</h4><div class="pe-gallery" id="pe-gallery"></div><p class="pe-hint" id="pe-gallery-hint"></p></section>
  <form id="profile-all" class="pe-form">
   <section class="pe-group"><h4>Имя</h4>${field('name','Имя',p.name,'maxlength="80" required autocomplete="given-name"')}${field('surname','Фамилия',p.surname,'maxlength="80" autocomplete="family-name"')}<p class="pe-hint">Так вас увидят в чатах и звонках.</p></section>
   <section class="pe-group"><h4>О себе</h4><label class="pe-row pe-area"><textarea name="bio" maxlength="${bioMax}" rows="3" placeholder="Пара слов о себе">${esc(p.bio)}</textarea></label><p class="pe-hint"><span id="pe-bio-count"></span> · например: дизайнер из Казани ✨</p></section>
@@ -90,6 +91,21 @@ export async function editProfile(){
  const savePhoto=async id=>{await api('/profile/details','PATCH',{avatar:id});p.avatar=id;avatarId=id;const r=await api('/me');if(context){context.state.user=r.user;await context.refresh();}window.dispatchEvent(new Event('profile-saved'));if(form.isConnected)draw();};
  const choosePhoto=()=>pickImage(guard(async original=>{const button=$('#profile-avatar');button.disabled=true;button.classList.add('loading');uploading=true;try{const media=await upload(await prepareAvatar(original));await savePhoto(media.id);toast('Фото профиля обновлено');}finally{button.disabled=false;button.classList.remove('loading');uploading=false;}}));
  $('#profile-avatar').onclick=choosePhoto;$('#profile-avatar-pick').onclick=choosePhoto;
+ // Extra profile photos, shown after the main one when someone opens your photo. Several can be picked at once:
+ // they appear right away, upload in parallel and are saved as soon as each one is ready.
+ let gallery=[...new Set((p.savedProfile?.gallery||p.profile?.gallery||[]).filter(Boolean))];const galleryMax=p.vip?10:2,pending=new Map();let galleryChain=Promise.resolve();
+ const saveGallery=()=>galleryChain=galleryChain.catch(()=>{}).then(()=>api('/profile','PATCH',{gallery}));
+ const drawGallery=()=>{const box=$('#pe-gallery');if(!box?.isConnected)return;const free=galleryMax-gallery.length-pending.size;
+  box.innerHTML=gallery.map(id=>`<figure class="pe-gallery-item"><img src="${esc(accountURL('/api/media/'+encodeURIComponent(id)))}" alt="Фото профиля" decoding="async"><button type="button" class="pe-gallery-main" data-gallery-main="${esc(id)}" title="Сделать главным">★</button><button type="button" class="pe-gallery-remove" data-gallery-remove="${esc(id)}" aria-label="Удалить фото">×</button></figure>`).join('')+[...pending.values()].map(url=>`<figure class="pe-gallery-item loading"><img src="${url}" alt=""><i></i></figure>`).join('')+(free>0?`<button type="button" class="pe-gallery-add" id="pe-gallery-add">${icon('plus')}<small>Добавить</small></button>`:'');
+  $('#pe-gallery-hint').textContent=`${gallery.length} из ${galleryMax}${p.vip?'':' · с VIP до 10 фото'} · ★ — сделать главным`;
+  $('#pe-gallery-add')?.addEventListener('click',addGallery);
+  box.querySelectorAll('[data-gallery-remove]').forEach(b=>b.onclick=guard(async()=>{gallery=gallery.filter(x=>x!==b.dataset.galleryRemove);drawGallery();await saveGallery();}));
+  box.querySelectorAll('[data-gallery-main]').forEach(b=>b.onclick=guard(async()=>{const id=b.dataset.galleryMain,old=avatarId;gallery=gallery.map(x=>x===id?old:x).filter(Boolean);drawGallery();await saveGallery();await savePhoto(id);toast('Главное фото обновлено');}));};
+ const addGallery=()=>pickImages(guard(async chosen=>{const room=galleryMax-gallery.length-pending.size;if(room<=0)throw new Error(`Можно добавить до ${galleryMax} фото`);if(chosen.length>room)toast(`Добавим ${room} из ${chosen.length}: можно до ${galleryMax} фото`);
+  const jobs=chosen.slice(0,room).map(file=>{const key=Symbol(),url=URL.createObjectURL(file);pending.set(key,url);return {file,key,url};});drawGallery();let failed=0;
+  await Promise.all(jobs.map(async({file,key,url})=>{try{const media=await upload(await preparePhoto(file,1600));if(!avatarId){pending.delete(key);await savePhoto(media.id);}else{gallery.push(media.id);pending.delete(key);drawGallery();await saveGallery();}}catch(error){failed++;pending.delete(key);gallery=gallery.filter(Boolean);drawGallery();if(failed===1)toast(error.message);}finally{pending.delete(key);setTimeout(()=>URL.revokeObjectURL(url),1000);}}));
+  drawGallery();if(!failed)toast(jobs.length>1?'Фото добавлены в профиль':'Фото добавлено в профиль');}));
+ drawGallery();
  $('#profile-avatar-remove').onclick=guard(async()=>{await savePhoto('');toast('Фото удалено');});
  form.onsubmit=saveAction(async()=>{
   if(uploading)throw new Error('Дождитесь загрузки фотографии.');
