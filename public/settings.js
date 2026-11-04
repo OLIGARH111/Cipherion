@@ -1,3 +1,4 @@
+import {botsPage} from './bots.js';
 import {accountURL,activeAccount} from './account-context.js';
 import {vipBadge} from './ui.js';
 import {saveAction} from './ui.js';
@@ -40,7 +41,7 @@ export function applyTheme(s){if(s.theme&&activeAccount())localStorage.setItem('
 function toggle(label,key,s,detail=''){return `<label class="setting-row"><div>${label}${detail?`<small>${detail}</small>`:''}</div><input type="checkbox" data-setting="${key}" ${s[key]!==false?'checked':''}></label>`;}
 function bindToggles(state,save){document.querySelectorAll('[data-setting]').forEach(el=>el.onchange=guard(async()=>{state.settings[el.dataset.setting]=el.checked;await save();}));}
 const sections=[
- [['people','#2f7de1','Аккаунты','Переключение и добавление','accounts'],['star','#8a56d8','Cipherion VIP','Подписка, подарки и возможности','vip'],['shield','#6f7b85','Администрирование','Управление Cipherion','admin-access']],
+ [['people','#2f7de1','Аккаунты','Переключение и добавление','accounts'],['bot','#1a95a3','Мои боты','Создание ботов и токены','bots'],['star','#8a56d8','Cipherion VIP','Подписка, подарки и возможности','vip'],['shield','#6f7b85','Администрирование','Управление Cipherion','admin-access']],
  [['bell','#e0444b','Уведомления','Звуки и ваш ритм общения','notifications'],['lock','#6f7b85','Конфиденциальность','Блокировки и защита','privacy'],['key','#2b9a5a','Код-пароль','Блокировка Cipherion на этом устройстве','passcode'],['chat','#2b9a5a','Чаты','Ввод текста и анимации','chats'],['folder','#2f7de1','Папки чатов','Личные, работа, каналы — вкладки над списком','folders'],['palette','#5662d8','Оформление','Темы, фон чата, ночной режим','appearance'],['image','#1a95a3','Обои','Системные, от ИИ и для каждого чата','wallpapers'],['screen','#d9730d','Устройства','Где выполнен вход в аккаунт','devices'],['database','#1a95a3','Данные и память','Файлы и локальные данные','storage'],['language','#8a56d8','Язык','Русский','language']],
  [['history','#d9730d','Архив историй','Ваши истории спустя 24 часа','story-archive'],['image','#d6457e','Настройки историй','Близкие друзья и уведомления','story-settings'],['palette','#d6457e','Оформление профиля','VIP · Фон, emoji-паттерн и рамка','extended-profile']],
  [['ai','#5662d8','AI','Модель, разрешения и память','ai'],['heart','#e0444b','Семья и дети','Правила и защита ребёнка','family']],
@@ -51,6 +52,7 @@ export function settingsPage(state,save,logout){const u=state.user;$('.workspace
   $('#account-summary').onclick=guard(e=>{if(!e.target.closest('#edit-profile'))return asSheet(()=>extendedProfile(state.user.id));});$('#account-summary').onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===e.currentTarget){e.preventDefault();e.currentTarget.click();}};$('#view-my-profile').onclick=guard(()=>asSheet(()=>extendedProfile(state.user.id)));$('#customize-my-profile').onclick=guard(editProfile);$('#open-saved').onclick=guard(()=>state.openSaved?.());$('#edit-profile').onclick=guard(editProfile);$('#logout').onclick=()=>{if(confirm('Выйти из аккаунта на этом устройстве?'))logout();};document.querySelectorAll('[data-section]').forEach(el=>el.onclick=guard(()=>asSheet(async()=>{
     const key=el.dataset.section,s=state.settings;
     if(key==='accounts'){await state.accounts.show();return;}
+    if(key==='bots'){await botsPage(state.openBotChat);return;}
     if(key==='halloween'){halloweenSettings(state,save);return;}
     if(key==='admin-access'){await adminAccessPage();return;}
     if(key==='story-archive'){await storyArchive();return;}if(key==='story-settings'){await storyPreferences();return;}
