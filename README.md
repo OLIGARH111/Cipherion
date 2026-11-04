@@ -141,7 +141,7 @@ npm test
 
 ## Развёртывание
 
-Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит загрузки локально (`MEDIA_STORAGE_MODE=temporary`): на бесплатном Render такие файлы могут пропасть при перезапуске. Для постоянного хранения нужны рабочее S3-хранилище и `MEDIA_STORAGE_MODE=durable`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
+Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит фото и файлы прямо в базе данных (`MEDIA_STORAGE_MODE=database`), поэтому они сохраняются после деплоя и перезапуска даже на бесплатном Render без диска. Для S3-хранилища — `MEDIA_STORAGE_MODE=durable` и переменные `S3_*`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
 
 ## Архитектура
 

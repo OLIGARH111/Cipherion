@@ -9,9 +9,9 @@ COPY --chown=node:node scripts ./scripts
 RUN mkdir /app/data && chown node:node /app/data
 USER node
 ENV HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data
-# Owner-requested interim release: persistent photo storage is deferred.
-# Override with MEDIA_STORAGE_MODE=durable after validating the S3 credentials.
-ENV MEDIA_STORAGE_MODE=temporary
+# Photos and files are kept in the database (Turso), so they survive redeploys.
+# Set MEDIA_STORAGE_MODE=durable to use S3 instead once its credentials are verified.
+ENV MEDIA_STORAGE_MODE=database
 EXPOSE 3000
 VOLUME ["/app/data"]
 CMD ["node", "server/index.js"]
