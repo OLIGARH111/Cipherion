@@ -3,7 +3,9 @@ import {saveAction} from './ui.js';
 import {$,esc,api,modal,guard,toast,upload,adaptiveEmoji} from './ui.js';
 const categories={Смайлы:'😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 🙃 😉 😍 🥰 😘 😎 🤔 😢 😭 😡 🤯 🥳',Люди:'👋 🤚 👍 👎 👏 🙌 🙏 🤝 💪 🫶 👨 👩 👶 🧑 👨‍💻 👩‍💻',Животные:'🐱 🐶 🦊 🐻 🐼 🐸 🐯 🦁 🐰 🐨 🦋 🐝',Еда:'🍏 🍎 🍊 🍋 🍌 🍉 🍇 🍓 🍕 🍔 🍿 ☕ 🍰',Активности:'⚽ 🏀 🏊 🏆 🎮 🎯 🎨 🎸 🎉',Путешествия:'🚗 🚕 🚌 🚂 ✈️ 🚀 🚲 🌍 🏖️ 🏔️',Предметы:'💻 📱 ⌚ 💡 📚 ✏️ 🎁 🔑 📷',Символы:'❤️ 💚 💙 💜 ✨ 🔥 ✅ ❌ ⭐ 💯',Флаги:'🇷🇺 🇬🇧 🇺🇸 🇫🇷 🇩🇪 🇨🇳 🇯🇵 🇮🇳 🇧🇷'};
 const synonyms={'смешно':'😂 🤣 😆','сердце':'❤️ 💚 💙 💜','кот':'🐱','злюсь':'😡','люблю':'❤️ 🥰 😍','привет':'👋','спасибо':'🙏','готово':'✅ 👍'};
-export function renderCustom(text){return esc(text).replace(/:ce\[([a-zA-Z0-9-]+)\]/g,(_,id)=>`<img class="custom-emoji" src="${accountURL('/api/stickers/'+id+'/file?poster=1')}" data-motion="${accountURL('/api/stickers/'+id+'/file')}" data-poster="${accountURL('/api/stickers/'+id+'/file?poster=1')}" alt="Кастомный эмодзи" loading="lazy">`);}
+export function renderCustom(text){return emojiHTML(esc(text));}
+// Custom emoji tokens inside already escaped HTML.
+export function emojiHTML(html){return String(html).replace(/:ce\[([a-zA-Z0-9-]+)\]/g,(_,id)=>`<img class="custom-emoji" src="${accountURL('/api/stickers/'+id+'/file?poster=1')}" data-motion="${accountURL('/api/stickers/'+id+'/file')}" data-poster="${accountURL('/api/stickers/'+id+'/file?poster=1')}" alt="Кастомный эмодзи" loading="lazy">`);}
 // Profile decorations (pattern, badge) also accept adaptive stickers :ae[id].
 export function renderToken(text){const m=/^:ae\[([a-zA-Z0-9-]+)\]$/.exec(String(text||''));return m?adaptiveEmoji(m[1]):renderCustom(text);}
 // Full sticker catalogue (packs, studio, management). The quick picker lives in sticker-panel.js.

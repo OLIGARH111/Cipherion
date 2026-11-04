@@ -56,7 +56,7 @@ export function settingsPage(state,save,logout){const u=state.user;$('.workspace
     if(key==='wallpapers'){wallpaperPicker(state,save);return;}
     if(key==='appearance')appearance(state,save);
     if(key==='notifications')await notificationSettings();
-    if(key==='chats'){modal('Чаты',`${toggle('Отправлять по Enter','enter',s,'Shift + Enter всегда добавляет новую строку')}${toggle('Анимации интерфейса','animations',s)}${toggle('Эффекты профиля','profileEffects',s)}<p class="note">Закрепление и уведомления отдельного чата доступны в меню ⋯ его заголовка.</p>`);bindToggles(state,save);}
+    if(key==='chats'){modal('Чаты',`${toggle('Отправлять по Enter','enter',s,'Shift + Enter всегда добавляет новую строку')}${toggle('Превью ссылок','linkPreviews',s,'Карточку с заголовком и картинкой собирает сервер Cipherion, поэтому сайт не узнаёт ваш адрес. Сам сервер при этом видит ссылку.')}${toggle('Анимации интерфейса','animations',s)}${toggle('Эффекты профиля','profileEffects',s)}<p class="note">Закрепление и уведомления отдельного чата доступны в меню ⋯ его заголовка.</p>`);bindToggles(state,save);}
     if(key==='devices'){await devicesPage();return;}
     if(key==='privacy'){await privacyPage();return;}
     if(key==='storage'){modal('Данные и память','<p class="note">Файлы хранятся на сервере. Действующий лимит размера файла отображается при загрузке и определяется сервером. Медиа загружаются при открытии чата, аудио и видео не воспроизводятся автоматически.</p><button class="secondary" id="clear-drafts">Очистить локальные черновики</button>');$('#clear-drafts').onclick=()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('accounts/'+activeAccount()+'/draft:'))sessionStorage.removeItem(key);toast('Черновики удалены');};}
