@@ -33,6 +33,19 @@ import {schedulePage} from './social.js';
 import {aiPage,familyPage} from './extensions.js';
 import {syncHalloween,maybeWhatsNew,decorateComposer,treatMenuButton,ghostLine,treatCard,bindHalloween} from './halloween.js';
 import {chatDraft,saveDraft,flushDrafts,forgetDraft,bindMessageGestures,heartBurst,bindFileInput,confirmFiles} from './chat-extras.js';
+import {richText,plainText,firstURL} from './rich-text.js';
+import {emojiHTML} from './stickers.js';
+import {linkCard,onPreviewsReady} from './link-cards.js';
+import {setupComposeTools,mentionIds} from './compose-tools.js';
+import {ttlDialog,slowDialog,toggleFeature,modeNotice,slowGuard,markSent,runSlowCountdown,topicsView,topicMenu,createMentionNavigator} from './chat-modes.js';
+import {commentButton,openComments} from './comments.js';
+import {checklistCard,bindChecklists,checklistEditor} from './checklist.js';
+import {locationCard,bindLocations,locationDialog} from './location.js';
+import {exportDialog} from './chat-export.js';
+import {SEALED_TYPE,hydrateSealed} from './sealed-media.js';
+import {canSeal} from './e2e.js';
+import {qrLoginDialog,approveDevice,passkeyLogin,passkeysSupported} from './passwordless.js';
+import {botsPage} from './bots.js';
 
 export const state={user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,mode:'voice'};
 let outbox,synchronizer;
@@ -62,12 +75,14 @@ const app=$('#app');
 const mediaLabel={photo:'Фотография',video:'Видео',file:'Файл',voice:'Голосовое сообщение',round:'Видеосообщение',poll:'Опрос'};
 const tabs=[['chat','Чаты'],['ai','AI'],['phone','Звонки'],['settings','Настройки']];
 const pageCache=new Map();let childRegistration=false;
-const preview=m=>m?.deleted?'Сообщение удалено':m?.ghost?'👻 Призрачное сообщение':m?.kind==='treat'?'🍬 Сладость или гадость?':m?.kind==='sticker'?'Стикер'+(m.sticker?.label?' · '+m.sticker.label:''):String(m?.body||'').replace(/:ce\[[a-zA-Z0-9-]+\]/g,'✨') || mediaLabel[m?.kind] || 'Начните разговор';
+const preview=m=>m?.deleted?'Сообщение удалено':m?.ghost?'👻 Призрачное сообщение':m?.kind==='treat'?'🍬 Сладость или гадость?':m?.kind==='location'?(m.live_until>Date.now()?'📍 Геопозиция в реальном времени':'📍 Геопозиция'):m?.poll?.checklist?'☑️ '+(m.body||'Чек-лист'):m?.kind==='sticker'?'Стикер'+(m.sticker?.label?' · '+m.sticker.label:''):plainText(String(m?.body||'')).replace(/:ce\[[a-zA-Z0-9-]+\]/g,'✨') || mediaLabel[m?.kind] || 'Начните разговор';
 const selected=()=>state.chats.find(c=>c.id===state.chat);
+// In a forum group only the open topic's messages are shown; «Общее» holds those without a topic.
+const inTopic=m=>!state.topic||(m.topic_id||m.topic||'general')===state.topic;
 const savedAvatar=()=>`<span class="avatar saved-avatar" aria-hidden="true">${icon('bookmark')}</span>`;
 const chatAvatar=c=>c?.kind==='saved'?savedAvatar():avatar(c?.title,c?.avatar||chatPeer(c)?.avatar);
 export async function saveSettings(){await api('/me','PATCH',{settings:state.settings});applyTheme(state.settings);syncHalloween(state,saveSettings);}
-function auth(){applyTheme({theme:'Emerald'});app.innerHTML='<main class="auth"><div class="auth-art"><div class="brand"><img class="auth-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="40" height="40">Cipherion</div><h1>Общение, которое <em>ощущается живым</em></h1><p>Чаты, группы, звонки и AI-помощник — всё в одном спокойном и понятном пространстве.</p><ul class="auth-features"><li><span>💬</span>Личные чаты, группы и каналы</li><li><span>📞</span>Аудио- и видеозвонки</li><li><span>✨</span>AI-помощник прямо в переписке</li></ul></div><div class="auth-side"><div id="auth-mount"></div><button class="secondary auth-alt" id="auth-switch">Другие аккаунты устройства</button></div></main>';$('#auth-switch').onclick=guard(()=>accountManager.show());emailAuthView($('#auth-mount'),{complete:async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);}});}
+function auth(){applyTheme({theme:'Emerald'});app.innerHTML='<main class="auth"><div class="auth-art"><div class="brand"><img class="auth-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="40" height="40">Cipherion</div><h1>Общение, которое <em>ощущается живым</em></h1><p>Чаты, группы, звонки и AI-помощник — всё в одном спокойном и понятном пространстве.</p><ul class="auth-features"><li><span>💬</span>Личные чаты, группы и каналы</li><li><span>📞</span>Аудио- и видеозвонки</li><li><span>✨</span>AI-помощник прямо в переписке</li></ul></div><div class="auth-side"><div id="auth-mount"></div><div class="auth-quick"><button class="secondary" id="auth-qr">'+icon('qr')+' Войти по QR-коду</button>'+(passkeysSupported()?'<button class="secondary" id="auth-passkey">'+icon('key')+' Войти с ключом доступа</button>':'')+'</div><button class="secondary auth-alt" id="auth-switch">Другие аккаунты устройства</button></div></main>';$('#auth-switch').onclick=guard(()=>accountManager.show());{const done=async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);};$('#auth-qr').onclick=()=>qrLoginDialog(done);if($('#auth-passkey'))$('#auth-passkey').onclick=guard(()=>passkeyLogin(done));}emailAuthView($('#auth-mount'),{complete:async r=>{await accountManager.refresh();await accountManager.switchTo(r.user.id);}});}
 const backgroundEvents=new Map();
 function resetAccount(){
  state.events?.close();for(const ev of backgroundEvents.values())ev.close();backgroundEvents.clear();
@@ -111,16 +126,16 @@ function closeSearch(){const box=$('#side-search'),input=$('#chat-search');if(!b
 function setConnection(online){const el=$('#connection');if(el)el.textContent=online?'На связи':'Восстанавливаем соединение…';$('.shell')?.setAttribute('data-connection',online?'online':'offline');}
 function mainMenu(anchor=$('#main-menu')){
   const u=state.user,dark=!document.body.classList.contains('light');anchor.setAttribute('aria-expanded','true');
-  const el=popover({anchor,className:'main-menu',label:'Главное меню',onClose:()=>anchor.setAttribute('aria-expanded','false'),html:`<button type="button" role="menuitem" class="menu-profile" data-menu="profile">${avatar(u.name,u.avatar)}<span><b>${esc(u.name)} ${vipBadge(u)}</b><small>${u.username?'@'+esc(u.username):'Мой профиль'}</small></span></button><div class="ctx-sep"></div>${menuItem('data-menu="saved"',icon('bookmark'),'Избранное')}${menuItem('data-menu="tab" data-goto="chat"',icon('chat'),'Чаты')}${menuItem('data-menu="tab" data-goto="ai"',icon('ai'),'AI-помощник')}${menuItem('data-menu="tab" data-goto="phone"',icon('phone'),'Звонки')}${menuItem('data-menu="tab" data-goto="settings"',icon('settings'),'Настройки')}<div class="ctx-sep"></div>${menuItem('data-menu="group"',icon('group'),'Создать группу')}${menuItem('data-menu="channel"',icon('channel'),'Создать канал')}${menuItem('data-menu="accounts"',icon('people'),'Аккаунты')}<div class="ctx-sep"></div><button type="button" role="menuitemcheckbox" aria-checked="${dark}" class="ctx-item" data-menu="night">${icon('moon')}<span>Ночной режим</span><i class="switch" aria-hidden="true"></i></button>`});
+  const el=popover({anchor,className:'main-menu',label:'Главное меню',onClose:()=>anchor.setAttribute('aria-expanded','false'),html:`<button type="button" role="menuitem" class="menu-profile" data-menu="profile">${avatar(u.name,u.avatar)}<span><b>${esc(u.name)} ${vipBadge(u)}</b><small>${u.username?'@'+esc(u.username):'Мой профиль'}</small></span></button><div class="ctx-sep"></div>${menuItem('data-menu="saved"',icon('bookmark'),'Избранное')}${menuItem('data-menu="tab" data-goto="chat"',icon('chat'),'Чаты')}${menuItem('data-menu="tab" data-goto="ai"',icon('ai'),'AI-помощник')}${menuItem('data-menu="tab" data-goto="phone"',icon('phone'),'Звонки')}${menuItem('data-menu="tab" data-goto="settings"',icon('settings'),'Настройки')}<div class="ctx-sep"></div>${menuItem('data-menu="group"',icon('group'),'Создать группу')}${menuItem('data-menu="channel"',icon('channel'),'Создать канал')}${menuItem('data-menu="bots"',icon('bot'),'Мои боты')}${menuItem('data-menu="accounts"',icon('people'),'Аккаунты')}<div class="ctx-sep"></div><button type="button" role="menuitemcheckbox" aria-checked="${dark}" class="ctx-item" data-menu="night">${icon('moon')}<span>Ночной режим</span><i class="switch" aria-hidden="true"></i></button>`});
   el.querySelectorAll('[data-menu]').forEach(b=>b.onclick=guard(async()=>{const what=b.dataset.menu;if(what==='night'){await toggleNight();b.setAttribute('aria-checked',String(!document.body.classList.contains('light')));return;}closePopover();
-    if(what==='profile')await asSheet(()=>extendedProfile(u.id));else if(what==='saved')await openSaved();else if(what==='tab')await navigate(b.dataset.goto);else if(what==='accounts')await accountManager.show();else await newChat(what);}));
+    if(what==='profile')await asSheet(()=>extendedProfile(u.id));else if(what==='saved')await openSaved();else if(what==='tab')await navigate(b.dataset.goto);else if(what==='accounts')await accountManager.show();else if(what==='bots')await botsPage(async(id,fresh)=>{await refresh();if(state.tab!=='chat')await navigate('chat');await openChat(id,fresh);});else await newChat(what);}));
 }
 async function toggleNight(){const s=state.settings,light=document.body.classList.contains('light'),previous={...s};if(light)s.theme=s.darkTheme&&themes[s.darkTheme]&&themes[s.darkTheme]!==themes.White?s.darkTheme:'Emerald';else{s.darkTheme=s.theme||'Emerald';s.theme='White';}s.systemTheme=false;try{await saveSettings();}catch(error){state.settings=previous;applyTheme(previous);throw error;}}
 function empty(){const w=$('.workspace');if(!w)return;w.innerHTML=`<div class="empty"><div class="empty-symbol">${icon('chat')}</div><span class="eyebrow">БЫТЬ НА СВЯЗИ — ПРОСТО</span><h2>Хорошие разговоры<br>начинаются с «привет»</h2><p>Выберите чат или найдите человека по username, чтобы написать первым.</p><button class="primary" id="start-chat">${icon('plus')} Новый разговор</button><small>${icon('shield')} Ваше пространство. Ваш круг общения.</small></div>`;$('#start-chat').onclick=()=>newChat();}
 function closeChat(){
   if(state.recording){toast('Завершите или отмените запись');return;}
   const shellEl=$('.shell');if(!shellEl||!state.chat)return;closePopover();
-  flushDrafts();state.chat=null;state.reply=null;state.editing=null;state.stashedDraft=null;state.selection=null;state.find=null;pageCache.delete('chat');
+  flushDrafts();state.chat=null;state.topic=null;state.topicChat=null;state.reply=null;state.editing=null;state.stashedDraft=null;state.selection=null;state.find=null;pageCache.delete('chat');
   shellEl.classList.remove('show-chat');renderChats();
   setTimeout(()=>{if(!state.chat&&state.tab==='chat')empty();},mobile()&&!calm()?260:0);
 }
@@ -133,7 +148,7 @@ function chatMuted(c){return !!c.muted||(state.settings.muted||[]).includes(c.id
 function chatItem(c,pins=state.settings.pins||[]){
   const peer=chatPeer(c),pinned=pins.includes(c.id),muted=chatMuted(c),sel=c.id===state.chat,author=previewAuthor(c),typing=typingNow.get(c.id),draft=!sel&&!typing&&chatDraft(c);
   const line=typing?`<em class="typing-text">${esc(typing)}</em>`:draft?`<span class="draft-label">Черновик:</span> ${esc(draft.body.replace(/\s+/g,' '))}`:`${author?`<span class="preview-author">${esc(author)}:</span> `:''}${esc(c.kind==='saved'&&!c.last?'Заметки, файлы и пересланные сообщения':preview(c.last))}`;
-  return `<button class="chat-item ${sel?'selected':''} ${muted?'muted':''} ${c.unread?'unread':''}" data-chat="${c.id}" ${sel?'aria-current="true"':''}><span class="chat-avatar">${chatAvatar(c)}${peer?.online?'<i class="online-dot" aria-label="в сети"></i>':''}</span><span class="chat-info"><span class="chat-line"><strong class="chat-title">${c.kind==='group'?icon('group'):c.kind==='channel'?icon('channel'):''}<span class="chat-name">${esc(c.title)}</span>${chatVipBadge(c)}${muted?`<span class="muted-icon" aria-label="Без звука">${icon('mute')}</span>`:''}</strong><span class="chat-meta">${draft?'':lastTicks(c)}<time>${draft?listTime(draft.updated||c.last?.created):c.last?listTime(c.last.created):''}</time></span></span><span class="chat-line"><span class="chat-preview">${line}</span><span class="chat-badges">${c.unread?`<span class="badge" aria-label="${c.unread} непрочитанных">${c.unread>999?'999+':c.unread}</span>`:pinned?`<span class="pin-icon" aria-label="Закреплён">${icon('pin')}</span>`:''}</span></span></span></button>`;
+  return `<button class="chat-item ${sel?'selected':''} ${muted?'muted':''} ${c.unread?'unread':''}" data-chat="${c.id}" ${sel?'aria-current="true"':''}><span class="chat-avatar">${chatAvatar(c)}${peer?.online?'<i class="online-dot" aria-label="в сети"></i>':''}</span><span class="chat-info"><span class="chat-line"><strong class="chat-title">${c.kind==='group'?icon('group'):c.kind==='channel'?icon('channel'):''}<span class="chat-name">${esc(c.title)}</span>${chatVipBadge(c)}${muted?`<span class="muted-icon" aria-label="Без звука">${icon('mute')}</span>`:''}</strong><span class="chat-meta">${draft?'':lastTicks(c)}<time>${draft?listTime(draft.updated||c.last?.created):c.last?listTime(c.last.created):''}</time></span></span><span class="chat-line"><span class="chat-preview">${line}</span><span class="chat-badges">${c.mentions?'<span class="badge mention-badge" aria-label="Вас упомянули">@</span>':''}${c.unread?`<span class="badge" aria-label="${c.unread} непрочитанных">${c.unread>999?'999+':c.unread}</span>`:pinned?`<span class="pin-icon" aria-label="Закреплён">${icon('pin')}</span>`:''}</span></span></span></button>`;
 }
 function renderChats(){
   const target=$('.chat-list');if(!target)return;const q=($('#chat-search')?.value||'').trim().toLowerCase();
@@ -221,15 +236,23 @@ function readSnapshot(id){try{const s=JSON.parse(localStorage.getItem(snapshotKe
 // Sending and calling need the outbox and the call engine, which exist once the start has finished.
 let bootDone=Promise.resolve();
 const offlineError=()=>new Error('Нет соединения с сервером. Проверьте интернет и повторите попытку.');
-function queueOutgoing(...args){if(outbox)return outbox.enqueue(...args);return bootDone.then(()=>{if(!outbox)throw offlineError();return outbox.enqueue(...args);});}
+function queueOutgoing(...args){if(args[0]===state.chat&&state.topic&&state.topic!=='general'&&args[1]&&args[1].topic===undefined&&!args[1].forward&&!args[1].sticker)args[1]={...args[1],topic:state.topic};if(outbox)return outbox.enqueue(...args);return bootDone.then(()=>{if(!outbox)throw offlineError();return outbox.enqueue(...args);});}
 function startCall(...args){if(calls)return calls.start(...args);return bootDone.then(()=>{if(!calls)throw offlineError();return calls.start(...args);});}
 export async function refresh(){const ticket=accountEpoch(),pending=prefetchedChats;prefetchedChats=null;const chats=await (pending||api('/chats'));if(ticket!==accountEpoch())return;for(const chat of chats)for(const member of chat.members){const previous=state.chats.find(c=>c.id===chat.id)?.members.find(m=>m.user_id===member.user_id);member.read_at=Math.max(member.read_at||0,previous?.read_at||0);member.delivered_at=Math.max(member.delivered_at||0,previous?.delivered_at||0);}state.chats=chats;renderChats();saveSnapshot();if(state.chat&&!selected()){state.chat=null;empty();$('.shell')?.classList.remove('show-chat');}else setStatus();}
 // On phones the header has no action buttons: name and avatar open the profile, which lists the chat actions.
 const pillHeadMode=()=>!!$('.conversation-header.pill-head')&&matchMedia('(max-width:700px)').matches;
 function chatStatus(c){if(c.kind==='saved')return 'заметки и пересылки';if(c.kind==='direct'){const p=chatPeer(c);if(p?.official)return 'официальный аккаунт';return p?.online?'<span class="online">в сети</span>':esc(lastSeenText(p));}const online=c.members.filter(m=>m.online&&m.user_id!==state.user.id).length;return esc(peopleCount(c.members.length,c.kind==='channel'))+(c.kind==='group'&&online?`, ${online} в сети`:'');}
 function setStatus(){const t=$('#chat-status'),c=selected();if(t&&c&&!typingNow.has(c.id))t.innerHTML=chatStatus(c);}
-export async function openChat(chatId){
+async function openTopics(chatId){
+  closePopover();flushDrafts();state.chat=chatId;state.tab='chat';markTab('chat');state.messages=[];renderedKeys=null;
+  const c=selected();$('.shell').classList.add('show-chat');$('.shell').classList.remove('show-page');renderChats();
+  await topicsView(c,{onBack:()=>closeChat(),onInfo:guard(()=>asSheet(()=>groupPanel(c,state,refresh))),onPick:topic=>{state.topic=topic.id;state.topicChat=chatId;state.topicInfo=topic;messagesByChat.delete(chatId);openChat(chatId);}});
+}
+let mentions=null;
+export async function openChat(chatId,fresh=false){
   if(state.recording){toast('Завершите или отмените запись');return;}
+  if(fresh||state.topicChat!==chatId){state.topic=null;state.topicChat=null;}
+  {const forum=state.chats.find(c=>c.id===chatId);if(forum?.kind==='group'&&forum.forum&&!state.topic)return openTopics(chatId);}
   closePopover();flushDrafts();state.stashedDraft=null;pageCache.delete('chat');state.messages=messagesByChat.get(chatId)||[];state.chat=chatId;state.tab='chat';markTab('chat');state.reply=null;state.editing=null;state.selection=null;state.find=null;state.unseen=0;state.ghostMode=false;state.loading=!state.messages.length;renderedKeys=null;const c=selected();if(!c)return;
   $('.shell').classList.add('show-chat');$('.shell').classList.remove('show-page');renderChats();
   const people=c.members.filter(m=>m.user_id!==state.user.id),official=c.kind==='direct'&&!!people[0]?.official;
@@ -242,7 +265,10 @@ export async function openChat(chatId){
   $('#chat-menu').onclick=()=>chatMenu();$('#chat-find').onclick=()=>openFind();
   if($('#audio-call'))$('#audio-call').onclick=guard(()=>startCall(c,false));
   if($('#video-call'))$('#video-call').onclick=guard(()=>startCall(c,true));
-  bindMessageList();
+  if(state.topic){const title=state.topicInfo?.title||'Общее';$('.conversation-title h3').innerHTML=`${esc(state.topicInfo?.icon||'💬')} ${esc(title)}`;$('#chat-status').textContent=c.title;$('#chat-back').onclick=()=>{state.topic=null;openChat(chatId);};$('.conversation-title').onclick=()=>topicMenu(c,state.topicInfo,async removed=>{if(removed){state.topic=null;await openChat(chatId);}else{await openChat(chatId);}});}
+  $('#pinned-bar').insertAdjacentHTML('afterend',`<div id="mode-bar">${modeNotice(c)}</div>`);
+  mentions?.dispose();mentions=createMentionNavigator({chatId,topic:()=>state.topic,find:id=>state.messages.some(m=>m.id===id),loadOlder,jump:id=>jumpTo(id)});
+  bindMessageList();mentions.install();mentions.load();
   // The official Cipherion chat is read-only: only a mute toggle instead of the composer.
   if(official){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить уведомления':'Выключить уведомления'}</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});renderMessages(true);await loadMessages();return;}
   if(c.kind==='channel'&&!c.canPost){$('.composer-wrap').remove();$('.conversation').insertAdjacentHTML('beforeend',`<div class="channel-actions"><button class="secondary" id="channel-mute">${c.muted?'Включить звук':'Выключить звук'}</button><button class="secondary" id="channel-leave">Покинуть канал</button></div>`);$('#channel-mute').onclick=guard(async()=>{await api('/chat-mute','POST',{chat:c.id,duration:c.muted?'off':'forever'});await refresh();await openChat(c.id);});$('#channel-leave').onclick=guard(async()=>{await api('/communities/'+c.id+'/leave','POST',{});await refresh();});renderMessages(true);await loadMessages();return;}
@@ -253,7 +279,7 @@ export async function openChat(chatId){
   $('#draft').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!e.repeat&&state.settings.enter!==false){e.preventDefault();guard(sendText)();}else if(e.key==='ArrowUp'&&!e.target.value&&!e.shiftKey&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!state.editing){if(editLast())e.preventDefault();}};
   $('#draft').oninput=e=>{const el=$('#draft');warmKeys(state.user.id,chatId);if(!state.editing&&state.chat===chatId)saveDraft(chatId,el.value);el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';if(el.value&&c.kind!=='saved'&&Date.now()-typingAt>2500){typingAt=Date.now();api(`/chats/${chatId}/typing`,'POST',{}).catch(()=>{});}};
   $('#attach').onclick=attachments;$('#emoji').onclick=()=>toggleEmojiPanel(state,saveSettings);
-  setupComposerAI();setupStickerSuggestions(state,saveSettings);setupRecorder();renderMessages(true);
+  setupComposerAI();setupStickerSuggestions(state,saveSettings);setupRecorder();setupComposeTools({getChat:selected,me:()=>state.user.id});runSlowCountdown(c);if(state.topicInfo?.closed&&!c.staff){$('#draft').disabled=true;$('#draft').placeholder='Тема закрыта';}renderMessages(true);
   if($('#draft').value){const el=$('#draft');el.style.height=Math.min(el.scrollHeight,200)+'px';}
   if(!mobile())$('#draft').focus({preventScroll:true});
   await loadMessages();
@@ -282,7 +308,7 @@ async function loadMessages(scroll=true){
   const chatId=state.chat;if(!chatId)return;const generation=++chatGeneration;let rows,shownSaved=false;
   // Messages saved on this device appear at once; the server's answer is merged in when it arrives.
   if(state.loading&&state.user)savedMessages(state.user.id,chatId).then(saved=>{if(!saved.length||generation!==chatGeneration||chatId!==state.chat||!state.loading)return;shownSaved=true;state.loading=false;acceptMessages(chatId,saved,scroll);}).catch(()=>{});
-  try{rows=await api(`/chats/${chatId}/messages`);await synchronizer?.write(rows);}
+  try{rows=await api(`/chats/${chatId}/messages${state.topic?'?topic='+encodeURIComponent(state.topic):''}`);await synchronizer?.write(rows);}
   catch(e){if(e.status){if(generation===chatGeneration&&chatId===state.chat&&state.loading){state.loading=false;renderMessages(false);}throw e;}rows=(await synchronizer?.cached(chatId)||[]).slice(-60);}
   if(generation!==chatGeneration||chatId!==state.chat)return;state.loading=false;acceptMessages(chatId,rows,scroll&&!shownSaved);
   if(rows.length&&navigator.onLine){await api('/receipts','POST',{chat:chatId,message:rows.at(-1).id});if(document.visibilityState==='visible')await api(`/chats/${chatId}/read`,'POST',{message:rows.at(-1).id});}
@@ -294,9 +320,18 @@ const skeleton=()=>`<div class="skeleton-list" data-key="skeleton" aria-hidden="
 function messageHTML(m,{first,last,kind,others}){
   const own=m.user_id===state.user.id,c=selected(),member=c?.members.find(p=>p.user_id===m.user_id),name=authorName(m);let content='';
   const jumbo=m.kind==='text'&&!m.deleted&&!m.media&&!m.poll&&!m.reply_id&&!m.forwarded&&!m.story?jumboSize(m.body):0;
-  const hasText=!jumbo&&!m.deleted&&m.kind!=='sticker'&&!!String(m.body||'').trim();const tail=[];let visual=!!jumbo;
+  let card='';const hasText=!jumbo&&!m.deleted&&!['sticker','location'].includes(m.kind)&&!m.poll?.checklist&&!!String(m.body||'').trim();const tail=[];let visual=!!jumbo;
   if(!m.deleted){
-    if(m.media){const source=accountURL('/api/media/'+m.media.id),locked=restricted(c);
+    if(m.media&&m.media.type===SEALED_TYPE){visual=['photo','video','round'].includes(m.kind);const f=m.file,id=esc(m.media.id),locked=restricted(c);
+      if(!f)content+=`<div class="file file-locked">${icon('lock')}<span>Зашифрованное вложение<br><small>Недоступно на этом устройстве</small></span></div>`;
+      else if(m.kind==='photo')content+=`<div class="media sealed-media"><img data-sealed="${id}" alt="${esc(f.n)}" draggable="false"></div>`;
+      else if(m.kind==='round')content+=`<div class="sealed-media"><video class="round" data-sealed="${id}" controls playsinline preload="metadata" disablepictureinpicture></video></div>`;
+      else if(m.kind==='video')content+=`<div class="sealed-media"><video data-sealed="${id}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video></div>`;
+      else if(m.kind==='voice')content+=`<div class="sealed-media"><audio data-sealed="${id}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button></div>`;
+      else if(locked)content+=`<div class="file file-locked"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
+      else content+=`<a class="file sealed-media" data-sealed="${id}" href="#" download="${esc(f.n)}"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · ${icon('lock')} зашифровано</small></span>${icon('download')}</a>`;
+    }
+    else if(m.media){const source=accountURL('/api/media/'+m.media.id),locked=restricted(c);
       if(m.kind==='photo'){visual=true;content+=locked?`<div class="media"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`:`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
       else if(m.kind==='round'){visual=true;content+=`<div class="round-note" role="button" tabindex="0" data-round="${source}" aria-label="Воспроизвести видео-кружок"><video class="round" src="${source}#t=0.001" muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video><span class="round-duration"></span><span class="round-muted" aria-hidden="true">${icon('speakeroff')}</span></div>`;}
       else if(m.kind==='video'){visual=true;content+=`<video src="${source}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video>`;}
@@ -308,7 +343,8 @@ function messageHTML(m,{first,last,kind,others}){
     if(m.forwarded)content=`<div class="forward-label">Переслано от <b>${esc(m.forwarded)}</b></div>`+content;
     if(m.pending&&m.kind!=='text'&&m.kind!=='sticker')content+=`<div class="attachment-pending">${esc(m.attachmentName||mediaLabel[m.kind]||'Вложение')}</div>`;
     if(m.kind==='sticker'){visual=true;content+=`<img class="sent-sticker" src="${esc(accountURL(m.sticker?.poster||'/api/stickers/'+encodeURIComponent(m.body)+'/file'))}" ${m.sticker?.animated?`data-motion="${esc(accountURL(m.sticker.url))}" data-poster="${esc(accountURL(m.sticker.poster))}"`:""} alt="${esc(m.sticker?.label||'Стикер')}" loading="lazy">`;}
-    if(m.poll)tail.push(pollCard(m));
+    if(m.poll)tail.push(m.poll.checklist?checklistCard(m,state.user.id):pollCard(m));
+    if(m.kind==='location'){visual=true;tail.push(locationCard(m,state.user.id));}
     if(m.kind==='treat'){visual=true;tail.push(treatCard(m,state.user.id));}
     if(m.ghost)tail.push(ghostLine(m));
     if(m.story)content='<div class="reply-preview story-reply">'+(m.story.unavailable?'История недоступна':'Ответ на историю: '+esc(m.story.caption||m.story.kind))+'</div>'+content;
@@ -318,18 +354,19 @@ function messageHTML(m,{first,last,kind,others}){
   m.status=m.pending?(m.error?'failed':'sending'):read?'read':delivered?'delivered':'sent';
   const status=m.pending?`<span class="send-status ${m.error?'failed':''}" title="${esc(m.error||'Отправляется')}">${m.error?'<b aria-hidden="true">!</b> Не отправлено':`${icon('clock')}<span class="sr-only">Отправляется…</span>`}</span>${m.error?`<button class="chip retry-send" data-client-id="${esc(m.clientMessageId)}">Повторить</button>`:''}`:own&&others.length?ticks(m.status):'';
   const mediaOnly=visual&&!hasText&&!m.reply_id&&!m.forwarded&&!m.story&&(!tail.length||m.kind==='round')&&(!m.pending||!!jumbo||m.kind==='round');
-  const footer=`<span class="message-footer${mediaOnly?' overlay':''}">${m.pinned?`<span class="footer-pin" aria-label="Закреплено">${icon('pin')}</span>`:''}${m.e2eState==='ok'?`<span class="footer-e2e" title="Сквозное шифрование" aria-label="Зашифровано">${icon('lock')}</span>`:''}${m.edited?'<span class="edited">изменено</span>':''}<time datetime="${new Date(m.created).toISOString()}">${time(m.created)}</time>${status}</span>`;
+  const footer=`<span class="message-footer${mediaOnly?' overlay':''}">${m.pinned?`<span class="footer-pin" aria-label="Закреплено">${icon('pin')}</span>`:''}${m.e2eState==='ok'?`<span class="footer-e2e" title="Сквозное шифрование" aria-label="Зашифровано">${icon('lock')}</span>`:''}${m.expires_at&&!m.deleted?`<span class="footer-timer" title="Удалится ${esc(new Date(m.expires_at).toLocaleString('ru'))}" aria-label="Сообщение с таймером">${icon('timer')}</span>`:''}${m.edited&&m.kind!=='location'?'<span class="edited">изменено</span>':''}<time datetime="${new Date(m.created).toISOString()}">${time(m.created)}</time>${status}</span>`;
   const reactions=!m.deleted&&m.reactions?.length?`<div class="message-reactions">${m.reactions.map(r=>`<button type="button" class="reaction${r.emoji===m.myReaction?' mine':''}" data-react="${esc(r.emoji)}" data-message="${m.id}" aria-label="Реакция ${esc(r.emoji)}: ${r.count}">${renderCustom(r.emoji)}<span>${r.count}</span></button>`).join('')}${footer}</div>`:'';
   if(m.deleted)content=`<div class="body deleted">${icon('trash')}<span>Сообщение удалено</span>${footer}</div>`;
   else if(jumbo)content+=`<div class="jumbo-emoji jumbo-${jumbo}">${renderCustom(m.body.trim())}</div>`;
-  else if(m.kind!=='sticker')content+=hasText||!visual?`<div class="body">${renderCustom(m.body)}${!reactions&&!tail.length&&hasText?footer:''}</div>`:'';
+  else if(m.kind!=='sticker'&&m.kind!=='location'&&!m.poll?.checklist){card=hasText&&!m.pending&&state.settings.linkPreviews!==false&&m.kind==='text'?linkCard(firstURL(m.body)):'';content+=hasText||!visual?`<div class="body">${richText(m.body,{emoji:emojiHTML})}${!reactions&&!tail.length&&!card&&hasText?footer:''}</div>`:'';content+=card;}
   content+=tail.join('');
-  if(!m.deleted){if(reactions)content+=reactions;else if(!hasText||tail.length)content+=footer;}
+  if(!m.deleted){if(reactions)content+=reactions;else if(!hasText||tail.length||card)content+=footer;}
+  if(c?.kind==='channel')content+=commentButton(m,c);
   const showAuthor=!['direct','saved'].includes(c?.kind)&&first&&!(mediaOnly&&m.kind==='sticker')&&(!own||state.user.vip);
   const author=showAuthor?`<button class="author profile-name" data-open-profile="${m.user_id}" data-tone="${tone(name)}">${esc(name)} ${vipBadge(own?state.user:member||m.author)}${member?.tag?`<span class="member-tag">${esc(member.tag)}</span>`:''}</button>`:'';
   const side=kind==='group'&&!own?(last?`<button type="button" class="msg-avatar" data-open-profile="${m.user_id}" aria-label="Профиль: ${esc(name)}">${avatar(name,member?.avatar||m.author?.avatar)}</button>`:'<span class="msg-avatar"></span>'):'';
   const picked=state.selection?.has(m.id),found=state.find?.ids.includes(m.id),current=found&&state.find.ids[state.find.index]===m.id;
-  return `<article class="message ${own?'own':''} ${m.ghost&&!m.deleted?'ghost-message':''} ${first?'first':''} ${last?'last':''} ${picked?'picked':''} ${found?'found':''} ${current?'found-current':''}" data-key="${esc(messageKey(m))}" data-id="${m.id}">${state.selection?`<span class="select-mark" aria-hidden="true">${icon('check')}</span>`:''}${side}<div class="bubble ${mediaOnly?'media-only':''} ${mediaOnly&&(jumbo||['sticker','round'].includes(m.kind))?'bare':''} ${m.kind==='sticker'?'sticker-bubble':''}">${author}${content}</div>${!m.deleted&&!m.pending&&!state.selection?`<button class="message-menu" data-message="${m.id}" aria-label="Действия сообщения">${icon('kebab')}</button>`:''}</article>`;
+  return `<article class="message ${own?'own':''} ${m.mentioned?'mentioned':''} ${m.ghost&&!m.deleted?'ghost-message':''} ${first?'first':''} ${last?'last':''} ${picked?'picked':''} ${found?'found':''} ${current?'found-current':''}" data-key="${esc(messageKey(m))}" data-id="${m.id}">${state.selection?`<span class="select-mark" aria-hidden="true">${icon('check')}</span>`:''}${side}<div class="bubble ${mediaOnly?'media-only':''} ${mediaOnly&&(jumbo||['sticker','round'].includes(m.kind))?'bare':''} ${m.kind==='sticker'?'sticker-bubble':''}">${author}${content}</div>${!m.deleted&&!m.pending&&!state.selection?`<button class="message-menu" data-message="${m.id}" aria-label="Действия сообщения">${icon('kebab')}</button>`:''}</article>`;
 }
 function renderMessages(scroll){
   const box=$('.messages');if(!box)return;syncProtection(selected(),state.user);const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;const previous=box.scrollTop;
@@ -338,7 +375,7 @@ function renderMessages(scroll){
   renderedKeys=new Set(state.messages.map(messageKey));
   let html=state.messages.length>=60?'<button class="chip older" id="older">Загрузить предыдущие</button>':'';
   // Deleted messages simply disappear from the history (no "message deleted" placeholder).
-  const shown=state.messages.filter(m=>!m.deleted);
+  const shown=state.messages.filter(m=>!m.deleted&&inTopic(m));
   if(!shown.length)html+=state.loading?skeleton():`<div class="chat-empty" data-key="chat-empty"><span>${kind==='channel'?'Здесь пока нет публикаций':kind==='saved'?'Сохраняйте здесь заметки, файлы и пересланные сообщения — они доступны на всех ваших устройствах':'Сообщений пока нет — напишите первым 👋'}</span></div>`;
   let lastDay='';
   shown.forEach((m,i)=>{const day=dayKey(m.created);if(day!==lastDay){html+=`<div class="date-divider" data-key="day:${day}"><span>${dayLabel(m.created)}</span></div>`;lastDay=day;}html+=messageHTML(m,{first:!sameRun(shown[i-1],m),last:!sameRun(m,shown[i+1]),kind,others});});
@@ -346,6 +383,9 @@ function renderMessages(scroll){
   box.querySelectorAll('.retry-send').forEach(el=>el.onclick=guard(()=>outbox.retry(el.dataset.clientId)));
   if(scroll||nearBottom)box.scrollTop=box.scrollHeight;else box.scrollTop=previous;
   bindPolls(box,state,loadMessages);bindHalloween(box,loadMessages);bindStickerEffects(box,state.messages,state.settings);
+  hydrateSealed(box,state.messages);bindLocations(box);mentions?.watch();
+  bindChecklists(box,state,(m,poll)=>{m.poll=poll;acceptMessages(m.chat_id,[{...m,poll}]);});
+  box.querySelectorAll('[data-comments]').forEach(el=>el.onclick=guard(async()=>{const m=state.messages.find(x=>x.id===el.dataset.comments);if(!m)return;await openComments(m,selected(),richText(m.body||'',{emoji:emojiHTML}));}));
   box.querySelectorAll('.message-menu').forEach(el=>el.onclick=()=>messageMenu(el.dataset.message,{anchor:el}));
   box.querySelectorAll('[data-vote]').forEach(el=>el.onclick=guard(async()=>{const m=state.messages.find(m=>m.id===el.dataset.message);const choice=Number(el.dataset.vote);const choices=m.poll.multiple?(m.poll.mine.includes(choice)?m.poll.mine.filter(c=>c!==choice):[...m.poll.mine,choice]):[choice];await api(`/messages/${m.id}/vote`,'POST',{choices});await loadMessages(false);}));
   box.querySelectorAll('.transcribe').forEach(el=>el.onclick=guard(async()=>{const m=state.messages.find(m=>m.id===el.dataset.message);if(m.transcript){el.nextElementSibling.classList.toggle('hidden');return;}if(!confirm('Отправить запись в подключённый сервис распознавания речи?'))return;el.disabled=true;el.textContent='Распознаём…';try{await api(`/messages/${m.id}/transcribe`,'POST',{consent:true});await loadMessages(false);}finally{el.disabled=false;el.textContent='Расшифровать';}}));
@@ -354,19 +394,20 @@ function renderMessages(scroll){
   renderPinned();updateScrollDown();
 }
 async function loadOlder(){
-  const box=$('.messages'),chat=state.chat,first=state.messages.find(m=>!m.pending),generation=chatGeneration;if(!box||!first)return 0;
-  const rows=await api(`/chats/${chat}/messages?before=${first.created}&beforeId=${encodeURIComponent(first.id)}`);if(chat!==state.chat||generation!==chatGeneration)return 0;
+  const box=$('.messages'),chat=state.chat,first=state.messages.find(m=>!m.pending&&inTopic(m)),generation=chatGeneration;if(!box||!first)return 0;
+  const rows=await api(`/chats/${chat}/messages?before=${first.created}&beforeId=${encodeURIComponent(first.id)}${state.topic?'&topic='+encodeURIComponent(state.topic):''}`);if(chat!==state.chat||generation!==chatGeneration)return 0;
   if(!rows.length){$('#older')?.remove();return 0;}
   const height=box.scrollHeight;acceptMessages(chat,rows);box.scrollTop=box.scrollHeight-height;return rows.length;
 }
 function renderPinned(){const bar=$('#pinned-bar');if(!bar)return;const m=[...state.messages].reverse().find(x=>x.pinned&&!x.deleted);const key=m?m.id+':'+preview(m):'';if(bar.dataset.key===key)return;bar.dataset.key=key;if(!m){bar.innerHTML='';return;}bar.innerHTML=`<button type="button" class="pinned-bar"><span class="pinned-text"><b>Закреплённое сообщение</b><span>${esc(preview(m))}</span></span>${icon('pin')}</button>`;bar.firstElementChild.onclick=()=>jumpTo(m.id);}
 async function sendText(){
  const input=$('#draft'),text=input.value.trim(),chat=state.chat;if(!text||!chat)return;
- const editing=state.editing,payload={body:text,reply:state.reply,...(state.ghostMode&&!state.editing?{ghost:true}:{})};
+ const editing=state.editing,current=selected();if(!editing&&!slowGuard(current))return;
+ const mentioned=mentionIds(text,current,state.user.id),payload={body:text,reply:state.reply,...(mentioned.length?{mentions:mentioned}:{}),...(state.ghostMode&&!state.editing?{ghost:true}:{})};
  // Capture and clear before the first await: Enter + submit cannot send twice.
  input.value='';input.dispatchEvent(new Event('input'));if(!editing)forgetDraft(chat);// the server drops the saved draft when the message arrives
  state.reply=null;state.editing=null;$('#reply-area').innerHTML='';
- if(!editing){await queueOutgoing(chat,payload);return;}
+ if(!editing){markSent(current);await queueOutgoing(chat,payload);return;}
  restoreStashedDraft();
  try{const original=state.messages.find(m=>m.id===editing),envelope=original?.e2e?await seal(state.user.id,chat,text):null;if(original?.e2e&&!envelope)throw new Error('Не удалось зашифровать изменённое сообщение для всех участников');await api('/messages/'+editing,'PATCH',envelope?{e2e:envelope,emoji:emojiKeys(text)}:{body:text});const updated=await api('/messages/'+editing);acceptMessages(chat,[updated]);}
  catch(error){if(state.chat===chat){state.stashedDraft=input.value;input.value=text;state.editing=editing;replyBar('Редактирование',text,'edit');input.dispatchEvent(new Event('input'));}throw error;}
@@ -424,7 +465,7 @@ function forwardMessages(list){
   if(!list.length)return;
   modal(list.length>1?`Переслать ${list.length} сообщ.`:'Переслать',`<div class="search">${icon('search')}<input id="forward-search" type="search" placeholder="Поиск чата" aria-label="Поиск чата"></div><div class="forward-list">${state.chats.some(c=>c.kind==='saved')?'':`<button class="forward-item" data-forward="saved">${savedAvatar()}<span>Избранное</span></button>`}${[...state.chats].sort((a,b)=>Number(b.kind==='saved')-Number(a.kind==='saved')).filter(c=>c.kind!=='channel'||c.canPost).map(c=>`<button class="forward-item" data-forward="${c.id}">${chatAvatar(c)}<span>${esc(c.title)}</span></button>`).join('')}</div>`);
   $('#forward-search').oninput=e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('[data-forward]').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q));};
-  document.querySelectorAll('[data-forward]').forEach(btn=>btn.onclick=guard(async()=>{if(btn.disabled)return;btn.disabled=true;const target=btn.dataset.forward==='saved'?(await api('/chats/saved','POST',{})).id:btn.dataset.forward;if(btn.dataset.forward==='saved')scheduleChatRefresh();for(const m of list)await queueOutgoing(target,{forward:m.id,body:m.e2e&&m.e2eState!=='ok'?'':m.body,kind:m.kind,forwarded:m.forwarded||m.author?.name});$('#modal').close();exitSelection();toast(list.length>1?'Сообщения пересланы':'Сообщение переслано');}));
+  document.querySelectorAll('[data-forward]').forEach(btn=>btn.onclick=guard(async()=>{if(btn.disabled)return;btn.disabled=true;const target=btn.dataset.forward==='saved'?(await api('/chats/saved','POST',{})).id:btn.dataset.forward;if(btn.dataset.forward==='saved')scheduleChatRefresh();for(const m of list)await queueOutgoing(target,{forward:m.id,body:m.e2e&&m.e2eState!=='ok'?'':m.body,kind:m.kind,forwarded:m.forwarded||m.author?.name,...(m.file&&m.media?.type===SEALED_TYPE?{sealedFile:m.file}:{})});$('#modal').close();exitSelection();toast(list.length>1?'Сообщения пересланы':'Сообщение переслано');}));
 }
 function enterSelection(id){state.selection=new Set(id?[id]:[]);$('.conversation')?.classList.add('selecting');renderMessages(false);renderSelectionBar();}
 function exitSelection(){if(!state.selection)return;state.selection=null;$('.conversation')?.classList.remove('selecting');renderMessages(false);renderSelectionBar();}
@@ -470,12 +511,14 @@ function attachments(){
   const setOpen=open=>{btn.classList.toggle('open',open);btn.setAttribute('aria-expanded',String(open));};
   const treat=treatMenuButton(state,selected())?menuItem('data-attach="treat"','<span class="hw-menu-emoji" aria-hidden="true">🍬</span>','Сладость или гадость'):'';
   setOpen(true);
-  popover({anchor:btn,className:'attach-menu',label:'Прикрепить',onClose:()=>setOpen(false),html:menuItem('data-attach="photo"',icon('image'),'Фото')+menuItem('data-attach="file"',icon('file'),'Файл')+menuItem('data-attach="poll"',icon('poll'),'Опрос')+treat});
+  popover({anchor:btn,className:'attach-menu',label:'Прикрепить',onClose:()=>setOpen(false),html:menuItem('data-attach="photo"',icon('image'),'Фото')+menuItem('data-attach="file"',icon('file'),'Файл')+menuItem('data-attach="poll"',icon('poll'),'Опрос')+(selected()?.kind!=='channel'||selected()?.canPost?menuItem('data-attach="checklist"',icon('checklist'),'Чек-лист'):'')+menuItem('data-attach="location"',icon('location'),'Геопозиция')+treat});
   document.querySelectorAll('.attach-menu [data-attach]').forEach(el=>el.onclick=guard(async()=>{
     const action=el.dataset.attach;closePopover();
     if(action==='photo')pickFile('image/*,video/*');
     else if(action==='file')pickFile('*/*');
     else if(action==='poll')createPoll();
+    else if(action==='checklist')checklistEditor(payload=>queueOutgoing(state.chat,payload));
+    else if(action==='location')locationDialog(state,()=>loadMessages(false));
     else if(action==='treat')await queueOutgoing(state.chat,{kind:'treat'});
   }));
 }
@@ -493,6 +536,11 @@ function chatMenu(sheet){
   if(!(c.kind==='channel'&&!c.canPost))items.push(['schedule-chat','clock','Запланировать сообщение']);
   items.push(['find-in-chat','search','Поиск по чату'],['select-messages','select','Выбрать сообщения']);
   items.push(['chat-wallpaper','image','Обои чата']);
+  const staff=['owner','admin'].includes(mine?.role);
+  if(['direct','saved'].includes(c.kind)||staff)items.push(['chat-ttl','timer',c.ttl?'Автоудаление: вкл.':'Автоудаление…']);
+  if(c.kind==='group'&&staff)items.push(['chat-slow','clock',c.slow_mode?'Медленный режим: вкл.':'Медленный режим…'],['chat-forum','topics',c.forum?'Выключить темы':'Включить темы']);
+  if(c.kind==='channel'&&mine?.role==='owner')items.push(['chat-comments','comment',c.comments?'Выключить комментарии':'Включить комментарии']);
+  if(!restricted(c))items.push(['export-chat','export','Экспорт чата']);
   if(c.kind!=='channel')items.push(['e2e-info','shield','Шифрование']);
   if(c.kind==='direct'||(!saved&&mine?.role==='owner'))items.push(['protect-content','lock',isProtected(c)?'Защита контента: вкл.':'Защита контента…']);
   if(c.kind==='direct')items.push(['block-user','lock','Заблокировать собеседника']);
@@ -521,6 +569,12 @@ function chatMenu(sheet){
   on('e2e-info',()=>encryptionInfo(state.user.id,c));
   on('protect-content',()=>protectionDialog(c));
   on('select-messages',()=>enterSelection(null));
+  const reopen=async()=>{await refresh();if(state.chat===c.id)await openChat(c.id);};
+  on('chat-ttl',()=>ttlDialog(c,reopen));
+  on('chat-slow',()=>slowDialog(c,reopen));
+  on('chat-forum',()=>toggleFeature(c,'forum',async()=>{state.topic=null;await refresh();await openChat(c.id,true);}));
+  on('chat-comments',()=>toggleFeature(c,'comments',reopen));
+  on('export-chat',()=>exportDialog(c,state));
   on('group-manage',()=>asSheet(()=>groupPanel(c,state,refresh)));
   on('delete-community',()=>asSheet(()=>groupPanel(c,state,refresh)));
   on('leave-community',async()=>{if(confirm(`Покинуть «${c.title}»?`)){await api('/communities/'+c.id+'/leave','POST',{});await refresh();}});
@@ -626,11 +680,15 @@ function connectEvents(){state.events?.close();const events=new EventSource(acco
   listen('chat-deleted',e=>{const d=JSON.parse(e.data);messagesByChat.delete(d.chat);pageCache.delete('chat');state.chats=state.chats.filter(c=>c.id!==d.chat);if(state.chat===d.chat){state.chat=null;state.messages=[];empty();$('.shell')?.classList.remove('show-chat');}renderChats();});listen('chat-cleared',e=>{const d=JSON.parse(e.data);applyCleared(d.chat,d.clearedAt,d.hidden);});listen('draft',e=>{const d=JSON.parse(e.data),c=state.chats.find(x=>x.id===d.chat);if(!c)return;c.draft=d.body?{body:d.body,updated:d.updated}:null;if(state.chat!==d.chat)renderChats();});listen('refresh',()=>{const previous=selected()?.canPost;refresh().then(()=>{if(state.chat&&previous!==selected()?.canPost)openChat(state.chat);}).catch(()=>{});});
   listen('receipt',e=>{const data=JSON.parse(e.data);const member=state.chats.find(c=>c.id===data.chat)?.members.find(m=>m.user_id===data.user);if(member){if(data.read)member.read_at=Math.max(member.read_at||0,data.read);if(data.delivered)member.delivered_at=Math.max(member.delivered_at||0,data.delivered);}document.querySelectorAll('.message.own').forEach(el=>{const m=state.messages.find(m=>m.id===el.dataset.id);const people=(selected()?.members||[]).filter(p=>p.user_id!==state.user.id);const marker=el.querySelector('.message-footer .tick');if(marker&&m&&!m.pending){const read=people.length&&people.every(p=>p.read_at>=m.created);const delivered=people.length&&people.every(p=>p.delivered_at>=m.created);const status=read?'read':delivered?'delivered':'sent';marker.innerHTML=tickSVG(status);marker.classList.toggle('read',!!read);marker.classList.toggle('ticks',!!read);marker.title=read?'Прочитано':delivered?'Доставлено':'Отправлено';m.status=status;}});renderChats();});
   listen('typing',e=>{const d=JSON.parse(e.data);if(d.user===state.user.id)return;const chat=state.chats.find(c=>c.id===d.chat);if(!chat)return;const label=chat.kind==='direct'?'печатает':`${String(d.name||'Кто-то').split(' ')[0]} печатает`;typingNow.set(d.chat,label+'…');clearTimeout(typingTimers.get(d.chat));typingTimers.set(d.chat,setTimeout(()=>{typingNow.delete(d.chat);renderChats();if(state.chat===d.chat)setStatus();},3000));renderChats();const target=$('#chat-status');if(state.chat===d.chat&&target)target.innerHTML=`<span class="typing-status">${esc(label)}<span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;});
+  listen('mention',e=>{const d=JSON.parse(e.data);if(state.chat===d.chat)mentions?.add(d.message);else if(state.settings.notifications!==false&&!document.hidden)toast(`${d.from} упоминает вас${d.title?' в «'+d.title+'»':''}`);scheduleChatRefresh(d.chat);});
+  listen('comment',e=>{const d=JSON.parse(e.data);if(!document.hidden)toast(`${d.from} прокомментировал вашу публикацию`);});
+  listen('topics',e=>{const d=JSON.parse(e.data);if(state.chat===d.chat&&$('.topics-view'))openTopics(d.chat).catch(()=>{});});
   listen('call',e=>calls.event(JSON.parse(e.data)));listen('signal',e=>calls.signal(JSON.parse(e.data)));
 }
 async function openNotificationLink(href){
  const url=new URL(href,location.origin);if(url.origin!==location.origin)return;
  const link=new URLSearchParams(url.hash.slice(1));
+ if(link.get('qr-login')){history.replaceState(null,'',location.pathname+location.search);await approveDevice(link.get('qr-login'));return;}
  if(link.get('account')&&link.get('account')!==state.user.id){await accountManager.switchTo(link.get('account'));}
  if(link.get('community')){const cid=link.get('community'),invite=link.get('invite'),c=await api('/communities/'+encodeURIComponent(cid)+'?invite='+encodeURIComponent(invite||''));if(c.subscribed){await refresh();await openChat(cid);return;}modal(c.title,`<p>${peopleCount(c.count,c.kind==='channel')}</p><button class="primary" id="join-community">Присоединиться</button>`);$('#join-community').onclick=guard(async()=>{await api('/communities/'+cid+'/join','POST',{invite});$('#modal').close();await refresh();await openChat(cid);});return;}
  const chat=link.get('chat');if(!chat)return;
@@ -656,7 +714,7 @@ async function boot(){
   // The chat list is requested together with the profile instead of after it: one round trip less before the app appears.
   const head=early&&early.epoch===accountEpoch()?early:null;early=null;
   prefetchedChats=head?.chats||api('/chats');prefetchedChats.catch(()=>{});const result=await (head?.me||api('/me'));state.user=result.user;state.settings=result.settings;state.family=result.family;state.rtcDebug=result.rtcDebug===true;state.halloween=result.halloween||null;applyTheme(state.settings);if(result.family&&!result.family.linked){app.innerHTML='<main class="auth"><section class="auth-card glass"><h1>Привяжите родителя</h1><p>Детский аккаунт создан. До привязки обычные функции закрыты.</p><button class="primary" id="pending-family">Получить код для родителя</button><button class="secondary" id="pending-refresh">Проверить привязку</button><button class="secondary" id="pending-logout">Выйти</button></section></main>';$('#pending-family').onclick=guard(()=>familyPage(state));$('#pending-refresh').onclick=()=>location.reload();$('#pending-logout').onclick=guard(async()=>{await api('/logout','POST',{});location.reload();});return;}try{await refresh();}catch(e){if(!result.family)throw e;toast(e.message);}bootStarted=true;
-  if(shownAccount===state.user.id){const me=avatar(state.user.name,state.user.avatar);document.querySelectorAll('.account').forEach(el=>el.innerHTML=me);}else shell();shownAccount=null;syncHalloween(state,saveSettings);maybeWhatsNew(state,saveSettings);synchronizer=createSync(state.user.id,rows=>{for(const chat of new Set(rows.map(m=>m.chat_id)))if(messagesByChat.has(chat)||state.chat===chat)acceptMessages(chat,rows.filter(m=>m.chat_id===chat));});ensureDevice(state.user.id).catch(()=>{});outbox=createOutbox(state.user.id,outboxChanged,async(chat,text)=>{const envelope=await seal(state.user.id,chat,text);return envelope&&{e2e:envelope,emoji:emojiKeys(text)};});await outbox.list();state.sendSticker=async(sticker)=>queueOutgoing(state.chat,{sticker});state.openSaved=openSaved;preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>startCall(chat,video)});initStories(state,openChat,refresh);initRoundVideos({canOpen:()=>!state.selection});setupNotificationLinks();connectBackgroundAccounts().catch(()=>{});const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
+  if(shownAccount===state.user.id){const me=avatar(state.user.name,state.user.avatar);document.querySelectorAll('.account').forEach(el=>el.innerHTML=me);}else shell();shownAccount=null;syncHalloween(state,saveSettings);maybeWhatsNew(state,saveSettings);synchronizer=createSync(state.user.id,rows=>{for(const chat of new Set(rows.map(m=>m.chat_id)))if(messagesByChat.has(chat)||state.chat===chat)acceptMessages(chat,rows.filter(m=>m.chat_id===chat));});ensureDevice(state.user.id).catch(()=>{});outbox=createOutbox(state.user.id,outboxChanged,async(chat,text,file)=>{const envelope=await seal(state.user.id,chat,text,file);return envelope&&{e2e:envelope,emoji:emojiKeys(text)};},chat=>canSeal(state.user.id,chat));onPreviewsReady(()=>{if(state.chat)renderMessages(false);});await outbox.list();state.sendSticker=async(sticker)=>queueOutgoing(state.chat,{sticker});state.openSaved=openSaved;preparePush().catch(()=>{});calls=createCalls(state,result.iceServers);connectEvents();configureProfiles({state,save:saveSettings,refresh,openChat,call:(chat,video)=>startCall(chat,video)});initStories(state,openChat,refresh);initRoundVideos({canOpen:()=>!state.selection});setupNotificationLinks();connectBackgroundAccounts().catch(()=>{});const link=new URLSearchParams(location.hash.slice(1));openNotificationLink(location.href).catch(e=>toast(e.message));setTimeout(()=>{if(!location.hash)promptNotifications().catch(()=>{});},1800);if(link.get('profile'))extendedProfile(link.get('profile')).catch(e=>toast(e.message));if(link.get('story'))api('/stories/'+encodeURIComponent(link.get('story'))).then(s=>showStories([s])).catch(e=>toast(e.message));}
 // Coming back to the screen. A phone freezes a background app and its live connection may be
 // silently dead, so after a pause the connection is reopened at once instead of after the browser's
 // own retry; its "ready" event then catches up on everything missed.

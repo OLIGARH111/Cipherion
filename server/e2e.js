@@ -19,7 +19,7 @@ export function parseEnvelope(raw){
   const clean={v:1,from:e.from,eph:e.eph,iv:e.iv,ct:e.ct,keys:e.keys.map(k=>({d:k.d,iv:k.iv,k:k.k})),sig:e.sig};
   return {envelope:clean,text:JSON.stringify(clean)};
 }
-export function createE2E({db,one,all,run,fail,now,id,membership,family}) {
+export function createE2E({db,one,all,run,fail,now,id,membership,family,isBot=()=>false}) {
   if(!all('PRAGMA table_info(messages)').some(c=>c.name==='e2e'))db.exec('ALTER TABLE messages ADD COLUMN e2e TEXT');
   db.exec(`CREATE TABLE IF NOT EXISTS e2e_devices(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),session_id TEXT,ecdh TEXT NOT NULL,ecdsa TEXT NOT NULL,created INTEGER NOT NULL,UNIQUE(user_id,ecdh));
     CREATE INDEX IF NOT EXISTS e2e_devices_owner ON e2e_devices(user_id);`);
@@ -28,6 +28,7 @@ export function createE2E({db,one,all,run,fail,now,id,membership,family}) {
   // Why a chat cannot use end-to-end encryption, or null when it can.
   function unavailable(chat){
     if(!e2eKinds.includes(chat.kind))return 'Каналы не поддерживают сквозное шифрование';
+    if(members(chat.id).some(u=>isBot(u)))return 'В чате есть бот: боты читают сообщения на сервере, поэтому сквозное шифрование выключено';
     if(members(chat.id).some(u=>family.child(u)))return 'В чатах с детскими аккаунтами действует семейный фильтр, поэтому сообщения не шифруются сквозным образом';
     return null;
   }

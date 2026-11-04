@@ -67,19 +67,26 @@ async function wrappingKey(privateKey,publicRaw,chat,deviceId){
 // Encrypts message text for every device in the chat. Returns null when the chat
 // cannot be end-to-end encrypted (a channel, a family-filtered chat, or a member
 // who has not opened an app version with encryption yet).
-export async function seal(user,chat,body){
+export async function seal(user,chat,body,file=null){
   const me=await device(user);if(!me?.id)return null;
   const keys=await chatKeys(user,chat);if(!keys.enabled)return null;
   const targets=keys.devices.some(d=>d.id===me.id)?keys.devices:[...keys.devices,{id:me.id,user,ecdh:me.ecdhRaw}];
   if(keys.users.some(u=>!targets.some(d=>d.user===u)))return null;
   const raw=random(32),iv=random(12);
   const content=await subtle.importKey('raw',raw,'AES-GCM',false,['encrypt']);
-  const ct=await subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode('cipherion-e2e-v1|'+chat)},content,enc.encode(JSON.stringify({b:String(body),t:Date.now()})));
+  const ct=await subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode('cipherion-e2e-v1|'+chat)},content,enc.encode(JSON.stringify({b:String(body),t:Date.now(),...(file?{f:file}:{})})));
   const eph=await subtle.generateKey(ECDH,true,['deriveBits']);
   const wrapped=await Promise.all(targets.map(async d=>{const wiv=random(12);const k=await subtle.encrypt({name:'AES-GCM',iv:wiv},await wrappingKey(eph.privateKey,d.ecdh,chat,d.id),raw);return {d:d.id,iv:b64(wiv),k:b64(k)};}));
   const envelope={v:1,from:me.id,eph:b64(await subtle.exportKey('raw',eph.publicKey)),iv:b64(iv),ct:b64(ct),keys:wrapped};
   envelope.sig=b64(await subtle.sign(SIGN,me.ecdsa.privateKey,signed(chat,envelope)));
   return envelope;
+}
+// Whether a message to this chat would be end-to-end encrypted right now (same rules as seal).
+export async function canSeal(user,chat){
+  const me=await device(user);if(!me?.id)return false;
+  const keys=await chatKeys(user,chat).catch(()=>null);if(!keys?.enabled)return false;
+  const targets=keys.devices.some(d=>d.id===me.id)?keys.devices:[...keys.devices,{user}];
+  return !keys.users.some(u=>!targets.some(d=>d.user===u));
 }
 // Custom emoji travel next to the ciphertext so the server can still authorise their files.
 export const emojiKeys=text=>[...new Set([...String(text).matchAll(/:ce\[([a-zA-Z0-9-]+)\]/g)].map(m=>m[1]))];
@@ -95,7 +102,7 @@ async function decrypt(user,m){
   const raw=await subtle.decrypt({name:'AES-GCM',iv:unb64(slot.iv)},await wrappingKey(me.ecdh.privateKey,e.eph,m.chat_id,me.id),unb64(slot.k));
   const content=await subtle.importKey('raw',raw,'AES-GCM',false,['decrypt']);
   const plain=JSON.parse(dec.decode(await subtle.decrypt({name:'AES-GCM',iv:unb64(e.iv),additionalData:enc.encode('cipherion-e2e-v1|'+m.chat_id)},content,unb64(e.ct))));
-  return {state:'ok',body:String(plain.b??'')};
+  return {state:'ok',body:String(plain.b??''),file:plain.f&&typeof plain.f==='object'?plain.f:null};
 }
 // Replaces an encrypted message's empty body with its plaintext, in place.
 export async function open(user,m){
@@ -107,7 +114,7 @@ export async function open(user,m){
   }
   const result=await opened.get(key);
   if(result.state!=='ok')opened.delete(key);
-  m.body=result.body;m.e2eState=result.state;return m;
+  m.body=result.body;m.e2eState=result.state;if(result.file)m.file=result.file;return m;
 }
 // Walks any API response and opens every encrypted message inside it.
 export async function reveal(value,user,depth=0){
@@ -138,5 +145,5 @@ export async function encryptionInfo(user,chat){
     <h3>Код безопасности</h3><p class="safety-code" style="font-family:ui-monospace,monospace;font-size:1.05rem;letter-spacing:.06em;line-height:1.8">${code.map((g,i)=>esc(g)+(i%4===3?'<br>':' ')).join('')}</p>
     <p class="muted">Сверьте код с собеседником лично или по звонку. Совпадение означает, что сервер не подменил ключи. Код меняется, когда кто-то входит с нового устройства.</p>
     <ul class="muted">${count}</ul>
-    <p class="muted">Не шифруются сквозным образом: файлы и медиа, опросы, стикеры, отложенные сообщения и черновики. Новое устройство не может прочитать сообщения, отправленные до его появления.</p>`);
+    <p class="muted">Фото, видео, голосовые и файлы до 200 МБ шифруются вместе с текстом. Не шифруются сквозным образом: опросы и чек-листы, стикеры, отложенные сообщения и черновики. Превью ссылок собирает сервер, поэтому адрес ссылки ему виден — превью можно выключить в настройках чатов. Новое устройство не может прочитать сообщения, отправленные до его появления.</p>`);
 }
