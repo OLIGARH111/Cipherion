@@ -54,3 +54,17 @@ body.glass-ui .settings-page>header.page-head{background:transparent}
 .traffic-card td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .traffic-warn{color:#c98a12}
 .traffic-danger{color:#d64545}
+
+/* Settings → Оформление → Разделы нижнего меню */
+.nav-editor{display:grid;gap:10px;padding-top:8px}
+.nav-editor-hint{margin:0;font-size:13px;color:var(--muted)}
+.nav-editor-list{display:grid;gap:6px}
+.nav-editor-row{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 10px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--text) 4%,transparent)}
+.nav-editor-row.off{opacity:.6}
+.nav-editor-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.nav-editor-icon svg{width:19px;height:19px}
+.nav-editor-title{flex:1;min-width:0;font-weight:600}
+.nav-editor-move{display:grid;place-items:center;width:36px;height:36px;padding:0;border-radius:10px;color:var(--text);background:none}
+.nav-editor-move:disabled{opacity:.25;cursor:default}
+.nav-editor-move svg{width:18px;height:18px}
+.nav-editor-row input[type=checkbox]{flex:none}
