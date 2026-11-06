@@ -16,7 +16,7 @@ import {mergeMessages,messageKey,reconcileMessages,optimisticMessage} from './me
 import {preparePush,muteChat,promptNotifications} from './notifications.js';
 import {setupComposerAI} from './composer-ai.js';
 import {initStories,refreshStories,showStories} from './stories.js';
-import {initRoundVideos} from './round-video.js';
+import {initRoundVideos,stopRoundNote} from './round-video.js';
 import {configureProfiles,extendedProfile} from './profiles.js';
 import {pollCard,bindPolls,pollEditor} from './polls.js';
 import {renderCustom,stickerPanel} from './stickers.js';
@@ -43,7 +43,8 @@ import {commentButton,openComments} from './comments.js';
 import {checklistCard,bindChecklists,checklistEditor} from './checklist.js';
 import {locationCard,bindLocations,locationDialog} from './location.js';
 import {exportDialog} from './chat-export.js';
-import {SEALED_TYPE,hydrateSealed} from './sealed-media.js';
+import {SEALED_TYPE,hydrateSealed,sealedURL} from './sealed-media.js';
+import {openMediaViewer,closeMediaViewer} from './media-viewer.js';
 import {canSeal,openDraft,historyKey,prepareHistory} from './e2e.js';
 import {qrLoginDialog,approveDevice,passkeyLogin,passkeysSupported} from './passwordless.js';
 import {botsPage} from './bots.js';
@@ -99,7 +100,7 @@ function resetAccount(){
  state.events?.close();for(const ev of backgroundEvents.values())ev.close();backgroundEvents.clear();
  const pending=[outbox?.dispose(),synchronizer?.dispose()];calls?.dispose();calls=null;outbox=null;synchronizer=null;
  clearTimeout(refreshTimer);refreshIds.clear();refreshAll=false;clearTimeout(searchTimer);chatGeneration++;messagesByChat.clear();pageCache.clear();
-closePopover();$('#modal')?.close();$('#modal')?.classList.remove('sheet');document.querySelectorAll('.story-viewer,.story-overlay,.profile-effect').forEach(e=>e.remove());
+closePopover();$('#modal')?.close();$('#modal')?.classList.remove('sheet');document.querySelectorAll('.story-viewer,.story-overlay,.profile-effect').forEach(e=>e.remove());closeMediaViewer();
  Object.assign(state,{user:null,settings:{},chats:[],chat:null,messages:[],tab:'chat',reply:null,editing:null,events:null,recording:null,sendSticker:null,selection:null,find:null,unseen:0,loading:false});typingNow.clear();
  window.speechSynthesis?.cancel();window.dispatchEvent(new Event('account-change'));app.replaceChildren();return Promise.allSettled(pending);
 }
@@ -315,12 +316,29 @@ function bindMessageList(){
     onReply:id=>{const m=state.messages.find(x=>x.id===id);if(m)messageAction('reply',m);},
     onDoubleTap:(id,x,y)=>{const c=selected(),m=state.messages.find(x=>x.id===id);if(!m||m.deleted||m.pending||(c?.kind==='channel'&&!c.reactions_enabled))return;const next=m.myReaction==='❤️'?'':'❤️';if(next)heartBurst(x,y);guard(()=>setReaction(id,next))();}
   });
+  box.addEventListener('keydown',e=>{const view=e.target.closest?.('[data-view]');if(view&&!state.selection&&(e.key==='Enter'||e.key===' ')){e.preventDefault();viewMedia(view.dataset.view);}});
   box.addEventListener('click',e=>{
     const jump=e.target.closest('[data-jump]');if(jump){e.preventDefault();jumpTo(jump.dataset.jump);return;}
     const react=e.target.closest('[data-react]');if(react){e.preventDefault();const m=state.messages.find(x=>x.id===react.dataset.message);guard(()=>setReaction(react.dataset.message,m?.myReaction===react.dataset.react?'':react.dataset.react))();return;}
     const sticker=e.target.closest('.sent-sticker');if(sticker&&!state.selection){const m=state.messages.find(x=>x.id===sticker.closest('.message')?.dataset.id);if(m?.sticker)guard(()=>showStickerPreview(state,{...m.sticker,id:m.sticker.id||m.body},{fromChat:true}))();return;}
+    const view=e.target.closest('[data-view]');if(view&&!state.selection){e.preventDefault();viewMedia(view.dataset.view);return;}
     if(state.selection){const article=e.target.closest('.message[data-id]');if(article&&!article.dataset.id.startsWith('local:')){e.preventDefault();toggleSelect(article.dataset.id);}}
   });
+}
+// Opens the full-screen viewer on a photo or video, with every photo and video of the chat around it.
+function viewMedia(id){
+  const c=selected(),list=state.messages.filter(m=>['photo','video'].includes(m.kind)&&m.media&&!m.deleted&&!m.pending&&(m.media.type!==SEALED_TYPE||m.file));
+  const index=list.findIndex(m=>m.id===id);if(index<0)return;
+  const channel=c?.kind==='channel',post=!channel||c?.canPost;
+  const items=list.map(m=>({id:m.id,kind:m.kind,message:m,author:channel?(c.title||authorName(m)):authorName(m),created:m.created,caption:m.deleted||m.e2e&&m.e2eState!=='ok'?'':plainText(String(m.body||'')).trim(),
+    name:m.media.type===SEALED_TYPE?m.file.n:m.media.name,get source(){return this._s??=(m.media.type===SEALED_TYPE?sealedURL(m.media.id,m.file):Promise.resolve(accountURL('/api/media/'+m.media.id)));}}));
+  stopRoundNote();
+  openMediaViewer(items,{index,locked:restricted(c),
+    canDelete:()=>!channel||!!c?.canDelete,
+    onDelete:async item=>{await api('/messages/'+item.id,'DELETE',{});await loadMessages(false);},
+    onReply:post&&$('#draft')?item=>messageAction('reply',item.message):null,
+    onForward:item=>forwardMessages([item.message]),
+    onShow:item=>jumpTo(item.id)});
 }
 function updateScrollDown(){const box=$('.messages'),btn=$('#scroll-down');if(!box||!btn)return;const distance=box.scrollHeight-box.scrollTop-box.clientHeight;if(distance<80)state.unseen=0;const visible=distance>300;btn.classList.toggle('visible',visible);btn.tabIndex=visible?0:-1;btn.setAttribute('aria-hidden',String(!visible));const badge=btn.querySelector('.badge');badge.hidden=!state.unseen;badge.textContent=state.unseen>99?'99+':String(state.unseen||'');}
 function jumpTo(id,flash=true){const el=[...document.querySelectorAll('.messages .message')].find(a=>a.dataset.id===id);if(!el){toast('Сообщение ещё не загружено');return;}el.scrollIntoView({block:'center',behavior:calm()?'auto':'smooth'});if(!flash)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500);}
@@ -344,17 +362,17 @@ function messageHTML(m,{first,last,kind,others}){
   if(!m.deleted){
     if(m.media&&m.media.type===SEALED_TYPE){visual=['photo','video','round'].includes(m.kind);const f=m.file,id=esc(m.media.id),locked=restricted(c);
       if(!f)content+=`<div class="file file-locked">${icon('lock')}<span>Зашифрованное вложение<br><small>Недоступно на этом устройстве</small></span></div>`;
-      else if(m.kind==='photo')content+=`<div class="media sealed-media"><img data-sealed="${id}" alt="${esc(f.n)}" draggable="false"></div>`;
+      else if(m.kind==='photo')content+=`<div class="media sealed-media" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть фотографию"><img data-sealed="${id}" alt="${esc(f.n)}" draggable="false"></div>`;
       else if(m.kind==='round')content+=`<div class="sealed-media"><video class="round" data-sealed="${id}" controls playsinline preload="metadata" disablepictureinpicture></video></div>`;
-      else if(m.kind==='video')content+=`<div class="sealed-media"><video data-sealed="${id}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video></div>`;
+      else if(m.kind==='video')content+=`<div class="media media-video sealed-media" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть видео"><video data-sealed="${id}" muted playsinline preload="metadata" disablepictureinpicture></video><span class="play-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span></div>`;
       else if(m.kind==='voice')content+=`<div class="sealed-media voice-note">${waveHTML(m)}<audio data-sealed="${id}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button></div>`;
       else if(locked)content+=`<div class="file file-locked"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
       else content+=`<a class="file sealed-media" data-sealed="${id}" href="#" download="${esc(f.n)}"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · ${icon('lock')} зашифровано</small></span>${icon('download')}</a>`;
     }
     else if(m.media){const source=accountURL('/api/media/'+m.media.id),locked=restricted(c);
-      if(m.kind==='photo'){visual=true;content+=locked?`<div class="media"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`:`<a class="media" href="${source}" target="_blank" rel="noopener"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy"></a>`;}
+      if(m.kind==='photo'){visual=true;content+=`<div class="media" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть фотографию"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`;}
       else if(m.kind==='round'){visual=true;content+=`<div class="round-note" role="button" tabindex="0" data-round="${source}" aria-label="Воспроизвести видео-кружок"><video class="round" src="${source}#t=0.001" muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video><span class="round-duration"></span><span class="round-muted" aria-hidden="true">${icon('speakeroff')}</span></div>`;}
-      else if(m.kind==='video'){visual=true;content+=`<video src="${source}" controls playsinline preload="metadata"${locked?' controlslist="nodownload noremoteplayback" disablepictureinpicture':''}></video>`;}
+      else if(m.kind==='video'){visual=true;content+=`<div class="media media-video" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть видео"><video src="${source}#t=0.1" muted playsinline preload="metadata" disablepictureinpicture></video><span class="play-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span></div>`;}
       else if(m.kind==='voice')content+=`${waveHTML(m)}<audio src="${source}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button>`;
       else if(locked)content+=`<div class="file file-locked" title="Сохранение запрещено защитой контента"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ · сохранение запрещено</small></span>${icon('lock')}</div>`;
       else content+=`<a class="file" href="${source}" download="${esc(m.media.name)}"><span class="file-icon">${icon('file')}</span><span>${esc(m.media.name)}<br><small>${(m.media.size/1024/1024).toFixed(2)} МБ</small></span>${icon('download')}</a>`;
