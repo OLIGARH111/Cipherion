@@ -24,7 +24,7 @@ import {toggleEmojiPanel,closeEmojiPanel,emojiPanelOpen,setupStickerSuggestions,
 import {jumboSize} from './emoji-data.js';
 import { $,esc,icon,button,avatar,tone,time,toast,api,upload,modal,guard,asSheet } from './ui.js';
 import { applyTheme, settingsPage, themes } from './settings.js';
-import {navTabs} from './nav-tabs.js';
+import {navTabs,navSettingsDialog} from './nav-tabs.js';
 import {applyChatWallpaper,wallpaperPicker} from './wallpapers.js';
 import {popover,closePopover,popoverOpen,menuItem,longPress,swipeBack,dayKey,dayLabel,listTime,ticks,tickSVG,mobile} from './chat-ui.js';
 import { createCalls } from './calls.js';
@@ -109,6 +109,8 @@ async function connectBackgroundAccounts(){const ticket=accountEpoch(),list=awai
 const calm=()=>!!globalThis.matchMedia?.('(prefers-reduced-motion:reduce)')?.matches||document.body.classList.contains('no-motion');
 function shell(){const me=avatar(state.user.name,state.user.avatar);app.innerHTML=`<main class="shell"><aside class="rail"><div class="brand"><img src="/brand/icon-192-99e4c7990351.png" alt="Cipherion"></div><nav class="nav" aria-label="Основная навигация">${navButtons(state.settings)}</nav><button class="account" id="main-menu" title="Профиль и меню" aria-label="Профиль и меню" aria-haspopup="menu" aria-expanded="false">${me}</button></aside><aside class="side" aria-label="Чаты"><div class="side-header"><div class="row between"><div><h1>Cipherion<span style="color:var(--accent)">.</span></h1><p class="count-label">Ваши разговоры, в одном месте</p></div><div class="side-actions">${button('search','Поиск','id="open-search" aria-expanded="false" aria-controls="side-search"')}${button('edit','Новый чат','id="new-chat"')}</div></div><div id="stories-strip" class="stories-strip" aria-label="Истории"></div><div class="search side-search" id="side-search" hidden>${icon('search')}<input id="chat-search" type="search" placeholder="Поиск" aria-label="Поиск по чатам, людям и сообщениям" autocomplete="off" enterkeyhint="search"><button type="button" class="search-cancel" id="close-search">Отмена</button></div></div><div id="folder-bar"></div><div class="chat-list"></div><div class="side-foot" role="status"><span class="dot"></span><span id="connection">Подключение…</span></div></aside><section class="workspace"></section></main>`;
   bindNav();
+  // Hold any menu item (right-click on a computer) to choose and reorder the sections.
+  {const nav=$('.nav'),open=()=>{if(!$('#modal').open)guard(()=>navSettingsDialog(state,saveSettings))();};longPress(nav,'[data-tab]',open,500);nav.addEventListener('contextmenu',e=>{if(e.target.closest('[data-tab]')){e.preventDefault();open();}});}
   document.querySelectorAll('.account').forEach(el=>el.onclick=()=>mainMenu(el));$('#new-chat').onclick=()=>newChat();$('#chat-search').oninput=searchInput;
   $('#open-search').onclick=()=>openSearch();$('#close-search').onclick=()=>closeSearch();
   $('#chat-search').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(e.target.value){e.target.value='';searchInput();}else closeSearch();}else if(e.key==='Enter'){e.preventDefault();$('.chat-list [data-chat]')?.click();}};

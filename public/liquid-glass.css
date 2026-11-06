@@ -1,0 +1,31 @@
+/* Bottom menu on a phone: real liquid glass. Barely tinted, so chats show
+   through; bright rim, specular sheen on top and a soft inner shadow below.
+   Only for the «Liquid Glass» panel background; colour/gradient/photo keep their look. */
+@media(max-width:700px){
+  body.glass-ui:not(.nav-filled) .nav,body.glass-ui.light:not(.nav-filled) .nav{
+    background-color:color-mix(in srgb,#fff 16%,transparent);
+    border:1px solid color-mix(in srgb,#fff 55%,transparent);
+    box-shadow:0 10px 34px #0000002e,0 1px 2px #00000014,inset 0 1px 0 #ffffffd9,inset 0 -1px 0 #ffffff40,inset 0 -10px 18px -12px #00000026;
+    backdrop-filter:blur(9px) saturate(210%) brightness(1.06) contrast(1.04);
+    -webkit-backdrop-filter:blur(9px) saturate(210%) brightness(1.06) contrast(1.04)
+  }
+  body.glass-ui:not(.light):not(.nav-filled) .nav{
+    background-color:color-mix(in srgb,#14181a 22%,transparent);
+    border-color:#ffffff2e;
+    box-shadow:0 10px 34px #00000066,inset 0 1px 0 #ffffff4d,inset 0 -1px 0 #ffffff14,inset 0 -10px 18px -12px #0000004d;
+    backdrop-filter:blur(9px) saturate(190%) brightness(.92);
+    -webkit-backdrop-filter:blur(9px) saturate(190%) brightness(.92)
+  }
+  /* Specular sheen: light caught on the upper curve of the glass. */
+  body.glass-ui:not(.nav-filled) .nav::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+    background:linear-gradient(180deg,#ffffff59 0%,#ffffff14 38%,transparent 55%,#ffffff0d 100%),radial-gradient(120% 90% at 18% -30%,#ffffff40,transparent 60%)}
+  body.glass-ui:not(.light):not(.nav-filled) .nav::after{background:linear-gradient(180deg,#ffffff24 0%,#ffffff08 40%,transparent 58%,#ffffff08 100%),radial-gradient(120% 90% at 18% -30%,#ffffff1f,transparent 60%)}
+  /* Icons and labels stay readable over any chat behind the glass. */
+  body.glass-ui:not(.nav-filled) .nav button{text-shadow:0 1px 2px #0000002e}
+  body.glass-ui:not(.light):not(.nav-filled) .nav button{text-shadow:0 1px 3px #00000080}
+  body.glass-ui:not(.nav-filled) .nav button svg{filter:drop-shadow(0 1px 1.5px #00000033)}
+  body.glass-ui:not(.nav-filled) .nav button.active{background:color-mix(in srgb,#fff 30%,transparent);box-shadow:inset 0 1px 0 #ffffffb3,0 2px 8px #0000001a}
+  body.glass-ui:not(.light):not(.nav-filled) .nav button.active{background:#ffffff1f;box-shadow:inset 0 1px 0 #ffffff33,0 2px 8px #00000033}
+}
+/* Holding a menu item opens the section settings; no text selection or system menu. */
+.nav button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}

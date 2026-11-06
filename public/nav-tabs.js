@@ -1,4 +1,4 @@
-import {esc,icon} from './ui.js';
+import {$,esc,icon,modal,asSheet,saveAction,toast} from './ui.js';
 
 // Sections the bottom menu (the side rail on a computer) can hold.
 // «Чаты» and «Настройки» always stay: without them the phone has no way back.
@@ -34,4 +34,17 @@ export function navEditor(root,draft,onChange){
     root.querySelector('[data-nav-reset]').onclick=()=>commit([...NAV_DEFAULT]);
   };
   render();
+}
+
+// Opened by holding any item of the bottom menu: the same editor in its own sheet.
+// The menu changes live; «Готово» saves it, closing the sheet without it brings the old menu back.
+export function navSettingsDialog(state,save){
+  const original=structuredClone(state.settings||{}),draft=structuredClone(original);let committed=false;
+  const show=settings=>window.dispatchEvent(new window.CustomEvent('nav-tabs',{detail:settings}));
+  return asSheet(async()=>{
+    const dialog=modal('Разделы меню','<div id="nav-sheet-editor" class="nav-editor"></div><button class="primary" id="nav-sheet-save">Готово</button>');
+    navEditor($('#nav-sheet-editor'),draft,()=>show(draft));
+    dialog.addEventListener('close',()=>{if(!committed)show(original);},{once:true});
+    $('#nav-sheet-save').onclick=saveAction(async()=>{const previous=state.settings;state.settings={...state.settings,navTabs:draft.navTabs};try{await save();committed=true;dialog.close();toast('Разделы меню сохранены');}catch(error){state.settings=previous;throw error;}});
+  });
 }
