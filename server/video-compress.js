@@ -10,7 +10,9 @@ const exec=promisify(execFile);
 const MAX_SECONDS=300,MIN_BYTES=2*1024*1024,MAX_SIDE=1280;
 let queue=Promise.resolve();
 
-export function compressVideo(file,{run=exec,timeout=240_000}={}){
+// The upload request waits for the encode, and the host's proxy drops requests that run too long,
+// so an encode that cannot finish in a minute keeps the original file instead.
+export function compressVideo(file,{run=exec,timeout=60_000}={}){
   const job=queue.then(()=>transcode(file,run,timeout));
   queue=job.catch(()=>{});
   return job;

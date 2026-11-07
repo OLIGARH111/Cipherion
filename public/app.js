@@ -392,7 +392,7 @@ function messageHTML(m,{first,last,kind,others}){
   }
   const read=others.length&&others.every(p=>p.read_at>=m.created);const delivered=others.length&&others.every(p=>p.delivered_at>=m.created);
   m.status=m.pending?(m.error?'failed':'sending'):read?'read':delivered?'delivered':'sent';
-  const status=m.pending?`<span class="send-status ${m.error?'failed':''}" title="${esc(m.error||'Отправляется')}">${m.error?'<b aria-hidden="true">!</b> Не отправлено':`${icon('clock')}<span class="sr-only">Отправляется…</span>`}</span>${m.error?`<button class="chip retry-send" data-client-id="${esc(m.clientMessageId)}">Повторить</button>`:''}`:own&&others.length?ticks(m.status):'';
+  const status=m.pending?`<span class="send-status ${m.error?'failed':''}" title="${esc(m.error||'Отправляется')}">${m.error?'<b aria-hidden="true">!</b> Не отправлено':`${icon('clock')}<span class="sr-only">Отправляется…</span>`}</span>${m.error?`<button class="chip retry-send" data-client-id="${esc(m.clientMessageId)}">Повторить</button>`:''}<button class="chip cancel-send" data-client-id="${esc(m.clientMessageId)}" aria-label="Отменить отправку">Удалить</button>`:own&&others.length?ticks(m.status):'';
   const mediaOnly=visual&&!hasText&&!m.reply_id&&!m.forwarded&&!m.story&&(!tail.length||m.kind==='round')&&(!m.pending||!!jumbo||m.kind==='round');
   const footer=`<span class="message-footer${mediaOnly?' overlay':''}">${m.pinned?`<span class="footer-pin" aria-label="Закреплено">${icon('pin')}</span>`:''}${m.e2eState==='ok'?`<span class="footer-e2e" title="Сквозное шифрование" aria-label="Зашифровано">${icon('lock')}</span>`:''}${m.expires_at&&!m.deleted?`<span class="footer-timer" title="Удалится ${esc(new Date(m.expires_at).toLocaleString('ru'))}" aria-label="Сообщение с таймером">${icon('timer')}</span>`:''}${m.edited&&m.kind!=='location'?'<span class="edited">изменено</span>':''}<time datetime="${new Date(m.created).toISOString()}">${time(m.created)}</time>${status}</span>`;
   const reactions=!m.deleted&&m.reactions?.length?`<div class="message-reactions">${m.reactions.map(r=>`<button type="button" class="reaction${r.emoji===m.myReaction?' mine':''}" data-react="${esc(r.emoji)}" data-message="${m.id}" aria-label="Реакция ${esc(r.emoji)}: ${r.count}">${renderCustom(r.emoji)}<span>${r.count}</span></button>`).join('')}${footer}</div>`:'';
@@ -423,6 +423,8 @@ function renderMessages(scroll){
   shown.forEach((m,i)=>{const day=dayKey(m.created);if(day!==lastDay){html+=`<div class="date-divider" data-key="day:${day}"><span>${dayLabel(m.created)}</span></div>`;lastDay=day;}html+=messageHTML(m,{first:!sameRun(shown[i-1],m),last:!sameRun(m,shown[i+1]),kind,others});});
   reconcileMessages(box,html);
   box.querySelectorAll('.retry-send').forEach(el=>el.onclick=guard(()=>outbox.retry(el.dataset.clientId)));
+  // A message stuck in the outbox can always be removed, even while it is still being sent.
+  box.querySelectorAll('.cancel-send').forEach(el=>el.onclick=guard(async()=>{const id=el.dataset.clientId;await outbox.remove(id);state.messages=state.messages.filter(m=>!(m.pending&&m.clientMessageId===id));renderMessages();}));
   if(scroll||nearBottom)box.scrollTop=box.scrollHeight;else box.scrollTop=previous;
   bindPolls(box,state,loadMessages);bindHalloween(box,loadMessages);bindStickerEffects(box,state.messages,state.settings);
   hydrateSealed(box,state.messages);bindLocations(box);bindBotButtons(box);bindWaves(box,state.messages);mentions?.watch();
