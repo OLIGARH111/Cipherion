@@ -155,3 +155,64 @@ dialog.badge-sheet::backdrop{background:rgba(0,0,0,.35)}
    «dialog.sheet header» bar styles from overriding it on phones. */
 dialog .tgp header.tgp-hero{position:relative;top:auto;z-index:auto;margin:0;flex-direction:column;justify-content:flex-start;align-items:center;gap:0;padding:26px 14px 18px;background-color:transparent}
 .tgp-more[hidden]{display:none}
+
+/* Profile 2.0: the colours fill the whole screen (VIP appearance, or the photo's colours), and pulling the
+   profile down opens the photo across the full width with its colours spreading over the page. */
+dialog#modal.tgp-modal.tgp-modal{background:var(--tgp-bg,var(--bg))!important;background-color:var(--bg)!important;color:#fff}
+dialog#modal.tgp-modal>header{position:sticky;top:0;z-index:8;display:block;height:0;min-height:0;margin:0;padding:0;border:0;background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none}
+dialog#modal.tgp-modal>header>div{display:none}
+dialog#modal.tgp-modal>header #modal-close{position:absolute;left:0;top:0;width:44px;height:44px;min-height:0;padding:0;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.tgp.painted{container-type:inline-size;color:#fff;--photo-h:min(112cqw,72dvh)}
+dialog .tgp.painted header.tgp-hero{margin:calc(-1 * var(--pt,0px)) calc(-1 * var(--px,0px)) 0;padding:calc(var(--pt,0px) + 40px) calc(var(--px,0px) + 14px) 10px;border-radius:0;box-shadow:none;overflow:visible;background:none;transition:padding .45s cubic-bezier(.2,.8,.2,1),transform .25s}
+.tgp.painted .tgp-pattern{inset:0 0 -20px}
+.tgp.painted .tgp-avatar{position:relative;z-index:1;transition:opacity .25s,transform .45s cubic-bezier(.2,.8,.2,1)}
+.tgp.painted .tgp-avatar .avatar{width:120px!important;height:120px!important;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+.tgp.painted .tgp-name{font-size:30px;text-shadow:0 2px 14px rgba(0,0,0,.25)}
+.tgp.painted .tgp-sub{opacity:.85;color:#fff}
+.tgp.painted .tgp-sub.online{color:#fff;opacity:.92}
+.tgp.painted .tgp-actions{margin-top:22px;gap:12px}
+.tgp.painted .tgp-action i{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 6px 18px rgba(0,0,0,.12)}
+.tgp.painted .tgp-card,.tgp.painted .tgp-tabs{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);color:#fff}
+.tgp.painted .tgp-card{border-radius:26px}
+.tgp.painted .tgp-field small{color:rgba(255,255,255,.66)}
+.tgp.painted .tgp-field+.tgp-field{border-top-color:rgba(255,255,255,.14)}
+.tgp.painted .tgp-field a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.tgp.painted .tgp-tabs button.active{background:rgba(255,255,255,.2);color:#fff}
+.tgp.painted .tgp-row>i{background:rgba(255,255,255,.16);color:#fff}
+.tgp.painted .tgp-empty{color:#fff;opacity:.7}
+.tgp.painted .tgp-status-text{background:rgba(255,255,255,.18)}
+/* Full-width photo */
+.tgp-photo{position:absolute;z-index:0;top:0;left:0;right:0;height:var(--photo-h);cursor:zoom-in;opacity:0;pointer-events:none;clip-path:circle(60px at var(--cx,50%) var(--cy,120px));transition:clip-path .5s cubic-bezier(.2,.8,.2,1),opacity .2s}
+.tgp-photo img{width:100%;height:100%;object-fit:cover;display:block;-webkit-mask-image:linear-gradient(#000 55%,rgba(0,0,0,.6) 78%,transparent);mask-image:linear-gradient(#000 55%,rgba(0,0,0,.6) 78%,transparent)}
+.tgp.expanded .tgp-photo{opacity:1;pointer-events:auto;clip-path:circle(150% at var(--cx,50%) var(--cy,120px))}
+dialog .tgp.painted.expanded header.tgp-hero{padding-top:calc(var(--photo-h) - 120px)}
+.tgp.expanded .tgp-avatar{position:absolute;opacity:0;pointer-events:none}
+.tgp.expanded .tgp-pattern{opacity:0}
+.tgp-pattern{transition:opacity .3s}
+.tgp.expanded .tgp-name,.tgp.expanded .tgp-sub,.tgp.expanded .tgp-status-text{position:relative;z-index:1;text-shadow:0 2px 16px rgba(0,0,0,.55)}
+.tgp.expanded .tgp-actions,.tgp.expanded .tgp-more{position:relative;z-index:1}
+@media (prefers-reduced-motion:reduce){.tgp-photo,dialog .tgp.painted header.tgp-hero{transition:none}}
+.tgp.painted .tgp-action small{color:#fff;opacity:.92;font-weight:500;text-shadow:0 1px 6px rgba(0,0,0,.25)}
+
+/* Studio preview in the new profile look (profile-studio.js → profileVisual) */
+.studio-profile.sp{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:12px;min-height:0;padding:22px 14px 14px;border-radius:28px;color:#fff;box-shadow:0 18px 40px rgba(0,0,0,.28)}
+.sp .studio-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;opacity:.85}
+.sp-pattern{position:absolute;inset:0 0 35%;z-index:-1;pointer-events:none;color:color-mix(in srgb,var(--profile-accent,#83d9b5) 45%,#fff)}
+.sp-pattern span{position:absolute;line-height:1;filter:drop-shadow(0 3px 8px rgba(0,0,0,.18))}
+.sp-pattern .custom-emoji{width:1.2em!important;height:1.2em!important}
+.sp-pattern.pattern-motion span{animation:tgp-drift 7s ease-in-out infinite alternate}
+.sp-head{display:flex;flex-direction:column;align-items:center;text-align:center}
+.studio-stage .sp .avatar.large,.sp .avatar.large{width:88px!important;height:88px!important;margin:0;font-size:30px;border:0;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+.studio-stage .sp h2,.sp h2{margin:10px 0 0;font-size:22px;font-weight:700;color:var(--name-color,#fff);text-shadow:0 2px 10px rgba(0,0,0,.2)}
+.sp h2.gradient-name{background:linear-gradient(90deg,var(--name-color,#fff),var(--profile-accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sp-sub{margin:2px 0 0;font-size:13px;opacity:.85}
+.sp-actions{display:flex;gap:8px;margin-top:12px}
+.sp-actions i{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.24)}
+.sp-actions svg{width:17px;height:17px}
+.sp-card{padding:8px 14px;border-radius:18px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);text-align:left}
+.sp-card:empty{display:none}
+.sp-card small{display:block;font-size:11px;opacity:.65;margin-top:4px}
+.sp-card p{margin:0 0 4px;font-size:14px;overflow-wrap:anywhere}
+@media (max-width:700px){.studio-stage .studio-profile.sp{padding:14px 12px 12px;gap:8px}.studio-stage .sp .avatar.large{width:64px!important;height:64px!important}.studio-stage .sp h2{font-size:18px;margin-top:6px}.studio-stage .sp-actions i{width:32px;height:32px}.studio-stage .sp-card{display:none}}
+/* Background swatches show the full three-colour gradient */
+.studio-swatch>span{background:linear-gradient(180deg,var(--a),var(--b) 55%,var(--c,var(--b)))}

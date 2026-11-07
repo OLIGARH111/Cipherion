@@ -122,7 +122,7 @@ export async function upload(file,account=activeAccount()) {
   return sendMedia(file,account,send);
 }
 export function modal(title, content, wide=false) {
-  const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
+  const el=$('#modal');el.classList.toggle('wide',wide);el.classList.remove('tgp-modal');el.style.removeProperty('--tgp-bg');el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
 // Profile, group info and settings sections open as a side sheet (full screen on phones).
