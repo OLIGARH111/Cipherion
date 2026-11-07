@@ -31,6 +31,7 @@ import { createLinkPreview } from './link-preview.js';
 import { createChatFeatures } from './chat-features.js';
 import { createDeviceLogin } from './device-login.js';
 import { createBots } from './bots.js';
+import { createCypherLink } from './cypher-link.js';
 import { createMessageExtras } from './message-extras.js';
 import { createAntispam } from './antispam.js';
 import { createSFU, sfuOptions } from './sfu.js';
@@ -209,6 +210,7 @@ const bots=createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy,broa
   edit:(m,text,markup)=>{if(text!==undefined){family.content(m.chat_id,text,false);run('UPDATE messages SET body=?,edited=? WHERE id=?',text,now(),m.id);}if(markup!==undefined)run('UPDATE messages SET markup=? WHERE id=?',markup?JSON.stringify(markup):null,m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});},
   remove:m=>{run("UPDATE messages SET deleted=1,body='',transcript=NULL,e2e=NULL WHERE id=?",m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});}});
 setInterval(()=>bots.tick(),2000).unref();
+const cypherLink=createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,post:botPost,vip});
 // Group calls and voice rooms go through the server's SFU when it can be reached (see server/sfu.js).
 const sfuEnabled=()=>process.env.SFU_ENABLED==='1'||(process.env.SFU_ENABLED!=='0'&&(!!process.env.SFU_PUBLIC_IP||rtcConfiguration('sfu').relayConfigured||managedTurnConfigured()));
 const roomSeen=new Map();
@@ -279,6 +281,7 @@ const server = http.createServer(async (req, res) => {
     if(await recovery.route({path,req,res,b,user,json}))return;
     if(await bots.route({path,req,b,user,json,url}))return;
     if(await deviceLogin.route({path,req,res,b,user,json,url,origin:expectedOrigin}))return;
+    if(await cypherLink.route({path,req,b,user,json,url,origin:expectedOrigin}))return;
     if (path === '/api/auth' && req.method === 'POST') {
       if(b.register&&emailAuth.ready())fail(410,'Создайте аккаунт через подтверждение email');
       accounts.assertCapacity(req,one('SELECT id FROM users WHERE username=?',String(b.username||'').trim().toLowerCase())?.id);

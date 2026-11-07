@@ -32,6 +32,7 @@ import { groupPanel,verifyDialog } from './groups.js';
 import {syncProtection,restricted,isProtected,protectionText} from './content-protection.js';
 import {schedulePage} from './social.js';
 import {aiPage,familyPage} from './extensions.js';
+import {approveCypher} from './cypher-link.js';
 import {syncHalloween,maybeWhatsNew,decorateComposer,treatMenuButton,ghostLine,treatCard,bindHalloween} from './halloween.js';
 import {chatDraft,saveDraft,flushDrafts,forgetDraft,bindMessageGestures,heartBurst,bindFileInput,confirmFiles} from './chat-extras.js';
 import {richText,plainText,firstURL} from './rich-text.js';
@@ -753,6 +754,7 @@ async function openNotificationLink(href){
  const url=new URL(href,location.origin);if(url.origin!==location.origin)return;
  const link=new URLSearchParams(url.hash.slice(1));
  if(link.get('qr-login')){history.replaceState(null,'',location.pathname+location.search);await approveDevice(link.get('qr-login'),link.get('k'),state.user.id);return;}
+ if(link.get('cypher-link')){history.replaceState(null,'',location.pathname+location.search);await approveCypher(link.get('cypher-link'));return;}
  if(link.get('e2e-transfer')){history.replaceState(null,'',location.pathname+location.search);await sendTransfer(state,link.get('e2e-transfer'),link.get('k'));return;}
  if(link.get('account')&&link.get('account')!==state.user.id){await accountManager.switchTo(link.get('account'));}
  if(link.get('community')){const cid=link.get('community'),invite=link.get('invite'),c=await api('/communities/'+encodeURIComponent(cid)+'?invite='+encodeURIComponent(invite||''));if(c.subscribed){await refresh();await openChat(cid);return;}modal(c.title,`<p>${peopleCount(c.count,c.kind==='channel')}</p><button class="primary" id="join-community">Присоединиться</button>`);$('#join-community').onclick=guard(async()=>{await api('/communities/'+cid+'/join','POST',{invite});$('#modal').close();await refresh();await openChat(cid);});return;}
