@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cipherion — Cypher AI, промо-ролик</title>
+<style>
+/* Сцена ролика 540×960 (рендер в 1080×1920). Время задаёт render(t): все CSS-анимации
+   ставятся на паузу и перематываются на t, а сюжет считается в JS ниже.
+   Устроено как docs/promo/halloween-2026: телефон, подписи, палец; плюс монитор с Cypher для Windows. */
+:root{--arc:#2bdf9a;--arc2:#9bf7cf;--ice:#eafff5;--text:#eef7f3;--muted:#9fb6ad}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#010604;overflow:hidden}
+body{font-family:Inter,system-ui,"Noto Color Emoji",sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
+.emo{font-family:"Noto Color Emoji",Inter,sans-serif}
+.mono{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace}
+.viewport{position:fixed;inset:0;display:grid;place-items:center}
+.stage{position:relative;width:540px;height:960px;overflow:hidden;flex:none;
+  background:radial-gradient(90% 50% at 80% 4%,#2bdf9a26,transparent 60%),radial-gradient(90% 55% at 0% 100%,#1e5ac840,transparent 62%),linear-gradient(#03130d,#010604 70%)}
+
+/* ---------- фон ---------- */
+.bggrid{position:absolute;inset:0;background-image:linear-gradient(#2bdf9a0d 1px,#0000 1px),linear-gradient(90deg,#2bdf9a0d 1px,#0000 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(70% 55% at 50% 45%,#000 20%,#0000 80%);mask-image:radial-gradient(70% 55% at 50% 45%,#000 20%,#0000 80%);animation:gridmove 12s linear infinite}
+@keyframes gridmove{to{background-position:0 44px,44px 0}}
+.mote{position:absolute;width:3px;height:3px;border-radius:50%;background:#9bf7cf;box-shadow:0 0 6px #2bdf9a;animation:mote 9s ease-in-out infinite}
+@keyframes mote{0%,100%{transform:translateY(0);opacity:.15}50%{transform:translateY(-26px);opacity:.8}}
+.halo{position:absolute;left:50%;top:470px;width:620px;height:620px;margin:-310px 0 0 -310px;border-radius:50%;background:radial-gradient(closest-side,#2bdf9a22,#2bdf9a08 60%,transparent);animation:halo 5s ease-in-out infinite}
+@keyframes halo{50%{transform:scale(1.08);opacity:.7}}
+
+/* ---------- заголовок ---------- */
+.hdr{position:absolute;left:0;right:0;top:34px;text-align:center;z-index:20}
+.brand{font-weight:800;font-size:13px;letter-spacing:.32em;color:#d1fae5cc}
+.brand span{color:var(--arc)}
+.hdr h1{font-family:"Inter Display",Inter,sans-serif;font-weight:800;font-size:40px;letter-spacing:-.03em;line-height:1.05;margin-top:8px;
+  background:linear-gradient(180deg,#f4fffa,#9bf7cf 55%,#2bdf9a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 18px #2bdf9a55)}
+.pill{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 16px;border-radius:99px;font-size:14.5px;font-weight:600;
+  background:linear-gradient(90deg,#2bdf9a26,#1e5ac833);border:1px solid #2bdf9a77;box-shadow:0 0 24px #2bdf9a33}
+.pill b{color:#9bf7cf}
+
+/* ---------- телефон (3D), корпус Deep Blue ---------- */
+.p3d-wrap{position:absolute;left:121px;top:196px;width:298px;height:620px;perspective:1600px;z-index:10;transform-origin:50% 50%}
+.pshadow{position:absolute;left:150px;top:790px;width:240px;height:46px;border-radius:50%;background:radial-gradient(closest-side,#000c,#0000);filter:blur(6px);z-index:9}
+.phone3d{position:absolute;inset:0;transform-style:preserve-3d}
+.face{position:absolute;inset:0;border-radius:52px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.slice{position:absolute;inset:0;border-radius:52px;background:#26364f;box-shadow:inset 0 0 0 2px #4a6488}
+.side{position:absolute;top:50px;width:28px;height:520px;border-radius:14px;transform:rotateY(90deg);
+  background:linear-gradient(90deg,#17233a,#3d5578 22%,#8aa4c8 50%,#3d5578 78%,#17233a)}
+.side.l{left:-14px}.side.r{left:284px}
+.hbtn{position:absolute;left:7px;right:7px;border-radius:7px;background:linear-gradient(90deg,#2a3c5a,#9db5d6 50%,#2a3c5a);box-shadow:0 0 0 1px #101a2caa}
+.hbtn.cc{background:linear-gradient(90deg,#0e1522,#33435c 50%,#0e1522);box-shadow:0 0 0 1.5px #5b77a0}
+.edgebtn{position:absolute;width:3px;border-radius:2px;background:linear-gradient(90deg,#9db5d6,#34496a)}
+.front{transform:translateZ(14px);background:linear-gradient(160deg,#8fa8cc,#3e5679 35%,#2a3d5c 70%,#5d789f);padding:3px;box-shadow:0 0 0 .5px #0d1626}
+.bezel{width:100%;height:100%;border-radius:49px;background:#020203;padding:6px;box-shadow:inset 0 0 0 1px #1d1b1f}
+.screen{position:relative;width:100%;height:100%;border-radius:43px;overflow:hidden;background:#000}
+.island{position:absolute;top:9px;left:50%;width:82px;height:24px;margin-left:-41px;border-radius:14px;background:#000;z-index:60}
+.island::after{content:"";position:absolute;right:13px;top:8px;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#2b3350,#07080c 70%)}
+.glare{position:absolute;inset:0;z-index:59;pointer-events:none;background:linear-gradient(115deg,transparent 30%,#ffffff22 45%,transparent 60%);opacity:0}
+.back{transform:rotateY(180deg) translateZ(14px);overflow:hidden;
+  background:radial-gradient(130% 60% at 20% 0%,#6f8bb3,transparent 60%),linear-gradient(165deg,#3f5a80,#30486b 45%,#263b5a 80%,#1f324e);
+  box-shadow:inset 0 0 0 1.5px #a9c0e099,inset 0 0 0 3.5px #26364f,inset 0 -40px 70px #0a122033}
+.plateau{position:absolute;left:0;right:0;top:0;height:170px;border-radius:52px 52px 24px 24px/52px 52px 20px 20px;
+  background:linear-gradient(176deg,#6884ac,#44608a 45%,#36507a);
+  box-shadow:0 7px 12px -3px #0a122099,inset 0 0 0 1.5px #b5cbe888,inset 0 -2px 2px #1d2d4888,inset 0 3px 4px #d6e4f866}
+.lens{position:absolute;width:72px;height:72px;border-radius:50%;
+  background:radial-gradient(circle,#030407 0 22%,#12182b 23% 30%,#040508 31% 44%,#3a3e48 45% 47%,#0b0c10 48% 62%,#22304a 63% 65%,transparent 66%),
+    conic-gradient(from 210deg,#b9cde8,#3a5378,#8aa4c8,#2c4263,#b9cde8);
+  box-shadow:0 5px 9px #0a122099,0 1px 0 #d6e4f8 inset}
+.lens::before{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7b8cff99,transparent 40%),radial-gradient(circle at 65% 70%,#2bdf9a55,transparent 45%)}
+.lens::after{content:"";position:absolute;left:36%;top:33%;width:9%;height:7%;border-radius:50%;background:#fff;opacity:.75;filter:blur(.6px)}
+.l1{left:12px;top:12px}.l2{left:12px;top:86px}.l3{left:78px;top:49px}
+.cflash{position:absolute;right:28px;top:26px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,#fff9e3 0 35%,#e9dcb0 36% 58%,#a89566 59% 66%,#34496a 67%);box-shadow:0 1px 2px #0a122088}
+.lidar{position:absolute;right:28px;top:118px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,#1d2029 0 45%,#08090c 46% 64%,#34496a 66%);box-shadow:0 1px 2px #0a122088}
+.mic{position:absolute;right:36px;top:80px;width:6px;height:6px;border-radius:50%;background:#101a2c;box-shadow:inset 0 1px 1px #000}
+.panel{position:absolute;left:12px;right:12px;top:186px;bottom:12px;border-radius:42px;
+  background:linear-gradient(170deg,#44608a,#36507a 55%,#2c4469);box-shadow:inset 0 0 0 1px #b5cbe866,inset 0 2px 3px #ffffff30,0 0 0 1px #1d2d4855}
+.panel::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(160deg,#ffffff1f,transparent 35%)}
+.logo{position:absolute;left:50%;top:345px;width:92px;margin-left:-46px;animation:glow 2.2s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 3px #9bf7cf88)}50%{filter:drop-shadow(0 0 16px #2bdf9a)}}
+.sheen{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:5;background:linear-gradient(100deg,transparent 42%,#fff3 50%,transparent 58%);background-size:300% 100%;mix-blend-mode:screen}
+
+/* ---------- приложение внутри экрана (макет 360×774, масштаб 0.7778) ---------- */
+.inner{position:absolute;left:0;top:0;width:360px;height:774px;transform:scale(.77778);transform-origin:0 0;font-size:15px;line-height:1.35;
+  --text:#e9f5ef;--muted:#93aaa0;--surface:#152620b8;--line:#b2e7cc17;--accent:#83d9b5;--accent2:#5eead4;--on-accent:#12382c;
+  --app-bg:radial-gradient(120% 70% at 85% -10%,#255c4955,transparent 60%),linear-gradient(#0e1d1b,#0b1716)}
+.scr{position:absolute;inset:0;background:var(--app-bg);overflow:hidden;color:var(--text)}
+.content{position:absolute;inset:0;display:flex;flex-direction:column;z-index:3}
+.glass{background:var(--surface);border:1px solid var(--line)}
+.status{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 6px;font-size:14px;font-weight:600;height:46px;flex:none}
+.status svg{height:12px;fill:currentColor}
+.side-header{padding:6px 18px 4px;display:flex;justify-content:space-between;align-items:center}
+.side-header h2{font-size:28px;letter-spacing:-.03em;font-weight:800}
+.side-header h2 i{font-style:normal;color:var(--accent)}
+.side-header small{display:block;color:var(--muted);font-size:12.5px}
+.icons{display:flex;gap:8px}
+.ib{width:38px;height:38px;display:grid;place-items:center;color:var(--text)}
+.ib svg{width:24px;height:24px}
+.ftabs{display:flex;gap:4px;padding:4px 12px 8px;border-bottom:1px solid var(--line)}
+.ftabs span{padding:7px 12px;border-radius:999px;font-size:13.5px;font-weight:560;color:var(--muted)}
+.ftabs span.on{background:#83d9b51f;color:var(--accent);font-weight:700}
+.ftabs span em{font-style:normal;font-size:11px;background:var(--accent);color:var(--on-accent);border-radius:9px;padding:0 6px;margin-left:5px;font-weight:800}
+.list{flex:1;overflow:hidden;padding:6px 8px 90px}
+.item{display:flex;gap:12px;padding:9px 10px;border-radius:16px;align-items:center}
+.av{width:50px;height:50px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;color:#fff;position:relative;font-size:17px}
+.meta{flex:1;min-width:0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.name{font-weight:600;font-size:15.5px;white-space:nowrap}
+.time{font-size:11.5px;color:var(--muted)}
+.prev{font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unread{min-width:21px;height:21px;border-radius:11px;background:var(--accent);color:var(--on-accent);font-size:11.5px;font-weight:700;display:grid;place-items:center;padding:0 6px}
+.bot{font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:6px;background:#83d9b52b;color:var(--accent);margin-left:5px;vertical-align:2px}
+/* нижнее меню — жидкое стекло */
+.rnav{position:absolute;left:14px;right:14px;bottom:12px;height:68px;padding:5px;display:flex;justify-content:space-around;gap:2px;z-index:5;border-radius:999px;
+  background:linear-gradient(180deg,#ffffff1c,#ffffff08 60%,#ffffff12);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  border:1px solid #ffffff2e;box-shadow:0 10px 30px #00000066,inset 0 1px 0 #ffffff40,inset 0 -1px 0 #ffffff14,inset 0 0 20px #ffffff0a}
+.rbtn{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:999px;color:#e0ece7;overflow:hidden;max-width:120px}
+.rbtn svg{width:25px;height:25px;display:block;flex:none}
+.rbtn span{font-size:11.5px;font-weight:600;letter-spacing:-.01em;line-height:1;white-space:nowrap}
+.rbtn.on{background:linear-gradient(180deg,#ffffff26,#ffffff0d);box-shadow:inset 0 1px 0 #ffffff3a;color:var(--accent)}
+.rbtn.on span{font-weight:700}
+.rnav.five .rbtn span{font-size:10px}
+.cy-rnav{background:linear-gradient(180deg,#2bdf9a1c,#ffffff06 60%,#2bdf9a10);border-color:#2bdf9a3a}
+.cy-rnav .rbtn.on{color:#9bf7cf}
+
+/* ---------- раздел AI в стиле Cypher ---------- */
+.cyscr{background:radial-gradient(500px 360px at 70% -10%,#2bdf9a22,transparent 60%),radial-gradient(400px 300px at -10% 110%,#1e5ac826,transparent 60%),#010805;color:var(--ice)}
+.cygrid{position:absolute;inset:0;background-image:linear-gradient(#2bdf9a0b 1px,#0000 1px),linear-gradient(90deg,#2bdf9a0b 1px,#0000 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(#000 30%,#0000 80%);mask-image:radial-gradient(#000 30%,#0000 80%)}
+.cy-top{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 8px;border-bottom:1px solid #2bdf9a1a;flex:none}
+.cy-brand{display:flex;align-items:center;gap:9px}
+.cy-dot{width:17px;height:17px;border-radius:50%;background:radial-gradient(circle,#2bdf9a 0 30%,#0a2e22 34% 55%,transparent 58%),radial-gradient(circle,#2bdf9a55,transparent 70%);box-shadow:0 0 10px #2bdf9a88;flex:none}
+.cy-logo{letter-spacing:.42em;font-size:13px;color:var(--ice);text-shadow:0 0 18px #2bdf9a8c}
+.cy-status{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#eafff5b3;white-space:nowrap}
+.cy-status i{width:8px;height:8px;border-radius:50%;background:var(--arc);box-shadow:0 0 8px var(--arc)}
+.cy-status.busy i{animation:blink 1s infinite}
+.cy-status.exec i{background:#78aaff;box-shadow:0 0 8px #78aaff}
+@keyframes blink{50%{opacity:.25}}
+.cy-stop{color:#ffd5da;background:#ff5a6a1a;border:1px solid #ff5a6a73;width:30px;height:30px;border-radius:50%;display:grid;place-items:center}
+.cy-stop i{width:10px;height:10px;border-radius:2px;background:#ffd5da}
+.cy-tabs{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid #2bdf9a14;flex:none}
+.cy-tab{display:flex;align-items:center;gap:7px;height:34px;padding:0 10px;border-radius:10px;border:1px solid #2bdf9a1f;color:#eafff5b3;font-size:13px;white-space:nowrap;overflow:hidden}
+.cy-tab svg{width:17px;height:17px;flex:none}
+.cy-tab b{font-weight:500;display:none}
+.cy-tab.on{border-color:#2bdf9a66;background:linear-gradient(90deg,#2bdf9a24,#2bdf9a08);color:#9bf7cf}
+.cy-tab.on b{display:inline}
+.cyv{position:absolute;left:0;right:0;top:136px;bottom:0;padding:12px 14px 0}
+.cyv>section{position:absolute;inset:0;padding:12px 14px 0;opacity:0}
+.hud{letter-spacing:.22em;text-transform:uppercase;color:#9bf7cf99;font-size:9.5px}
+.holo{background:linear-gradient(160deg,#0a2e22b0,#03100beb);border:1px solid #2bdf9a33;box-shadow:inset 0 1px #9bf7cf12,0 18px 50px -20px #000c}
+.cy-home{text-align:center;display:flex;flex-direction:column;align-items:center}
+.cy-hello{font-size:27px;font-weight:300;margin:6px 0 3px}
+.cy-sub{color:#eafff599;font-size:12.5px}
+.orbw{position:relative;width:206px;height:206px;margin:2px auto 0}
+.orbw canvas{position:absolute;inset:0;width:100%;height:100%}
+.orb-label{letter-spacing:.3em;font-size:9.5px;color:#9bf7cfb3;margin-top:2px;height:13px}
+.cy-ask{display:flex;align-items:center;gap:7px;width:100%;margin:10px 0 10px;padding:6px 6px 6px 14px;border-radius:14px;text-align:left}
+.cy-ask .in{flex:1;font-size:14.5px;color:#eafff566;white-space:nowrap;overflow:hidden}
+.cy-ask .in.typed{color:var(--ice)}
+.cib{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:10px;border:1px solid #2bdf9a40;background:#2bdf9a12;color:var(--ice)}
+.cib svg{width:17px;height:17px}
+.cib.send{background:linear-gradient(135deg,#2bdf9a59,#0f9d6e59);border-color:#2bdf9a99}
+.caret{display:inline-block;width:1.5px;height:16px;background:var(--arc);vertical-align:-3px;margin-left:1px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.ccard{display:flex;align-items:flex-start;gap:8px;padding:8px;border-radius:12px;text-align:left;min-width:0}
+.ccard svg.g{width:38px;height:38px;flex:none;transform:rotate(-90deg)}
+.ccard .v{font-size:14px;line-height:1.2;margin:2px 0 1px}
+.ccard .d{font-size:10.5px;color:#eafff573}
+.ccard.hot{box-shadow:0 0 0 1.5px #2bdf9aaa,0 0 22px #2bdf9a55}
+.cy-h{font-size:22px;font-weight:300}
+.cy-h+small,.cy-small{display:block;color:#eafff566;font-size:12px;margin-top:2px}
+.chhead{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-bottom:10px}
+.sel{font-size:12px;padding:7px 10px;border-radius:10px;border:1px solid #2bdf9a2e;background:#02100bb3;white-space:nowrap}
+.cmsgs{position:absolute;left:14px;right:14px;top:66px;bottom:156px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;overflow:hidden}
+.cmsg{max-width:90%;padding:10px 12px;border-radius:14px;border:1px solid #2bdf9a26;background:#03110ccc;font-size:14px;line-height:1.45}
+.cmsg small{display:block;font-size:10.5px;color:#9bf7cf99;margin-bottom:3px}
+.cmsg.user{align-self:flex-end;background:linear-gradient(135deg,#2bdf9a2e,#0f9d6e26);border-color:#2bdf9a59}
+.cmsg.as{align-self:flex-start}
+.cact{display:inline-block;margin-top:8px;font-size:12.5px;padding:6px 11px;border-radius:9px;background:#2bdf9a12;border:1px solid #2bdf9a40;opacity:0}
+.thinking{display:inline-flex;gap:4px}
+.thinking i{width:6px;height:6px;border-radius:50%;background:#9bf7cf;animation:dotp 1s ease-in-out infinite}
+.thinking i:nth-child(2){animation-delay:.15s}.thinking i:nth-child(3){animation-delay:.3s}
+@keyframes dotp{50%{opacity:.2;transform:translateY(-3px)}}
+.ccomp{position:absolute;left:14px;right:14px;bottom:96px;display:flex;align-items:center;gap:7px;padding:6px;border-radius:14px}
+.ccomp .in{flex:1;font-size:14px;color:#eafff566;padding-left:4px}
+.cpanel{border-radius:13px;padding:10px 11px;margin-bottom:8px}
+.cpanel .hud{margin-bottom:7px}
+.crow{display:flex;gap:7px;align-items:center}
+.cbtn{font-size:12px;padding:6px 9px;border-radius:9px;background:#2bdf9a12;border:1px solid #2bdf9a40;white-space:nowrap;color:var(--ice)}
+.cbtn.pr{background:linear-gradient(135deg,#2bdf9a59,#0f9d6e59);border-color:#2bdf9a99}
+.cbtn.hit{background:#2bdf9a40;border-color:#2bdf9a;box-shadow:0 0 16px -2px #2bdf9acc}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.slider{flex:1;height:22px;position:relative}
+.slider .tr{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;background:#2bdf9a26}
+.slider .fl{position:absolute;left:0;top:9px;height:4px;border-radius:2px;background:var(--arc);box-shadow:0 0 8px var(--arc)}
+.slider .kn{position:absolute;top:3px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#eafff5;box-shadow:0 0 0 3px #2bdf9a55}
+.vval{min-width:36px;text-align:right;color:#9bf7cf;font-size:12px}
+.field{flex:1;font-size:12.5px;padding:7px 9px;border-radius:9px;border:1px solid #2bdf9a2e;background:#02100bb3;color:#eafff566;white-space:nowrap;overflow:hidden;min-width:0}
+.field.typed{color:var(--ice)}
+.field.focus{border-color:#2bdf9a99;box-shadow:0 0 0 3px #2bdf9a1f}
+.clog{display:flex;flex-direction:column;gap:6px}
+.clog .lr{padding:7px 9px;border-radius:9px;background:#2bdf9a0d;font-size:12.5px;line-height:1.35}
+.clog .lr b{display:block;font-weight:600}
+.clog .lr span{color:#eafff5b3}
+.mrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:#2bdf9a0b;font-size:13px;margin-top:6px}
+.mrow.new{box-shadow:0 0 0 1px #2bdf9a88,0 0 18px #2bdf9a44}
+/* окно подключения (стиль мессенджера) */
+.mdim{position:absolute;inset:0;background:#000b;z-index:20;opacity:0}
+.modal{position:absolute;left:18px;right:18px;top:200px;z-index:21;border-radius:24px;padding:18px;background:#13231ef5;border:1px solid #ffffff1c;box-shadow:0 30px 60px #000c;opacity:0}
+.modal h3{font-size:19px;margin-bottom:8px}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:10px}
+.modal p b{color:var(--text)}
+.modal label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.mfield{height:44px;border-radius:12px;background:#0b1a16;border:1.5px solid var(--accent);display:flex;align-items:center;padding:0 12px;font-size:19px;letter-spacing:.12em;margin-bottom:12px}
+.mbtn{height:44px;border-radius:99px;display:grid;place-items:center;font-weight:700;font-size:14.5px;background:var(--accent);color:var(--on-accent)}
+.mbtn.s{background:#ffffff14;color:var(--text);border:1px solid var(--line)}
+.grants{list-style:none;margin:0 0 12px;display:grid;gap:6px}
+.grants li{font-size:12.5px;line-height:1.3;padding-left:18px;position:relative;color:#d7e9e1}
+.grants li::before{content:"✓";position:absolute;left:0;color:var(--accent);font-weight:800}
+.mrowb{display:flex;gap:8px}.mrowb>div{flex:1}
+.ptoast{position:absolute;left:18px;right:18px;bottom:96px;z-index:22;padding:11px 14px;border-radius:16px;background:#1d3a30f2;border:1px solid #83d9b555;font-size:13px;opacity:0}
+
+/* ---------- чат мессенджера ---------- */
+.chat-head{display:flex;align-items:center;gap:10px;padding:8px 14px;margin:0 10px;border-radius:24px;flex:none}
+.chat-head .bk{color:var(--accent);display:grid;place-items:center;width:16px}
+.chev{display:block;width:12px;height:20px}
+.chat-head .av{width:40px;height:40px;font-size:15px}
+.chat-head b{display:block;font-size:15.5px}
+.chat-head small{color:var(--muted);font-size:12.5px}
+.msgs{flex:1;padding:12px 12px 6px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-height:0}
+.rv{flex:none;overflow:hidden;display:flex;flex-direction:column}
+.day{align-self:center;font-size:11.5px;color:var(--muted);padding:3px 11px;border-radius:99px;margin:4px 0 8px}
+.m{max-width:80%;padding:8px 12px 7px;border-radius:19px;font-size:15px;position:relative;margin-bottom:8px}
+.m .t{font-size:10.5px;color:var(--muted);float:right;margin:7px 0 -3px 10px}
+.m.in{align-self:flex-start;border-bottom-left-radius:6px}
+.m.out{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--on-accent);border-bottom-right-radius:6px}
+.m.out .t{color:inherit;opacity:.7}
+.media{align-self:flex-end;width:212px;height:150px;border-radius:18px;border-bottom-right-radius:6px;position:relative;overflow:hidden;margin-bottom:8px;box-shadow:0 0 0 1px #ffffff1a}
+.media .mt{position:absolute;right:8px;bottom:7px;font-size:10.5px;padding:2px 7px;border-radius:99px;background:#0008;color:#fff}
+.media .tag{position:absolute;left:8px;top:8px;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;background:#000a;color:#fff;border:1px solid #ffffff33}
+.prog{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:#0009;display:grid;place-items:center}
+.prog svg{position:absolute;inset:4px;transform:rotate(-90deg)}
+.prog b{font-size:11px;color:#fff}
+.media .note{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 7px;font-size:10.5px;color:#fff;background:linear-gradient(#0000,#000c)}
+.play{position:absolute;left:50%;top:50%;width:0;height:0;margin:-10px 0 0 -6px;border-left:16px solid #fff;border-top:10px solid transparent;border-bottom:10px solid transparent}
+.composer{margin:6px 10px 14px;border-radius:28px;display:flex;align-items:center;gap:10px;padding:7px 7px 7px 14px;flex:none;position:relative}
+.composer .ic{font-size:19px;line-height:1;font-family:"Noto Color Emoji",sans-serif}
+.composer .in{flex:1;color:var(--muted);font-size:15px}
+.send{width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:800;font-size:16px;flex:none}
+/* фото, нарисованные градиентами */
+.ph{position:absolute;inset:0;overflow:hidden}
+.ph.sunset{background:linear-gradient(#2b1a4f,#a0417a 45%,#ff9a5a 70%,#ffd08a)}
+.ph.sunset .sun{position:absolute;left:58%;top:52%;width:22%;aspect-ratio:1;border-radius:50%;background:radial-gradient(#fff6d8,#ffc46b 60%,#ffc46b00 72%);transform:translate(-50%,-50%)}
+.ph.sunset .m1{position:absolute;left:-5%;right:-5%;bottom:0;height:46%;background:#3a1f4a;clip-path:polygon(0 60%,18% 20%,32% 48%,48% 8%,66% 52%,80% 30%,100% 58%,100% 100%,0 100%)}
+.ph.sunset .m2{position:absolute;left:-5%;right:-5%;bottom:0;height:30%;background:#1c1029;clip-path:polygon(0 50%,25% 25%,45% 60%,70% 18%,100% 55%,100% 100%,0 100%)}
+.ph.lake{background:linear-gradient(#7fd3d8,#cfeee6 46%,#2f7f78 46.5%,#164d4a)}
+.ph.lake .tr{position:absolute;bottom:52%;width:9%;height:30%;background:#0e3b33;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.ph.lake .rf{position:absolute;left:0;right:0;top:54%;height:3%;background:#ffffff40;filter:blur(1px)}
+/* просмотрщик в стиле iOS */
+.viewer{position:absolute;inset:0;z-index:30;background:#000;opacity:0;pointer-events:none}
+.vtrack{position:absolute;left:0;right:0;top:120px;height:420px}
+.vslide{position:absolute;inset:0}
+.vslide .ph{left:0;right:0;top:0;bottom:0}
+.vglass{position:absolute;width:46px;height:46px;border-radius:50%;background:#2c2c2eb8;border:1px solid #ffffff1a;display:grid;place-items:center;color:#fff;box-shadow:inset 0 1px 0 #ffffff14,0 8px 24px #00000059}
+.vglass svg{width:22px;height:22px}
+.vtitle{position:absolute;left:50%;top:52px;transform:translateX(-50%);padding:6px 22px;border-radius:24px;background:#2c2c2eb8;border:1px solid #ffffff1a;text-align:center;white-space:nowrap}
+.vtitle b{display:block;font-size:15px;font-weight:600}
+.vtitle small{font-size:12px;color:#ebebf599}
+.vbar{position:absolute;left:16px;right:16px;bottom:40px;display:flex;justify-content:space-between}
+.vfly{position:absolute;z-index:29;overflow:hidden;border-radius:18px;opacity:0}
+/* шторка «Разделы нижнего меню» */
+.dim{position:absolute;inset:0;background:#020a08cc;z-index:6;opacity:0}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;border-radius:32px 32px 40px 40px;padding:10px 18px 22px;background:#13231ef7;border:1px solid #ffffff14;transform:translateY(105%)}
+.grab{width:40px;height:5px;border-radius:3px;background:#ffffff33;margin:0 auto 10px}
+.sheet h3{font-size:19px}
+.sheet .hint{font-size:12px;color:var(--muted);margin:4px 0 10px}
+.nrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid var(--line);font-size:14.5px}
+.nrow svg{width:22px;height:22px;flex:none}
+.nrow .nt{flex:1}
+.nrow .ar{width:28px;height:28px;border-radius:8px;background:#ffffff0d;display:grid;place-items:center;color:var(--muted);font-size:13px}
+.nrow.off{color:var(--muted)}
+.tg{width:42px;height:25px;border-radius:13px;background:#ffffff26;position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff}
+.tg.on{background:var(--accent)}
+.tg.on::after{left:19.5px}
+.tg.lock{opacity:.5}
+.hold{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:2.5px solid #9bf7cf;z-index:51;opacity:0;pointer-events:none}
+
+/* общий слой экрана */
+.tap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:#ffffff55;border:2px solid #ffffffcc;box-shadow:0 0 18px #fff8;z-index:50;opacity:0;pointer-events:none}
+
+/* ---------- компьютер ---------- */
+.mon{position:absolute;left:20px;top:26px;width:500px;z-index:8;opacity:0;transform-origin:50% 100%}
+.mbz{width:500px;height:290px;border-radius:14px;background:linear-gradient(#15181d,#0b0d10);padding:10px;box-shadow:0 0 0 1px #2c323a,inset 0 1px 0 #3a414b,0 30px 60px #000c}
+.ds{position:relative;width:480px;height:270px;border-radius:4px;overflow:hidden;font-family:"Segoe UI",Inter,sans-serif;
+  background:radial-gradient(60% 80% at 70% 60%,#1d6fd0,transparent 70%),radial-gradient(50% 70% at 30% 30%,#2bdf9a66,transparent 70%),linear-gradient(135deg,#071a33,#0b2c52 60%,#04101f)}
+.neck{width:64px;height:30px;margin:0 auto;background:linear-gradient(90deg,#1a1e24,#3b424c 50%,#1a1e24)}
+.foot{width:190px;height:9px;margin:0 auto;border-radius:5px 5px 3px 3px;background:linear-gradient(#3b424c,#15181d)}
+.tbar{position:absolute;left:0;right:0;bottom:0;height:24px;background:#121821e6;border-top:1px solid #ffffff14;display:flex;align-items:center;justify-content:center;gap:9px}
+.tbar i{width:14px;height:14px;border-radius:3px;display:block;position:relative}
+.tbar i.on::after{content:"";position:absolute;left:3px;right:3px;bottom:-4px;height:2px;border-radius:1px;background:#9bf7cf}
+.tclock{position:absolute;right:8px;top:4px;font-size:8px;color:#dfe6ee;text-align:right;line-height:1.1}
+.tvol{position:absolute;right:46px;top:7px;font-size:8px;color:#dfe6ee}
+.cw{position:absolute;left:12px;top:12px;width:248px;height:206px;border-radius:8px;background:#010805;border:1px solid #2bdf9a55;box-shadow:0 12px 30px #000a,0 0 24px #2bdf9a22;overflow:hidden;color:#eafff5}
+.cwt{height:20px;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #2bdf9a1f;font-size:8px}
+.cwt .cy-dot{width:10px;height:10px}
+.cwt .mono{letter-spacing:.35em;font-size:8px}
+.cwt .wb{margin-left:auto;color:#eafff580;letter-spacing:.4em;font-size:8px}
+.cwb{position:absolute;left:0;right:0;top:20px;bottom:0;display:flex}
+.cwl{width:88px;flex:none;display:flex;flex-direction:column;align-items:center;padding-top:8px;border-right:1px solid #2bdf9a14}
+.cwl canvas{width:76px;height:76px}
+.cwl .st{font-size:7px;letter-spacing:.25em;color:#9bf7cfb3;margin-top:4px;text-align:center}
+.cwr{flex:1;position:relative}
+.cwp{position:absolute;inset:0;padding:9px 10px;opacity:0}
+.cwp .hud{font-size:7px;margin-bottom:5px}
+.code{font-size:20px;letter-spacing:.12em;color:#eafff5;text-shadow:0 0 14px #2bdf9a88;margin:3px 0 6px}
+.qr{width:56px;height:56px;display:grid;grid-template-columns:repeat(11,1fr);gap:0;padding:3px;background:#eafff5;border-radius:3px}
+.qr i{display:block;background:#010805}
+.qr i.w{background:transparent}
+.cwp small{display:block;font-size:7.5px;color:#eafff580;margin-top:5px}
+.okbig{font-size:13px;font-weight:600;color:#9bf7cf;margin:4px 0 4px}
+.cwp p{font-size:8.5px;color:#eafff5b3;line-height:1.4}
+.cwlog{display:flex;flex-direction:column;gap:3px}
+.cwlog div{font-size:8.5px;line-height:1.3;padding:3px 5px;border-radius:4px;background:#2bdf9a0d;opacity:0}
+.cwlog div.u{color:#9bf7cf}
+.cwlog div.s{background:#78aaff1a;color:#cfe0ff}
+.np{position:absolute;left:196px;top:62px;width:272px;height:150px;border-radius:7px;background:#fbfbfb;box-shadow:0 14px 34px #000a;overflow:hidden;color:#1b1b1b;opacity:0;transform-origin:30% 80%}
+.npt{height:20px;background:#eef0f3;display:flex;align-items:center;padding:0 7px;font-size:8px;gap:6px;border-bottom:1px solid #dadde2}
+.npt .tab{background:#fff;padding:3px 8px;border-radius:4px 4px 0 0;margin-top:4px}
+.npt .wb{margin-left:auto;color:#555;letter-spacing:.4em}
+.npm{font-size:7.5px;padding:3px 8px;color:#444;border-bottom:1px solid #eceef1}
+.npx{padding:8px 9px;font-size:11px;font-family:Consolas,"DejaVu Sans Mono",monospace;line-height:1.4}
+.npx .caret{background:#111;height:12px;width:1px}
+.osd{position:absolute;left:50%;bottom:36px;width:150px;height:28px;margin-left:-75px;border-radius:8px;background:#1d232cf0;border:1px solid #ffffff1f;display:flex;align-items:center;gap:7px;padding:0 10px;opacity:0;color:#fff;font-size:9px}
+.osd .bar{flex:1;height:3px;border-radius:2px;background:#ffffff33;position:relative}
+.osd .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#9bf7cf}
+.shot{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.shotframe{position:absolute;inset:6px;border:2px solid #78aaff;border-radius:4px;opacity:0;box-shadow:0 0 18px #78aaffaa}
+.wtoast{position:absolute;right:8px;width:206px;border-radius:8px;background:#1b222cf2;border:1px solid #ffffff1c;padding:7px 9px;display:flex;gap:7px;opacity:0;box-shadow:0 10px 24px #0009}
+.wtoast .cy-dot{width:16px;height:16px;margin-top:1px}
+.wtoast b{display:block;font-size:8.5px;color:#fff}
+.wtoast span{display:block;font-size:8.5px;color:#cbd5df;margin-top:1px}
+.wtoast small{display:block;font-size:7px;color:#9bf7cf;margin-top:3px}
+.wave{display:inline-flex;gap:2px;align-items:center;height:10px;margin-right:4px;vertical-align:-1px}
+.wave i{width:2px;border-radius:1px;background:#9bf7cf;height:4px;animation:wv .6s ease-in-out infinite alternate}
+.wave i:nth-child(2){animation-delay:-.2s}.wave i:nth-child(3){animation-delay:-.4s}.wave i:nth-child(4){animation-delay:-.1s}
+@keyframes wv{to{height:10px}}
+/* связь телефон ↔ компьютер */
+.link{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0}
+.link path{fill:none;stroke:#2bdf9a55;stroke-width:1.5;stroke-dasharray:4 7}
+.pkt{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;z-index:9;opacity:0;background:radial-gradient(#fff,#9bf7cf 40%,#2bdf9a00 72%);box-shadow:0 0 16px 4px #2bdf9a}
+.pkt.r{background:radial-gradient(#fff,#b8d0ff 40%,#78aaff00 72%);box-shadow:0 0 16px 4px #78aaff}
+
+/* ---------- подписи ---------- */
+.caps{position:absolute;left:20px;right:20px;top:832px;height:118px;z-index:20}
+.cap{position:absolute;inset:0;text-align:center;opacity:0}
+.cap .n{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--arc);padding:3px 10px;border-radius:99px;border:1px solid #2bdf9a66;background:#2bdf9a1a}
+.cap h2{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:8px}
+.cap p{font-size:14.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.cap.final h2{font-size:28px;background:linear-gradient(180deg,#f4fffa,#5eead4);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cap.final p{color:#9bf7cf;font-weight:600}
+.cap .chs{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:9px}
+.cap .chs span{font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:99px;background:#2bdf9a14;border:1px solid #2bdf9a44;opacity:0}
+.dots{position:absolute;left:0;right:0;top:812px;display:flex;justify-content:center;gap:5px;z-index:20;opacity:0}
+.dots i{width:6px;height:6px;border-radius:3px;background:#ffffff33}
+.dots i.on{width:18px;background:var(--arc)}
+.fade{position:absolute;inset:0;background:#000;z-index:100;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="viewport"><div class="stage" id="stage">
+  <div class="bggrid"></div>
+  <div class="halo"></div>
+  <div id="motes"></div>
+
+  <header class="hdr">
+    <div class="brand" id="hBrand">CIPHERION<span>.</span></div>
+    <h1 id="hTitle">Cypher AI в Cipherion</h1>
+    <div class="pill" id="hPill"><span class="emo">✨</span><span>Большое обновление · <b>ноябрь 2026</b></span></div>
+  </header>
+
+  <!-- компьютер с Cypher для Windows -->
+  <div class="mon" id="mon">
+    <div class="mbz"><div class="ds" id="ds">
+      <div class="cw" id="cw">
+        <div class="cwt"><span class="cy-dot"></span><span class="mono">CYPHER</span><span class="wb">— ▢ ✕</span></div>
+        <div class="cwb">
+          <div class="cwl"><canvas id="orbPC" width="152" height="152"></canvas><div class="st mono" id="pcSt">ОЖИДАНИЕ</div></div>
+          <div class="cwr">
+            <div class="cwp" id="cwCode"><div class="hud mono">Вход через Cipherion</div><div class="code mono">K7QP-2M9X</div><div class="qr" id="qr"></div><small>Введите код в Cipherion → AI. Код действует 10 минут</small></div>
+            <div class="cwp" id="cwOk"><div class="hud mono">Cipherion</div><div class="okbig">✓ Аккаунт подключён</div><p>Команды из раздела AI на телефоне выполняются здесь. Опасные действия Cypher подтвердит.</p></div>
+            <div class="cwp" id="cwLog"><div class="hud mono">Команды с телефона</div><div class="cwlog" id="cwlog"></div></div>
+            <div class="cwp" id="cwMem"><div class="hud mono">Память · общая с Cipherion</div><div class="cwlog" id="cwmem">
+              <div>Любит изумрудную тему</div><div>Работает до 19:00 по будням</div><div class="u" id="cwNewMem">День рождения мамы — 12 марта</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="np" id="np">
+        <div class="npt"><span class="tab">Без названия</span><span>+</span><span class="wb">— ▢ ✕</span></div>
+        <div class="npm">Файл&nbsp;&nbsp;&nbsp;Правка&nbsp;&nbsp;&nbsp;Вид</div>
+        <div class="npx" id="npx"></div>
+      </div>
+      <div class="osd" id="osd"><span>🔊</span><div class="bar"><i id="osdBar"></i></div><b id="osdVal">50</b></div>
+      <div class="wtoast" id="wt1" style="bottom:32px"><span class="cy-dot"></span><div><b>Cipherion · Алиса</b><span>Ты придёшь в субботу? 🎉</span><small><span class="wave"><i></i><i></i><i></i><i></i></span>Cypher читает вслух</small></div></div>
+      <div class="wtoast" id="wt2" style="bottom:94px"><span class="cy-dot"></span><div><b>Cipherion · Работа · Макс</b><span>🔒 Зашифрованное сообщение</span><small>Текст видит только Cipherion</small></div></div>
+      <div class="shot" id="shot"></div><div class="shotframe" id="shotFrame"></div>
+      <div class="tbar"><i style="background:linear-gradient(135deg,#7fc8ff,#2d7fe0)"></i><i style="background:#ffffff26;border-radius:7px"></i><i style="background:#f4c542"></i><i class="on" style="background:radial-gradient(circle,#2bdf9a 0 30%,#0a2e22 34% 55%,transparent 58%);border-radius:50%"></i><i id="npIcon" style="background:#9ecbf5;display:none"></i>
+        <span class="tvol" id="tvol">🔊 50%</span><span class="tclock">21:24<br>07.11.2026</span></div>
+    </div></div>
+    <div class="neck"></div><div class="foot"></div>
+  </div>
+  <svg class="link" id="link" viewBox="0 0 540 960"><path id="pathUp" d="M166 470 C 70 460, 50 380, 96 312"/><path id="pathDn" d="M444 312 C 490 380, 470 460, 374 470"/></svg>
+  <div class="pkt" id="pktUp"></div><div class="pkt r" id="pktDn"></div>
+
+  <div class="pshadow" id="pshadow"></div>
+  <div class="p3d-wrap" id="pwrap"><div class="phone3d" id="phone">
+    <div class="side l"><div class="hbtn" style="top:72px;height:30px"></div><div class="hbtn" style="top:128px;height:52px"></div><div class="hbtn" style="top:192px;height:52px"></div></div>
+    <div class="side r"><div class="hbtn" style="top:140px;height:78px"></div><div class="hbtn cc" style="top:300px;height:56px"></div></div>
+    <div class="face back" id="back">
+      <div class="panel"></div>
+      <div class="plateau">
+        <div class="lens l1"></div><div class="lens l2"></div><div class="lens l3"></div>
+        <div class="cflash"></div><div class="lidar"></div><div class="mic"></div>
+      </div>
+      <svg class="logo" viewBox="0 0 100 100" aria-hidden="true" fill="none">
+        <circle cx="50" cy="50" r="40" stroke="#9bf7cf" stroke-width="2" stroke-dasharray="7 5" opacity=".7"/>
+        <circle cx="50" cy="50" r="30" stroke="#eafff5" stroke-width="2.5" opacity=".85"/>
+        <circle cx="50" cy="50" r="15" fill="#2bdf9a"/>
+        <circle cx="50" cy="50" r="7" fill="#eafff5"/>
+      </svg>
+      <div class="sheen" id="sheenBack"></div>
+    </div>
+    <div class="face front"><div class="edgebtn" style="left:-2px;top:122px;height:30px"></div><div class="edgebtn" style="left:-2px;top:178px;height:52px"></div><div class="edgebtn" style="left:-2px;top:242px;height:52px"></div><div class="edgebtn" style="right:-2px;top:190px;height:78px"></div><div class="edgebtn" style="right:-2px;top:350px;height:56px"></div><div class="bezel"><div class="screen">
+      <div class="island"></div><div class="glare" id="glare"></div>
+      <div class="inner" id="inner">
+
+        <!-- список чатов -->
+        <div class="scr" id="sList">
+          <div class="content">
+            <div class="status"><span>21:22</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="side-header">
+              <div><h2>Cipherion<i>.</i></h2><small>Ваши разговоры, в одном месте</small></div>
+              <div class="icons"><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div></div>
+            </div>
+            <div class="ftabs"><span class="on">Все<em>5</em></span><span>Личные</span><span>Группы</span><span>Боты</span></div>
+            <div class="list">
+              <div class="item" id="rowAlice"><div class="av" style="background:#7c3aed">А</div><div class="meta"><div class="row"><span class="name">Алиса</span><span class="time">21:20</span></div><div class="row"><span class="prev">Скинь фото с прогулки 📸</span><span class="unread">1</span></div></div></div>
+              <div class="item"><div class="av" style="background:#0f766e">Р</div><div class="meta"><div class="row"><span class="name">Работа</span><span class="time">20:47</span></div><div class="row"><span class="prev">Макс: отчёт готов, смотрите</span><span class="unread">3</span></div></div></div>
+              <div class="item"><div class="av emo" style="background:#1e3a8a">🎙️</div><div class="meta"><div class="row"><span class="name">Книжный клуб</span><span class="time">19:30</span></div><div class="row"><span class="prev">Голосовая комната открыта</span></div></div></div>
+              <div class="item"><div class="av emo" style="background:#155e4b">🤖</div><div class="meta"><div class="row"><span class="name">Погода<span class="bot">БОТ</span></span><span class="time">18:02</span></div><div class="row"><span class="prev">Завтра +4°, без осадков</span></div></div></div>
+              <div class="item"><div class="av" style="background:#334155">★</div><div class="meta"><div class="row"><span class="name">Избранное</span><span class="time">пн</span></div><div class="row"><span class="prev">Список покупок</span></div></div></div>
+            </div>
+            <nav class="rnav" id="navList"></nav>
+          </div>
+          <div class="dim" id="dim"></div>
+          <div class="sheet" id="sheet">
+            <div class="grab"></div>
+            <h3>Разделы нижнего меню</h3>
+            <p class="hint" id="navHint">Видно 4 из 5. «Чаты» и «Настройки» скрыть нельзя.</p>
+            <div id="navRows"></div>
+            <div class="mbtn" id="navDone" style="margin-top:12px">Готово</div>
+          </div>
+        </div>
+
+        <!-- раздел AI: Cypher -->
+        <div class="scr cyscr" id="sCy" style="transform:translateX(105%)">
+          <div class="cygrid"></div>
+          <div class="content">
+            <div class="status"><span>21:23</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="cy-top"><div class="cy-brand"><span class="cy-dot"></span><span class="cy-logo mono">CYPHER</span><span class="cy-status" id="cyStatus"><i></i><b>Ожидание</b></span></div><span class="cy-stop"><i></i></span></div>
+            <div class="cy-tabs" id="cyTabs"></div>
+          </div>
+          <div class="cyv">
+            <section id="vHome" class="cy-home">
+              <div class="hud mono">Суббота, 7 ноября</div>
+              <div class="cy-hello">Добрый вечер</div>
+              <div class="cy-sub">Все системы в норме. Чем могу помочь?</div>
+              <div class="orbw"><canvas id="orbPhone" width="412" height="412"></canvas></div>
+              <div class="orb-label mono" id="orbLabel">ОЖИДАНИЕ</div>
+              <div class="cy-ask holo"><span class="in" id="askIn">Спросите Cypher…</span><span class="cib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></span><span class="cib send" id="askSend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></span></div>
+              <div class="cards">
+                <div class="ccard holo" id="cardPC"></div>
+                <div class="ccard holo" id="cardModel"></div>
+                <div class="ccard holo" id="cardMem"></div>
+                <div class="ccard holo" id="cardMode"></div>
+              </div>
+            </section>
+            <section id="vChat">
+              <div class="chhead"><div><div class="cy-h">Чат</div><small>Cypher помнит историю этого чата</small></div><span class="sel">Чаты: разрешённые ▾</span></div>
+              <div class="cmsgs">
+                <div class="rv" id="cqWrap" style="height:0;align-items:flex-end"><div class="cmsg user"><small>Вы</small>Что я пропустил в чатах сегодня?</div></div>
+                <div class="rv" id="caWrap" style="height:0"><div class="cmsg as" id="caMsg"><small>Cypher</small><span id="caText"></span><span class="thinking" id="caDots"><i></i><i></i><i></i></span><div><span class="cact" id="caAct">Просмотреть черновик</span></div></div></div>
+              </div>
+              <div class="ccomp holo"><span class="cib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span><span class="in">Напишите сообщение…</span><span class="cib send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></span></div>
+            </section>
+            <section id="vPC">
+              <div class="chhead" style="margin-bottom:8px"><div><div class="cy-h">Управление ПК</div><small>Команды выполняет Cypher на компьютере</small></div></div>
+              <div class="cpanel holo"><div class="hud mono">Домашний ПК · в сети</div><div class="crow"><span class="cbtn">🔇</span><div class="slider" id="slider"><div class="tr"></div><div class="fl" id="slFill"></div><div class="kn" id="slKnob"></div></div><span class="vval mono" id="slVal">50%</span></div></div>
+              <div class="cpanel holo"><div class="hud mono">Быстрый запуск</div><div class="chips">
+                <span class="cbtn">Браузер</span><span class="cbtn">Проводник</span><span class="cbtn" id="chipNote">Блокнот</span><span class="cbtn">Калькулятор</span><span class="cbtn" id="chipScreen">Что на экране?</span><span class="cbtn">⏯ Пауза</span><span class="cbtn">Свернуть окна</span></div></div>
+              <div class="cpanel holo"><div class="hud mono">Команда для компьютера</div><div class="crow"><span class="field" id="cmdIn">любая просьба…</span><span class="cbtn pr" id="cmdRun">Выполнить</span></div></div>
+              <div class="cpanel holo"><div class="hud mono">Ответы компьютера</div><div class="clog" id="pcLog"></div></div>
+            </section>
+            <section id="vMem">
+              <div class="chhead" style="margin-bottom:8px"><div><div class="cy-h">Память</div><small>Общая с Cypher на компьютере</small></div></div>
+              <div class="cpanel holo"><div class="hud mono">Новая запись</div><div class="crow"><span class="field" id="memIn">Например: день рождения…</span><span class="cbtn pr" id="memAdd">Запомнить</span></div></div>
+              <div class="cpanel holo"><div class="field" style="display:block">Поиск по памяти</div>
+                <div class="rv" id="memNewWrap" style="height:0"><div class="mrow new"><span>День рождения мамы — 12 марта</span><span class="cbtn">Забыть</span></div></div>
+                <div class="mrow"><span>Любит изумрудную тему</span><span class="cbtn">Забыть</span></div>
+                <div class="mrow"><span>Работает до 19:00 по будням</span><span class="cbtn">Забыть</span></div>
+              </div>
+            </section>
+          </div>
+          <nav class="rnav cy-rnav" id="navCy"></nav>
+          <div class="mdim" id="mdim"></div>
+          <div class="modal" id="mCode"><h3>Подключить Cypher</h3><p>В Cypher на компьютере нажмите «Войти через Cipherion» — появится код.</p><label>Код с экрана компьютера</label><div class="mfield mono" id="codeIn"></div><div class="mbtn" id="codeNext">Продолжить</div></div>
+          <div class="modal" id="mOk" style="top:150px"><h3>Подключить Cypher?</h3><p>Компьютер <b>«Домашний ПК»</b> просит подключить Cypher к вашему аккаунту.</p><p style="margin-bottom:6px"><b>Cypher получит:</b></p><ul class="grants"><li>Управление компьютером из раздела AI</li><li>Уведомления: кто и где написал</li><li>Общую память AI</li><li>Вход в Cypher через этот аккаунт</li></ul><div class="mrowb"><div class="mbtn" id="okYes">Подключить</div><div class="mbtn s">Отклонить</div></div></div>
+          <div class="ptoast" id="pToast">Cypher подключён. Управлять компьютером можно в разделе AI.</div>
+        </div>
+
+        <!-- чат с Алисой -->
+        <div class="scr" id="sMsg" style="transform:translateX(105%)">
+          <div class="content">
+            <div class="status"><span>21:31</span><svg viewBox="0 0 66 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="38" y="0" width="24" height="12" rx="3" fill="none" stroke="currentColor"/><rect x="40" y="2" width="17" height="8" rx="1.5"/><rect x="63" y="4" width="2" height="4" rx="1"/></svg></div>
+            <div class="chat-head glass"><span class="bk"><svg class="chev" viewBox="0 0 12 20"><path d="M10 2L3 10l7 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="av" style="background:#7c3aed">А</div><div><b>Алиса</b><small>в сети</small></div></div>
+            <div class="msgs">
+              <div class="day glass">Сегодня</div>
+              <div class="m in glass">Как прогулка? Скинь фото <span class="emo">📸</span><span class="t">21:20</span></div>
+              <div class="m out">Сейчас, и видео тоже!<span class="t">21:30 ✓✓</span></div>
+              <div class="rv" id="vidWrap" style="height:0"><div class="media" id="vid" style="background:linear-gradient(135deg,#1b2a3a,#0d1520)"><div class="ph lake" style="opacity:.45"><i class="tr" style="left:12%"></i><i class="tr" style="left:30%;height:22%"></i></div><div class="play" id="vidPlay"></div><div class="prog" id="vidProg"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#ffffff33" stroke-width="3"/><circle id="vidArc" cx="22" cy="22" r="19" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg><b id="vidPct">0%</b></div><div class="note" id="vidNote">Видео 1:12 · отправка…</div></div></div>
+              <div class="rv" id="p1Wrap" style="height:0"><div class="media" id="p1"><div class="ph sunset"><i class="sun"></i><i class="m1"></i><i class="m2"></i></div><span class="tag" id="p1Tag">HEIC → JPEG</span><div class="prog" id="p1Prog"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#ffffff33" stroke-width="3"/><circle id="p1Arc" cx="22" cy="22" r="19" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg><b id="p1Pct">0%</b></div><span class="mt" id="p1T">21:31 ✓</span></div></div>
+              <div class="rv" id="p2Wrap" style="height:0"><div class="media" id="p2"><div class="ph lake"><i class="tr" style="left:8%"></i><i class="tr" style="left:20%;height:24%"></i><i class="tr" style="left:74%;height:34%"></i><i class="tr" style="left:86%;height:26%"></i><i class="rf"></i></div><span class="tag" id="p2Tag">HEIC → JPEG</span><div class="prog" id="p2Prog"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#ffffff33" stroke-width="3"/><circle id="p2Arc" cx="22" cy="22" r="19" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg><b id="p2Pct">0%</b></div><span class="mt" id="p2T">21:31 ✓</span></div></div>
+            </div>
+            <div class="composer glass"><span class="ic" id="clip">📎</span><span class="in">Сообщение…</span><span class="ic">🙂</span><span class="send">➤</span></div>
+          </div>
+          <div class="vfly" id="vfly"></div>
+          <div class="viewer" id="viewer">
+            <div class="vtrack" id="vtrack">
+              <div class="vslide" style="transform:translateX(-100%)"><div class="ph sunset"><i class="sun"></i><i class="m1"></i><i class="m2"></i></div></div>
+              <div class="vslide"><div class="ph lake"><i class="tr" style="left:8%"></i><i class="tr" style="left:20%;height:24%"></i><i class="tr" style="left:74%;height:34%"></i><i class="tr" style="left:86%;height:26%"></i><i class="rf"></i></div></div>
+            </div>
+            <div class="vchrome" id="vchrome">
+              <span class="vglass" style="left:16px;top:52px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+              <div class="vtitle"><b>Вы</b><small id="vDate">Сегодня, 21:31 · 2 из 2</small></div>
+              <span class="vglass" style="right:16px;top:52px;font-weight:900;font-size:18px">···</span>
+              <div class="vbar">
+                <span class="vglass" style="position:static"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span>
+                <span class="vglass" style="position:static"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></span>
+                <span class="vglass" style="position:static"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>
+                <span class="vglass" style="position:static"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hold" id="hold"></div>
+        <div class="tap" id="tap"></div>
+      </div>
+    </div></div></div>
+  </div></div>
+
+  <div class="dots" id="dots"></div>
+  <div class="caps">
+    <div class="cap" data-a="1.3" data-b="5.2"><span class="n">БОЛЬШОЕ ОБНОВЛЕНИЕ</span><h2>Cypher AI теперь внутри</h2><p>Повернём телефон — и посмотрим, что нового</p></div>
+    <div class="cap" data-a="5.2" data-b="10.4" data-dot="0"><span class="n">01</span><h2>Раздел AI в стиле Cypher</h2><p>Изумрудный HUD, живая сфера из 1800 точек — её можно крутить пальцем</p></div>
+    <div class="cap" data-a="10.4" data-b="17.2" data-dot="1"><span class="n">02</span><h2>Чат с Cypher</h2><p>Отвечает потоком, ищет по разрешённым чатам и готовит черновики</p></div>
+    <div class="cap" data-a="17.2" data-b="23.8" data-dot="2"><span class="n">03</span><h2>Подключите компьютер</h2><p>Код или QR с экрана Cypher для Windows — и ПК привязан к аккаунту</p></div>
+    <div class="cap" data-a="23.8" data-b="31.8" data-dot="3"><span class="n">04</span><h2>Управление ПК с телефона</h2><p>Программы, текст, громкость, окна и питание — Cypher выполнит на компьютере</p></div>
+    <div class="cap" data-a="31.8" data-b="36.4" data-dot="4"><span class="n">05</span><h2>«Что на экране?»</h2><p>Cypher посмотрит на экран компьютера и расскажет</p></div>
+    <div class="cap" data-a="36.4" data-b="41.6" data-dot="5"><span class="n">06</span><h2>Уведомления на ПК</h2><p>Cypher скажет голосом, кто написал. Зашифрованный текст он не читает</p></div>
+    <div class="cap" data-a="41.6" data-b="47.6" data-dot="6"><span class="n">07</span><h2>Общая память</h2><p>Что запомнил Cypher AI в Cipherion, помнит и Cypher на компьютере</p></div>
+    <div class="cap" data-a="47.6" data-b="53.0" data-dot="7"><span class="n">08</span><h2>Фото с iPhone и очередь</h2><p>HEIC → JPEG, сжатие на Safari. Тяжёлое видео больше не держит остальные</p></div>
+    <div class="cap" data-a="53.0" data-b="57.4" data-dot="8"><span class="n">09</span><h2>Просмотр в стиле iOS</h2><p>Стеклянные кнопки, листание свайпом, свайп вниз — закрыть</p></div>
+    <div class="cap" data-a="57.4" data-b="62.0" data-dot="9"><span class="n">10</span><h2>Меню из жидкого стекла</h2><p>Удержание открывает разделы: порядок и состав на ваш выбор</p></div>
+    <div class="cap" data-a="62.0" data-b="66.2" data-dot="10" id="capMore"><h2>А ещё в обновлении</h2><div class="chs"><span>📁 Папки чатов</span><span>🤖 Кнопки у ботов</span><span>🔑 Перенос истории по QR</span><span>📞 Звонки до 30 человек</span><span>🎙️ Голосовые комнаты</span><span>🔒 Код-пароль</span></div></div>
+    <div class="cap final" data-a="66.6" data-b="99"><h2>Cypher AI — уже в Cipherion</h2><p>Откройте раздел AI и подключите компьютер</p></div>
+  </div>
+  <div class="fade" id="fade"></div>
+</div></div>
+
+<script>
+const DURATION=71;
+const $=id=>document.getElementById(id);
+const clamp=x=>x<0?0:x>1?1:x;
+const E={lin:p=>p,out:p=>1-Math.pow(1-p,3),inOut:p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2,
+  back:p=>{const c=1.6;return 1+(c+1)*Math.pow(p-1,3)+c*Math.pow(p-1,2)}};
+const P=(t,a,d,e=E.out)=>e(clamp((t-a)/d));
+const win=(t,a,b,fi=.4,fo=.3)=>Math.min(P(t,a,fi),1-P(t,b-fo,fo,E.lin));
+const lerp=(a,b,k)=>a+(b-a)*k;
+let seed=11;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+
+// ---------- иконки ----------
+const IC={
+  chat:'<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0ZM7 9h9M7 13h6"/>',
+  ai:'<path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM4 12h16M12 3c-6 5-6 13 0 18 6-5 6-13 0-18"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3l2 5-2 2a16 16 0 0 0 6 6l2-2Z"/>',
+  people:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  channel:'<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/>',
+  home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  cchat:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  pc:'<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+  memory:'<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v13"/>',
+};
+const icon=(k,w=1.65)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
+const NAMES={chat:'Чаты',ai:'AI',phone:'Звонки',people:'Контакты',channel:'Каналы',settings:'Настройки'};
+const navHTML=(list,on)=>list.map(k=>`<div class="rbtn${k===on?' on':''}" id="nav-${on}-${k}">${icon(k)}<span>${NAMES[k]}</span></div>`).join('');
+let navState='';
+function setNav(list){const key=list.join();if(key===navState)return;navState=key;$('navList').innerHTML=navHTML(list,'chat');$('navCy').innerHTML=navHTML(list,'ai');for(const n of ['navList','navCy'])$(n).classList.toggle('five',list.length>4);}
+const CYTABS=[['home','Главная'],['cchat','Чат'],['pc','Управление ПК'],['memory','Память'],['settings','Настройки']];
+$('cyTabs').innerHTML=CYTABS.map(([k,l])=>`<div class="cy-tab" id="tab-${k}">${icon(k,2)}<b>${l}</b></div>`).join('');
+$('navRows').innerHTML=[['chat',1,1],['ai',1,0],['phone',1,0],['settings',1,1],['people',0,0],['channel',0,0]].map(([k,on,lock])=>`<div class="nrow${on?'':' off'}" id="nr-${k}">${icon(k)}<span class="nt">${NAMES[k]}</span><span class="ar">↑</span><span class="ar">↓</span><span class="tg${on?' on':''}${lock?' lock':''}" id="tg-${k}"></span></div>`).join('');
+
+// ---------- фон, корпус, QR ----------
+(()=>{let h='';for(let i=0;i<34;i++)h+=`<i class="mote" style="left:${(rnd()*540).toFixed(0)}px;top:${(120+rnd()*700).toFixed(0)}px;animation-delay:-${(rnd()*9).toFixed(2)}s;animation-duration:${(7+rnd()*6).toFixed(1)}s;transform:scale(${(.5+rnd()).toFixed(2)})"></i>`;$('motes').innerHTML=h;})();
+(()=>{const ph=$('phone');for(let z=-12;z<=12;z+=2){const d=document.createElement('div');d.className='slice';d.style.transform=`translateZ(${z}px)`;ph.prepend(d);}})();
+(()=>{let h='';for(let y=0;y<11;y++)for(let x=0;x<11;x++){const f=(x<3&&y<3)||(x>7&&y<3)||(x<3&&y>7);const edge=f&&(x%10===0||y%10===0||x===2||y===2||x===8||y===8);const core=f&&((x===1&&y===1)||(x===9&&y===1)||(x===1&&y===9));h+=`<i class="${(f?(edge||core):rnd()>.5)?'':'w'}"></i>`;}$('qr').innerHTML=h;})();
+
+// карточки главной
+const gauge=pct=>{const l=2*Math.PI*26;return `<svg class="g" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="rgba(43,223,154,0.12)" stroke-width="6"/><circle cx="32" cy="32" r="26" fill="none" stroke="#2bdf9a" stroke-width="6" stroke-linecap="round" stroke-dasharray="${l}" stroke-dashoffset="${l-l*pct/100}" style="filter:drop-shadow(0 0 4px #2bdf9a)"/></svg>`;};
+const card=(label,v,d,pct)=>`${gauge(pct)}<div><div class="hud mono">${label}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+$('cardModel').innerHTML=card('Модель','Подключена','сервер Cipherion',100);
+$('cardMode').innerHTML=card('Режим','Cypher','характер Cypher',100);
+let pcCardKey='';
+function setPcCard(on){const k=on?'on':'off';if(k===pcCardKey)return;pcCardKey=k;$('cardPC').innerHTML=on?card('Компьютер','Домашний ПК','в сети',100):card('Компьютер','Не подключён','нажмите, чтобы подключить',0);}
+let memKey=-1;
+function setMemCard(n){if(n===memKey)return;memKey=n;$('cardMem').innerHTML=card('Память',String(n),'из 500 записей',Math.max(2,n/500*100));}
+
+// ---------- сфера Cypher (как public/cypher-orb.js, но кадр считается по времени) ----------
+const OS={idle:{c:[43,223,154],e:.04,s:.25,b:.85},listening:{c:[190,255,120],e:.1,s:.6,b:1},thinking:{c:[60,200,170],e:.09,s:1.4,b:1.05},
+  executing:{c:[120,170,255],e:.12,s:1.8,b:1.1},responding:{c:[155,247,207],e:.16,s:1,b:1.25}};
+const ORB_T=[[0,'idle'],[12.35,'thinking'],[13.4,'responding'],[16.1,'idle'],[24.85,'executing'],[25.7,'idle'],[28.25,'executing'],[29.0,'idle'],[30.3,'executing'],[30.9,'idle'],[32.05,'executing'],[33.2,'responding'],[35.5,'idle'],[37.2,'responding'],[40.2,'idle'],[44.25,'executing'],[45.0,'idle']];
+const orbStateAt=t=>{let s='idle';for(const [a,n] of ORB_T)if(t>=a)s=n;return s;};
+const COUNT=1800,FOCAL=1/Math.tan(20*Math.PI/180),CAMERA=4.2;
+const RINGS=[{r:1.32,a:.35,dash:true,rx:Math.PI/2.4,ry:0,spin:.5},{r:1.48,a:.18,dash:false,rx:0,ry:Math.PI/3,spin:-.25},{r:1.62,a:.28,dash:true,rx:-Math.PI/3.2,ry:0,spin:.35}];
+const pts=(()=>{const g=Math.PI*(3-Math.sqrt(5)),p=new Float32Array(COUNT*4);for(let i=0;i<COUNT;i++){const y=1-i/(COUNT-1)*2,r=Math.sqrt(1-y*y),a=g*i;p.set([Math.cos(a)*r,y,Math.sin(a)*r,rnd()],i*4);}return p;})();
+// интеграл скорости, энергии и цвета по времени — чтобы любой кадр можно было нарисовать сразу
+const STEP=1/60,ORB=[];
+(()=>{let cur={c:[...OS.idle.c],e:OS.idle.e,s:OS.idle.s,b:OS.idle.b},yaw=0,time=0,ring=[0,0,0],vx=0;
+  for(let i=0;i<=DURATION/STEP+2;i++){const t=i*STEP,tg=OS[orbStateAt(t)],k=1-Math.pow(.02,STEP);
+    cur.e+=(tg.e-cur.e)*k;cur.b+=(tg.b-cur.b)*k;cur.s+=(tg.s-cur.s)*k;for(let j=0;j<3;j++)cur.c[j]+=(tg.c[j]-cur.c[j])*k;
+    // палец крутит сферу 8.0–8.8, дальше она вращается по инерции
+    if(t>=8.0&&t<8.8)vx=lerp(vx,9,.2);else vx*=Math.pow(.15,STEP);
+    yaw+=STEP*(cur.s*.35)+vx*STEP;time+=STEP*(.6+cur.s);RINGS.forEach((r,j)=>ring[j]+=STEP*cur.s*r.spin);
+    ORB.push({c:[...cur.c],e:cur.e,s:cur.s,b:cur.b,yaw,time,ring:[...ring]});}})();
+const dotSprite=(()=>{const c=document.createElement('canvas');c.width=c.height=32;const g=c.getContext('2d'),gr=g.createRadialGradient(16,16,0,16,16,16);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.45,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,32,32);return c;})();
+const tinted=document.createElement('canvas');tinted.width=tinted.height=32;const tctx=tinted.getContext('2d');
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t);};
+function drawOrb(canvas,t){
+  const o=ORB[Math.min(ORB.length-1,Math.round(t/STEP))],ctx=canvas.getContext('2d'),W=canvas.width,half=W/2,scale=half*.9,px=W/206;
+  const col=o.c.map(v=>Math.min(255,v*o.b)),cs=col.map(Math.round).join(',');
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,W);ctx.globalCompositeOperation='lighter';
+  const project=(x,y,z)=>{const d=CAMERA-z;return [half+x*FOCAL/d*scale,half-y*FOCAL/d*scale,d];};
+  const cy=Math.cos(o.yaw*.35),sy=Math.sin(o.yaw*.35);
+  RINGS.forEach((r,i)=>{const cx=Math.cos(r.rx),sx=Math.sin(r.rx),cr=Math.cos(r.ry),sr=Math.sin(r.ry),cz=Math.cos(o.ring[i]),sz=Math.sin(o.ring[i]);
+    ctx.beginPath();ctx.strokeStyle=`rgba(${cs},${r.a})`;ctx.lineWidth=1.3*px;ctx.setLineDash(r.dash?[.18*scale/2.6,.09*scale/2.6]:[]);
+    for(let s=0;s<=160;s++){const a=s/160*Math.PI*2;let x=Math.cos(a)*r.r,y=Math.sin(a)*r.r,z=0;[x,y]=[x*cz-y*sz,x*sz+y*cz];[y,z]=[y*cx-z*sx,y*sx+z*cx];[x,z]=[x*cr+z*sr,-x*sr+z*cr];[x,z]=[x*cy+z*sy,-x*sy+z*cy];const [qx,qy]=project(x,y,z);s?ctx.lineTo(qx,qy):ctx.moveTo(qx,qy);}
+    ctx.stroke();});
+  ctx.setLineDash([]);
+  const pulse=1+Math.sin(o.time*2.4)*.25*o.s,crr=.78*(1+Math.sin(o.time*1.6)*.015*(1+o.s))*FOCAL/CAMERA*scale*1.05;
+  const core=ctx.createRadialGradient(half,half,0,half,half,crr);core.addColorStop(0,`rgba(${cs},${.09*pulse})`);core.addColorStop(.62,`rgba(${cs},.05)`);core.addColorStop(.9,`rgba(${cs},.32)`);core.addColorStop(.98,`rgba(${cs},.5)`);core.addColorStop(1,`rgba(${cs},0)`);
+  ctx.fillStyle=core;ctx.beginPath();ctx.arc(half,half,crr,0,Math.PI*2);ctx.fill();
+  tctx.globalCompositeOperation='source-over';tctx.clearRect(0,0,32,32);tctx.drawImage(dotSprite,0,0);tctx.globalCompositeOperation='source-in';tctx.fillStyle=`rgb(${cs})`;tctx.fillRect(0,0,32,32);
+  const tilt=Math.sin(o.time*.15)*.15,cyw=Math.cos(o.yaw),syw=Math.sin(o.yaw),ct=Math.cos(tilt),st=Math.sin(tilt),base=5*px*.55*(W>200?1:1.3),tm=o.time;
+  for(let i=0;i<COUNT;i++){const j=i*4,x=pts[j],y=pts[j+1],z=pts[j+2],sd=pts[j+3];
+    const wave=Math.sin(y*6+tm*2.1+sd*6.2831)*.5+Math.sin(x*5-tm*1.7)*.3+Math.sin(z*7+tm*1.3)*.2,m=1+wave*o.e;
+    let rx=x*cyw+z*syw,rz=-x*syw+z*cyw,ry=y*ct-rz*st;rz=y*st+rz*ct;const nz=rz;rx*=m;ry*=m;rz*=m;const [qx,qy,d]=project(rx,ry,rz);
+    const s=base*(.6+sd*.8)*(3/d)*2.2;ctx.globalAlpha=.35+.65*smooth(-1.2,1,nz);ctx.drawImage(tinted,qx-s/2,qy-s/2,s,s);}
+  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+}
+const ST_TXT={idle:'Ожидание',thinking:'Думаю',responding:'Отвечаю',executing:'Выполняю на ПК',listening:'Слушаю'};
+
+// ---------- помощники ----------
+function centerOf(el){const inner=$('inner');let x=el.offsetWidth/2,y=el.offsetHeight/2;let n=el;while(n&&n!==inner){x+=n.offsetLeft;y+=n.offsetTop;n=n.offsetParent;}return[x,y];}
+function rectOf(el){const [x,y]=centerOf(el);return [x-el.offsetWidth/2,y-el.offsetHeight/2,el.offsetWidth,el.offsetHeight];}
+let hRv={};
+function setRv(id,p){const el=$(id);if(hRv[id]==null){el.style.height='auto';hRv[id]=el.scrollHeight;}el.style.height=(hRv[id]*p).toFixed(2)+'px';}
+// печать текста в поле: до a — подсказка, потом буквы с курсором
+function typeIn(el,text,t,a,d,ph,typedClass='typed',until=1e9){const ch=Array.from(text);
+  if(t<a||t>=until){el.classList.remove(typedClass);el.textContent=ph;return;}
+  const n=Math.floor(ch.length*P(t,a,d,E.lin));el.classList.add(typedClass);el.innerHTML=ch.slice(0,n).join('')+(t<a+d+.6?'<span class="caret"></span>':'');}
+const streamTxt=(text,t,a,d)=>Array.from(text).slice(0,Math.floor(Array.from(text).length*P(t,a,d,E.lin))).join('');
+const show=(el,o,ty=0,sc=1)=>{el.style.opacity=o;el.style.transform=`translateY(${ty}px) scale(${sc})`;};
+
+const TAPS=[[5.6,'nav-chat-ai'],[8.05,'orbPhone',.8],[10.6,'askIn'],[12.2,'askSend'],[18.7,'cardPC'],[20.8,'codeNext'],[22.0,'okYes'],[23.95,'tab-pc'],[24.75,'chipNote'],[26.45,'cmdIn'],[28.15,'cmdRun'],[32.0,'chipScreen'],[41.85,'tab-memory'],[42.45,'memIn'],[44.2,'memAdd'],[47.3,'nav-ai-chat'],[48.3,'rowAlice'],[49.0,'clip'],[53.3,'p2'],[60.2,'tg-people'],[61.2,'navDone']];
+const ANSWER='Алиса зовёт на вечеринку в субботу. В «Работе» 3 новых: Макс прислал отчёт. Набросать ответ Алисе?';
+const SCREEN_ANS='На экране Блокнот: «купить торт к субботе». Громкость 30%, окон больше нет.';
+const LOG=[ // [время появления, класс, текст] — журнал в окне Cypher на ПК
+  [25.3,'u','› открой блокнот'],[25.75,'','✓ Открыл Блокнот'],[28.75,'u','› напиши: купить торт к субботе'],[30.05,'','✓ Напечатал в Блокноте'],
+  [30.75,'u','› громкость 30'],[30.95,'','✓ Громкость 30%'],[32.55,'u','› что на экране?'],[33.0,'s','📸 Снимок экрана разобран'],[37.3,'s','🔊 «Алиса пишет: ты придёшь в субботу?»'],[39.4,'s','🔒 Макс в «Работе» — текст зашифрован']];
+$('cwlog').innerHTML=LOG.map(([,c,txt])=>`<div class="${c}">${txt}</div>`).join('');
+const PHONELOG=[[25.75,'Блокнот','Открыл Блокнот'],[30.05,'напиши: купить торт к субботе','Напечатал в Блокноте'],[30.95,'громкость 30','Громкость 30%'],[33.2,'Что на экране?','']];
+$('pcLog').innerHTML=PHONELOG.map(([,b],i)=>`<div class="lr" id="pl${i}"><b>${b}</b><span></span></div>`).join('');
+
+// точка на пути связи (SVG path) для пакета
+function along(id,p){const path=$(id),len=path.getTotalLength(),pt=path.getPointAtLength(len*p);return [pt.x,pt.y];}
+const SENDS=[[24.85,'up'],[25.45,'dn'],[28.25,'up'],[29.8,'dn'],[30.4,'up'],[30.8,'dn'],[32.1,'up'],[33.0,'dn'],[37.0,'dn'],[39.1,'dn'],[44.3,'up']];
+
+function render(t){
+  for(const a of document.getAnimations()){a.pause();a.currentTime=t*1000;}
+
+  // 1. заголовок
+  const pcMode=P(t,17.2,1,E.inOut)*(1-P(t,47.0,1.1,E.inOut));
+  $('hBrand').style.opacity=P(t,.2,.6)*(1-pcMode);
+  $('hTitle').style.cssText=`opacity:${P(t,.45,.7)*(1-pcMode)};transform:translateY(${(1-P(t,.45,.8))*14-pcMode*20}px)`;
+  const pill=P(t,.8,.7,E.back);
+  $('hPill').style.cssText=`opacity:${P(t,.8,.5)*(1-pcMode)};transform:scale(${.85+.15*pill})`;
+
+  // 2. телефон: крышка → экран → (уменьшается рядом с ПК) → снова крышка
+  let ry,rx=6,ty=0,sc=1;
+  if(t<3.4){const e=P(t,.2,1.5);ty=(1-e)*520;ry=180-38*(1-e)+Math.sin((t-1.6)*1.7)*9*P(t,1.4,.8,E.lin);rx=8;}
+  else if(t<5){const e=P(t,3.4,1.6,E.inOut);ry=180+180*e+Math.sin((3.4-1.6)*1.7)*9*(1-e);rx=8-6*e;sc=1+.07*Math.sin(Math.PI*e);}
+  else if(t<66.2){ry=360+Math.sin((t-5)*.9)*2.2*P(t,5,1,E.lin)*(1-pcMode);rx=2+Math.sin((t-5)*.7)*1.2;ty=Math.sin((t-5)*1.1)*3;}
+  else{const e=P(t,66.2,1.6,E.inOut);ry=360+180*e+Math.sin((t-66)*1.5)*8*P(t,67.8,.8,E.lin);rx=2+6*e;sc=1-.06*e;ty=-6*e;}
+  $('phone').style.transform=`translateY(${ty}px) scale(${sc}) rotateX(${rx}deg) rotateY(${ry}deg)`;
+  $('pwrap').style.transform=`translateY(${pcMode*84}px) scale(${1-pcMode*.3})`;
+  $('sheenBack').style.backgroundPosition=`${50+(ry-180)*1.4}% 0`;
+  $('pshadow').style.cssText=`opacity:${(1-ty/520)*(.75+.25*Math.abs(Math.cos(ry*Math.PI/180)))*(1-pcMode)};transform:scaleX(${sc*(.8+.2*Math.abs(Math.cos(ry*Math.PI/180)))})`;
+  const turn=Math.abs(Math.sin(ry*Math.PI/180));
+  $('glare').style.cssText=`opacity:${turn*.9};background-position:${ry}px 0`;
+
+  // 3. компьютер
+  const monIn=P(t,17.5,.9,E.out)*(1-P(t,46.9,.8,E.inOut));
+  $('mon').style.opacity=monIn;$('mon').style.transform=`translateY(${(1-monIn)*-30}px) scale(${.92+.08*monIn})`;
+  $('link').style.opacity=monIn*.9*P(t,22.3,.6);
+  const pk=(id,dir)=>{let shown=false;for(const [at,d] of SENDS){if(d!==dir)continue;const k=(t-at)/.55;if(k>=0&&k<=1){const [x,y]=along(dir==='up'?'pathUp':'pathDn',E.inOut(k));$(id).style.cssText=`left:${x}px;top:${y}px;opacity:${Math.sin(Math.PI*k)}`;shown=true;break;}}if(!shown)$(id).style.opacity=0;};
+  pk('pktUp','up');pk('pktDn','dn');
+  // окно Cypher: код → подключено → журнал → память
+  const panel=t<22.35?'cwCode':t<24.9?'cwOk':t<44.5?'cwLog':'cwMem';
+  for(const id of ['cwCode','cwOk','cwLog','cwMem']){const on=id===panel;$(id).style.opacity=on?1:0;}
+  if(panel==='cwOk')$('cwOk').style.transform=`scale(${.9+.1*P(t,22.35,.5,E.back)})`;
+  const logRows=$('cwlog').children;let vis=0;LOG.forEach(([at],i)=>{const on=t>=at;logRows[i].style.display=on?'':'none';if(on){vis++;logRows[i].style.opacity=P(t,at,.25);}});
+  // в окне помещается 6 строк: старые уходят вверх
+  let hidden=vis-6;for(let i=0;i<LOG.length&&hidden>0;i++)if(t>=LOG[i][0]){logRows[i].style.display='none';hidden--;}
+  $('cwNewMem').style.cssText=`opacity:${P(t,44.85,.35)};box-shadow:0 0 ${12*win(t,44.85,46.5,.3,.6)}px #2bdf9a`;
+  for(const d of [...$('cwmem').children].slice(0,2))d.style.opacity=1;
+  drawOrb($('orbPC'),t);
+  const ost=orbStateAt(t);$('pcSt').textContent=(ST_TXT[ost]||'').toUpperCase();
+  // Блокнот
+  const npIn=P(t,25.6,.35,E.back);
+  $('np').style.opacity=clamp(npIn*1.4);$('np').style.transform=`scale(${.85+.15*npIn})`;$('npIcon').style.display=t>=25.6?'':'none';
+  const npText='купить торт к субботе 🎂';
+  $('npx').innerHTML=(t<28.9?'':streamTxt(npText,t,28.9,1.1))+'<span class="caret" style="opacity:'+(Math.floor(t*2.2)%2?1:0)+'"></span>';
+  // громкость
+  const vol=Math.round(lerp(50,30,P(t,30.25,.9,E.inOut))/5)*5;
+  $('osd').style.opacity=win(t,30.6,32.0,.2,.4);$('osdBar').style.width=vol+'%';$('osdVal').textContent=vol;$('tvol').textContent='🔊 '+vol+'%';
+  // снимок экрана
+  $('shot').style.opacity=.7*win(t,32.6,32.95,.05,.3);$('shotFrame').style.opacity=win(t,32.6,33.6,.1,.4);
+  // уведомления
+  const w1=win(t,37.0,41.4,.35,.4),w2=win(t,39.1,41.4,.35,.4);
+  $('wt1').style.cssText=`bottom:32px;opacity:${w1};transform:translateX(${(1-P(t,37.0,.4))*40}px)`;
+  $('wt2').style.cssText=`bottom:94px;opacity:${w2};transform:translateX(${(1-P(t,39.1,.4))*40}px)`;
+
+  // 4. экраны телефона
+  const cyIn=P(t,5.7,.5,E.inOut)*(1-P(t,47.4,.5,E.inOut)),msgIn=P(t,48.45,.5,E.inOut)*(1-P(t,57.5,.5,E.inOut));
+  $('sList').style.transform=`translateX(${-30*Math.max(cyIn,msgIn)}%)`;$('sList').style.filter=Math.max(cyIn,msgIn)>0?`brightness(${1-.4*Math.max(cyIn,msgIn)})`:'';
+  $('sCy').style.transform=`translateX(${(1-cyIn)*105}%)`;
+  $('sMsg').style.transform=`translateX(${(1-msgIn)*105}%)`;
+  setNav(t<60.25?['chat','ai','phone','settings']:['chat','ai','phone','people','settings']);
+
+  // 5. Cypher: вкладки и виды
+  const view=t<12.35?'home':t<17.2?'chat':t<23.95?'home':t<41.85?'pc':'memory';
+  const tabOf={home:'home',chat:'cchat',pc:'pc',memory:'memory'};
+  for(const [k] of CYTABS)$('tab-'+k).classList.toggle('on',k===tabOf[view]);
+  const VIEWS={home:'vHome',chat:'vChat',pc:'vPC',memory:'vMem'};
+  const switches=[12.35,17.2,23.95,41.85];
+  for(const [v,id] of Object.entries(VIEWS)){const on=v===view;const last=Math.max(...switches.filter(s=>s<=t),-9);const k=P(t,last,.35);$(id).style.opacity=on?(last<0?1:k):0;$(id).style.transform=on?`translateY(${(1-k)*10}px)`:'';}
+  const ost2=orbStateAt(t);const st=$('cyStatus');st.querySelector('b').textContent=ST_TXT[ost2];st.className='cy-status'+(ost2==='thinking'||ost2==='executing'?' busy':'')+(ost2==='executing'?' exec':'');
+  if(view==='home'&&cyIn>0)drawOrb($('orbPhone'),t);
+  $('orbLabel').textContent=(ST_TXT[ost2]||'').toUpperCase();
+  typeIn($('askIn'),'Что я пропустил в чатах сегодня?',t,10.8,1.25,'Спросите Cypher…','typed',12.3);
+  $('askSend').style.transform=`scale(${1-.1*win(t,12.1,12.35,.08,.12)})`;
+  setPcCard(t>=22.4);setMemCard(t>=44.4?43:42);
+  $('cardPC').classList.toggle('hot',(t>=18.2&&t<18.9)||(t>=22.4&&t<23.6));
+  // чат с Cypher
+  setRv('cqWrap',P(t,12.4,.35));setRv('caWrap',P(t,12.7,.35));
+  const ans=t<13.4?'':streamTxt(ANSWER,t,13.4,2.6);
+  $('caText').textContent=ans;$('caDots').style.display=t<13.4?'':'none';
+  if(t>=13.4&&hRv.caWrap!=null){$('caWrap').style.height='auto';}
+  $('caAct').style.opacity=P(t,16.1,.35);
+  // подключение по коду
+  const mOpen=P(t,18.85,.3)*(1-P(t,22.2,.3));
+  $('mdim').style.opacity=mOpen;
+  const m1=P(t,18.85,.35,E.back)*(1-P(t,20.95,.2));show($('mCode'),clamp(m1),(1-clamp(m1))*20,.95+.05*clamp(m1));
+  const m2=P(t,21.0,.35,E.back)*(1-P(t,22.2,.3));show($('mOk'),clamp(m2),(1-clamp(m2))*20,.95+.05*clamp(m2));
+  typeIn($('codeIn'),'K7QP-2M9X',t,19.3,1.2,'');if(t<19.3)$('codeIn').innerHTML='<span class="caret"></span>';
+  $('codeNext').style.transform=`scale(${1-.05*win(t,20.7,20.95,.08,.12)})`;$('okYes').style.transform=`scale(${1-.05*win(t,21.9,22.15,.08,.12)})`;
+  $('pToast').style.opacity=win(t,22.35,23.8,.25,.35);$('pToast').style.transform=`translateY(${(1-P(t,22.35,.3))*12}px)`;
+  // управление ПК
+  $('chipNote').classList.toggle('hit',t>=24.7&&t<25.3);$('chipScreen').classList.toggle('hit',t>=31.95&&t<32.6);
+  typeIn($('cmdIn'),'напиши: купить торт к субботе',t,26.6,1.4,'любая просьба…','typed',28.2);$('cmdIn').classList.toggle('focus',t>=26.45&&t<28.2);
+  $('cmdRun').classList.toggle('hit',t>=28.1&&t<28.5);
+  const v2=lerp(50,30,P(t,30.25,.9,E.inOut));$('slFill').style.width=v2+'%';$('slKnob').style.left=v2+'%';$('slVal').textContent=vol+'%';
+  PHONELOG.forEach(([at,,ans],i)=>{const el=$('pl'+i);el.style.display=t>=at-.5?'':'none';el.style.opacity=P(t,at-.5,.25);
+    const s=el.querySelector('span');s.textContent=t<at?'Cypher выполняет на компьютере…':(i===3?streamTxt(SCREEN_ANS,t,at,2.2):ans);});
+  // журнал телефона: показываем последние 3 записи
+  let shownL=PHONELOG.filter(([at])=>t>=at-.5).length;PHONELOG.forEach((_,i)=>{if(shownL>3&&i<shownL-3)$('pl'+i).style.display='none';});
+  // память
+  typeIn($('memIn'),'день рождения мамы — 12 марта',t,42.6,1.4,'Например: день рождения…','typed',44.2);$('memIn').classList.toggle('focus',t>=42.45&&t<44.2);
+  $('memAdd').classList.toggle('hit',t>=44.1&&t<44.5);
+  setRv('memNewWrap',P(t,44.4,.35));
+
+  // 6. чат: очередь отправки
+  setRv('vidWrap',P(t,49.35,.35));setRv('p1Wrap',P(t,49.7,.35));setRv('p2Wrap',P(t,50.05,.35));
+  const vp=Math.round(37*P(t,49.5,1.2));$('vidPct').textContent=vp+'%';$('vidArc').style.strokeDashoffset=119.4*(1-vp/100);
+  $('vidNote').textContent=t<51?'Видео 1:12 · отправка…':'Видео 1:12 · повтор позже, остальное уходит';
+  $('vidPlay').style.opacity=0;
+  for(const [id,a] of [['p1',49.9],['p2',50.5]]){const p=P(t,a+.35,1.1,E.inOut);$(id+'Arc').style.strokeDashoffset=119.4*(1-p);$(id+'Pct').textContent=Math.round(p*100)+'%';
+    $(id+'Prog').style.opacity=t<a+1.5?1:1-P(t,a+1.5,.25);$(id+'Tag').style.opacity=1-P(t,a+1.6,.3);$(id+'T').textContent=t<a+1.5?'21:31 🕓':'21:31 ✓✓';}
+  // просмотрщик
+  const vo=P(t,53.4,.45,E.inOut),vc=P(t,56.6,.5,E.inOut);
+  const [bx,by,bw,bh]=rectOf($('p2'));
+  if(t>=53.4&&t<53.85){$('vfly').style.cssText=`opacity:1;left:${lerp(bx,0,vo)}px;top:${lerp(by,120,vo)}px;width:${lerp(bw,360,vo)}px;height:${lerp(bh,420,vo)}px;border-radius:${lerp(18,0,vo)}px`;if(!$('vfly').firstChild)$('vfly').innerHTML=$('p2').querySelector('.ph').outerHTML;}else $('vfly').style.opacity=0;
+  const vOn=t>=53.85&&t<57.2;
+  $('viewer').style.opacity=t<53.4?0:t<53.85?vo*.9:vOn?1-vc:0;
+  $('vtrack').style.opacity=t<53.85?0:1;
+  const sw=P(t,55.0,.45,E.inOut);$('vtrack').style.transform=`translate(${sw*100}%,${vc*240}px) scale(${1-vc*.25})`;
+  $('vchrome').style.opacity=t<53.85?0:(1-vc)*(t>=54.2&&t<54.55?0.25:1);
+  $('vDate').textContent=t<55.2?'Сегодня, 21:31 · 2 из 2':'Сегодня, 21:31 · 1 из 2';
+  // меню: удержание и шторка
+  const hd=t-58.4;
+  $('hold').style.cssText=hd>0&&hd<.8?(()=>{const [x,y]=centerOf($('nav-chat-phone'));return `left:${x}px;top:${y}px;opacity:${(1-hd/.8)};transform:scale(${.5+hd*1.2})`;})():'opacity:0';
+  $('navList').style.transform=`scale(${1-.03*win(t,58.4,59.0,.2,.2)})`;
+  const sh=P(t,59.0,.5,E.out)*(1-P(t,61.35,.45,E.inOut));
+  $('sheet').style.transform=`translateY(${(1-sh)*105}%)`;$('dim').style.opacity=sh;
+  const pOn=t>=60.25;$('tg-people').classList.toggle('on',pOn);$('nr-people').classList.toggle('off',!pOn);$('navHint').textContent=pOn?'Видно 5 из 5. «Чаты» и «Настройки» скрыть нельзя.':'Видно 4 из 5. «Чаты» и «Настройки» скрыть нельзя.';
+  $('navDone').style.transform=`scale(${1-.05*win(t,61.1,61.35,.08,.12)})`;
+  if(pOn){const nb=$('nav-chat-people');if(nb){const k=P(t,60.25,.4,E.back);nb.style.transform=`scale(${.3+.7*k})`;nb.style.opacity=clamp(k);}}
+
+  // 7. палец
+  const tap=$('tap');let shownT=false;
+  for(const [at,id,hold=0] of TAPS){const d=t-at;if(d>-.3&&d<.4+hold){const el=$(id);if(!el)continue;let [x,y]=centerOf(el);
+      if(id==='orbPhone'){const k=clamp(d/hold);x+=lerp(-55,60,E.inOut(k));y+=Math.sin(k*Math.PI)*-10;}
+      const o=d<0?(1-(-d/.3)):d<hold?1:(1-(d-hold)/.4);tap.style.cssText=`left:${x}px;top:${y}px;opacity:${(o*.9).toFixed(3)};transform:scale(${d<0?1.3+d:d<hold?.95:1+(d-hold)*.8})`;shownT=true;break;}}
+  // свайпы в просмотрщике
+  const swipe=(a,d,x0,y0,x1,y1)=>{const k=(t-a)/d;if(k<-.2||k>1.2)return false;const e=E.inOut(clamp(k));tap.style.cssText=`left:${lerp(x0,x1,e)}px;top:${lerp(y0,y1,e)}px;opacity:${.9*Math.min(1,(k+.2)*5,(1.2-k)*5)};transform:scale(.95)`;return true;};
+  if(!shownT)shownT=swipe(55.0,.45,90,330,290,330)||swipe(56.6,.5,180,300,180,520);
+  if(!shownT&&t>58.1&&t<59.1){const [x,y]=centerOf($('nav-chat-phone'));tap.style.cssText=`left:${x}px;top:${y}px;opacity:${.9*Math.min(1,(t-58.1)*4,(59.1-t)*4)};transform:scale(.95)`;shownT=true;}
+  if(!shownT)tap.style.opacity=0;
+
+  // 8. подписи и точки
+  let dot=-1;
+  for(const c of document.querySelectorAll('.cap')){const a=+c.dataset.a,b=+c.dataset.b;const o=win(t,a,b,.45,.35);c.style.opacity=o;c.style.transform=`translateY(${(1-P(t,a,.5))*14}px)`;if(o>.5&&c.dataset.dot)dot=+c.dataset.dot;}
+  [...$('capMore').querySelectorAll('.chs span')].forEach((s,i)=>{const e=P(t,62.4+i*.32,.4,E.back);s.style.opacity=clamp(e*1.5);s.style.transform=`scale(${.6+.4*e})`;});
+  $('dots').style.opacity=win(t,5.2,66.2,.5,.4);
+  [...$('dots').children].forEach((d,i)=>d.classList.toggle('on',i===dot));
+  $('fade').style.opacity=P(t,DURATION-.7,.7,E.lin);
+}
+$('dots').innerHTML='<i></i>'.repeat(11);
+
+function fit(){const s=Math.min(innerWidth/540,innerHeight/960);$('stage').style.transform=s<1||!window.__render?`scale(${s})`:'';}
+window.render=render;
+window.DURATION=DURATION;
+window.__render=new URLSearchParams(location.search).has('render');
+window.ready=(async()=>{
+  await document.fonts.ready;render(0);
+  if(window.__render){$('stage').style.transform='';return true;}
+  fit();addEventListener('resize',fit);
+  const t0=performance.now();const loop=()=>{render(((performance.now()-t0)/1000)%DURATION);requestAnimationFrame(loop);};loop();
+  return true;
+})();
+</script>
+</body>
+</html>
