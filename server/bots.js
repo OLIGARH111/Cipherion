@@ -209,5 +209,17 @@ export function createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy
     wake(m.user_id);
     return new Promise(resolve=>{answers.set(queryId,resolve);setTimeout(()=>{if(answers.get(queryId)===resolve){answers.delete(queryId);resolve({});}},8000).unref?.();});
   }
-  return {route,notify,isBot,tick,press};
+  // A bot made by the server on a person's behalf (the personal Cypher remote, server/cypher-link.js).
+  function createOwned(owner,{username,name,description=''}){
+    if(!BOT_USERNAME.test(username))fail(400,'Некорректный username бота');
+    if(one('SELECT id FROM users WHERE username=?',username))fail(409,'Этот username уже занят');
+    const botId=id();
+    db.exec('BEGIN');try{
+      run("INSERT INTO users(id,username,name,password,bio,created) VALUES(?,?,?,'bot:!',?,?)",botId,username,clean(name,64),clean(description,500),now());
+      run('INSERT INTO bots(user_id,owner_id,token_hash,description,created) VALUES(?,?,?,?,?)',botId,owner,digest(randomBytes(16)),clean(description,500),now());
+      db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+    ids.add(botId);return botId;
+  }
+  const ownedBy=(owner,botId)=>!!one('SELECT 1 FROM bots WHERE user_id=? AND owner_id=?',botId,owner);
+  return {route,notify,isBot,tick,press,createOwned,issueToken,ownedBy};
 }

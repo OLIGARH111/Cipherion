@@ -152,6 +152,10 @@ npm test
 
 Render: **Web Service → Docker**, подробно в [docs/RENDER-MANUAL.md](docs/RENDER-MANUAL.md). Dockerfile ставит ffmpeg и по умолчанию хранит фото и файлы прямо в базе данных (`MEDIA_STORAGE_MODE=database`), поэтому они сохраняются после деплоя и перезапуска даже на бесплатном Render без диска. Для S3-хранилища — `MEDIA_STORAGE_MODE=durable` и переменные `S3_*`. База — Turso, см. [docs/TURSO.md](docs/TURSO.md).
 
+## Cypher для Windows
+
+Cypher на компьютере подключается к аккаунту по коду или QR: вход без кода доступа, пульт ПК через личного бота «Cypher · ПК», уведомления о сообщениях и общая память AI. Подробнее: [docs/CYPHER.md](docs/CYPHER.md).
+
 ## Архитектура
 
 ```text
