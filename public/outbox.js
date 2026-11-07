@@ -27,12 +27,12 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
  const notify=event=>{if(disposed)return;try{Promise.resolve(onChange(event)).catch(()=>{});}catch{}};
  const ready=transaction('readonly',s=>s.getAll()).then(rows=>{for(const m of rows)if(m.user===user&&!memory.has(m.id)){memory.set(m.id,m);notify({type:'pending',item:m});}}).catch(()=>{});
  const list=async()=>{await ready;return [...memory.values()].sort((a,b)=>a.created-b.created);};
- function save(item){const p=(saving.get(item.id)||Promise.resolve()).catch(()=>{}).then(()=>transaction('readwrite',s=>s.put(item)));saving.set(item.id,p);return p;}
+ function save(item){const p=(saving.get(item.id)||Promise.resolve()).catch(()=>{}).then(()=>memory.has(item.id)?transaction('readwrite',s=>s.put(item)):undefined);saving.set(item.id,p);return p;}
  async function drain(){
   await ready;
   const attempted=new Set();
   while(!disposed&&navigator.onLine){
-   const item=(await list()).find(m=>!attempted.has(m.id)&&(!m.error||m.transient));if(!item)break;
+   const item=(await list()).find(m=>!attempted.has(m.id)&&(!m.error||m.transient)&&!(m.retryAt>Date.now()));if(!item)break;
    attempted.add(item.id);delete item.error;notify({type:'pending',item});
    try{
     await save(item);
@@ -59,6 +59,8 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
      }
      await save(item);
     }
+    // Removed by the user while the file was uploading: do not send it.
+    if(!memory.has(item.id))continue;
     const toSticker=item.payload.sticker||item.payload.sealedSticker;
     let message=await request(item.payload.forward?'/messages/'+item.payload.forward+'/forward':toSticker?'/stickers/send':'/chats/'+item.chat+'/messages','POST',{
       ...item.payload,sealedFile:undefined,sealedSticker:undefined,...(item.payload.e2e?{body:undefined}:{}),...((toSticker||item.payload.forward)?{chat:item.chat}:{}),clientMessageId:item.id,clientId:item.id
@@ -68,17 +70,21 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
     notify({type:'confirmed',item,message:{...message,clientMessageId:item.id}});
     await transaction('readwrite',s=>s.delete(item.id));memory.delete(item.id);saving.delete(item.id);
    }catch(e){
+    if(!memory.has(item.id))continue;
     item.error=e.message||'Не отправлено';item.transient=!e.status||e.status>=500||e.status===429;
+    // One message that keeps failing (a large video on a slow server) must not hold up the rest:
+    // it waits longer before each new try while the messages after it go out.
+    if(item.transient){item.failures=(item.failures||0)+1;if(item.failures>1)item.retryAt=Date.now()+Math.min(300000,15000*2**(item.failures-2));}
     await save(item).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';});
     notify({type:'pending',item});
-    if(item.transient)break;
+    if(item.transient&&!navigator.onLine)break;
    }
   }
  }
  function flush(){if(busy)return busy;if(disposed||!navigator.onLine)return Promise.resolve();busy=drain().finally(()=>{busy=null;});return busy;}
  const online=()=>{void flush().catch(()=>{});};window.addEventListener('online',online);const timer=setInterval(online,15000);
  return {list,flush,dispose:()=>{disposed=true;clearInterval(timer);window.removeEventListener('online',online);return Promise.allSettled([...saving.values(),busy].filter(Boolean));},
-  retry:async(id)=>{await ready;const item=memory.get(id);if(item){delete item.error;item.transient=true;notify({type:'pending',item});await save(item);await flush();}},
+  retry:async(id)=>{await ready;const item=memory.get(id);if(item){delete item.error;delete item.retryAt;item.transient=true;notify({type:'pending',item});await save(item);await flush();}},
   enqueue:(chat,payload,file)=>{
    const item={id:crypto.randomUUID(),user,chat,payload:{...payload},...(file?{file}:{}),created:(lastCreated=Math.max(Date.now(),lastCreated+1))};
    if(!navigator.onLine){item.error='Нет подключения. Отправим при восстановлении связи.';item.transient=true;}
