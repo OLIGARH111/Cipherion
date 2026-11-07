@@ -424,7 +424,7 @@ function renderMessages(scroll){
   reconcileMessages(box,html);
   box.querySelectorAll('.retry-send').forEach(el=>el.onclick=guard(()=>outbox.retry(el.dataset.clientId)));
   // A message stuck in the outbox can always be removed, even while it is still being sent.
-  box.querySelectorAll('.cancel-send').forEach(el=>el.onclick=guard(async()=>{const id=el.dataset.clientId;await outbox.remove(id);state.messages=state.messages.filter(m=>!(m.pending&&m.clientMessageId===id));renderMessages();}));
+  box.querySelectorAll('.cancel-send').forEach(el=>el.onclick=guard(async()=>{const id=el.dataset.clientId;await outbox.remove(id);const keep=m=>!(m.pending&&m.clientMessageId===id);for(const [chat,list] of messagesByChat)messagesByChat.set(chat,list.filter(keep));state.messages=state.messages.filter(keep);renderMessages();}));
   if(scroll||nearBottom)box.scrollTop=box.scrollHeight;else box.scrollTop=previous;
   bindPolls(box,state,loadMessages);bindHalloween(box,loadMessages);bindStickerEffects(box,state.messages,state.settings);
   hydrateSealed(box,state.messages);bindLocations(box);bindBotButtons(box);bindWaves(box,state.messages);mentions?.watch();
