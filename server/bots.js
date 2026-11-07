@@ -221,5 +221,12 @@ export function createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy
     ids.add(botId);return botId;
   }
   const ownedBy=(owner,botId)=>!!one('SELECT 1 FROM bots WHERE user_id=? AND owner_id=?',botId,owner);
-  return {route,notify,isBot,tick,press,createOwned,issueToken,ownedBy};
+  // Removes a bot completely: its memberships, updates and account (same as the owner deleting it).
+  function removeBot(botId){
+    run('DELETE FROM members WHERE user_id=?',botId);run('DELETE FROM bot_updates WHERE bot_id=?',botId);
+    run('DELETE FROM sessions WHERE user_id=?',botId);
+    run("UPDATE users SET username=NULL,name='Удалённый бот',bio='' WHERE id=?",botId);
+    run('DELETE FROM bots WHERE user_id=?',botId);ids.delete(botId);
+  }
+  return {route,notify,isBot,tick,press,createOwned,issueToken,ownedBy,removeBot};
 }
