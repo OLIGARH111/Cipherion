@@ -3,6 +3,7 @@ import {saveAction} from './ui.js';
 import {profileStudio} from './profile-studio.js';
 import {promoAdmin} from './promos.js';
 import {cypherComputers,runOnPC} from './cypher-link.js';
+import {cypherPage} from './cypher-ui.js';
 import {$,esc,icon,api,upload,modal,guard,toast} from './ui.js';
 
 const check=(key,title,s)=>`<label class="setting-row"><span>${title}</span><input type="checkbox" data-ai-setting="${key}" ${s[key]===true?'checked':''}></label>`;
@@ -19,12 +20,14 @@ export async function aiSettings(state,save){
 
 const megabytes=n=>(n/1048576).toFixed(1).replace('.',',')+' МБ';
 // The desktop app's latest release, shown only after the server has checked Cypher's signature.
-async function cypherDesktop(card){
+export async function cypherDesktop(card){
   if(!card)return;let data;try{data=await api('/ai/cypher');}catch{return;}const r=data.release;if(!card.isConnected||!r)return;
   card.innerHTML=`<div><span class="eyebrow">CYPHER ДЛЯ WINDOWS</span><h3>Cypher ${esc(r.version)}</h3><p class="note">Тот же ассистент на компьютере: голос, управление Windows, экран, умный дом и проекты. Выпуск подписан ключом администратора — подпись проверена сервером Cipherion.</p>${r.notes?`<details><summary>Что нового</summary><p class="cypher-notes">${esc(r.notes)}</p></details>`:''}<small>${r.published?esc(new Date(r.published).toLocaleDateString('ru'))+' · ':''}${megabytes(r.size)} · SHA-256 ${esc(r.sha256.slice(0,12))}…</small></div><a class="primary" id="cypher-download" href="${esc(r.url)}" rel="noopener noreferrer" download>Скачать для Windows</a>`;
   card.hidden=false;
 }
 export async function aiPage(state,save,openChat,{compact=false,chat=null}={}){
+  // The AI tab is the Cypher app (public/cypher-ui.js); the compact sheet from a chat stays as it was.
+  if(!compact)return cypherPage(state,save,openChat,{aiSettings,cypherDesktop});
   const config=await api('/ai/config'),history=await api('/ai/history'),pcs=compact?[]:await api('/cypher/links').then(d=>d.links).catch(()=>[]);
   if(!compact&&state.tab!=='ai')return;
   const cypher=config.settings.assistant!=='cipherion',name=cypher?'Cypher AI':'Cipherion AI';

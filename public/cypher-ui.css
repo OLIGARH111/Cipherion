@@ -1,0 +1,126 @@
+/* The AI tab in the look of the Cypher desktop app (public/cypher-ui.js). Scoped to .cy-app. */
+.cy-app{--cy-void:#010805;--cy-arc:#2bdf9a;--cy-arc-soft:#9bf7cf;--cy-ice:#eafff5;--cy-alert:#ff5a6a;--cy-amber:#ffc65c;--panel-opacity:.92;
+  position:relative;min-height:100%;display:flex;flex-direction:column;color:var(--cy-ice);font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:radial-gradient(1200px 700px at 70% -10%,#2bdf9a1a,transparent 60%),radial-gradient(900px 600px at -10% 110%,#1e5ac824,transparent 60%),var(--cy-void)}
+.cy-app *{box-sizing:border-box}
+.cy-app .holo{background:linear-gradient(160deg,rgba(10,46,34,calc(var(--panel-opacity)*.75)),rgba(3,16,11,var(--panel-opacity)));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid #2bdf9a29;box-shadow:inset 0 1px #9bf7cf12,0 0 0 1px #00000059,0 18px 50px -20px #000c}
+.cy-app .holo-edge{position:relative}
+.cy-app .holo-edge:before{content:"";border-radius:inherit;pointer-events:none;background:linear-gradient(120deg,#2bdf9a8c,#0000 35% 65%,#2bdf9a59);padding:1px;position:absolute;inset:0;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.cy-app .hud-label{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace;letter-spacing:.22em;text-transform:uppercase;color:#9bf7cf99;font-size:10px}
+.cy-app .btn{color:var(--cy-ice);background:#2bdf9a12;border:1px solid #2bdf9a40;border-radius:.6rem;align-items:center;justify-content:center;gap:.5rem;padding:.5rem .9rem;font:inherit;font-size:.875rem;line-height:1.25;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s;display:inline-flex;min-height:0;width:auto;box-shadow:none}
+.cy-app .btn:hover:not(:disabled){background:#2bdf9a26;border-color:#2bdf9a80;box-shadow:0 0 18px -6px #2bdf9ab3}
+.cy-app .btn:disabled{opacity:.45;cursor:not-allowed}
+.cy-app .btn-primary{background:linear-gradient(135deg,#2bdf9a59,#0f9d6e59);border-color:#2bdf9a99}
+.cy-app .field{width:100%;color:var(--cy-ice);background:#02100bb3;border:1px solid #2bdf9a2e;border-radius:.6rem;outline:none;padding:.55rem .75rem;font:inherit;font-size:.875rem;transition:border-color .15s,box-shadow .15s;min-height:0}
+.cy-app .field:focus{border-color:#2bdf9a99;box-shadow:0 0 0 3px #2bdf9a1f}
+.cy-app select.field option,.cy-app select.field optgroup{background:#061a12;color:var(--cy-ice)}
+.cy-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;border-bottom:1px solid #2bdf9a1a;background:#010805cc;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:sticky;top:0;z-index:3}
+.cy-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.cy-dot{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,#2bdf9a 0 30%,#0a2e22 34% 55%,transparent 58%),radial-gradient(circle,#2bdf9a55,transparent 70%);box-shadow:0 0 10px #2bdf9a88;flex:none}
+.cy-logo{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace;letter-spacing:.42em;font-size:14px;color:var(--cy-ice);text-shadow:0 0 18px #2bdf9a8c}
+.cy-ver{font-family:ui-monospace,monospace;font-size:10px;color:#2bdf9a66}
+.cy-status{display:inline-flex;align-items:center;gap:8px;margin-left:10px;font-size:13px;color:#eafff5b3;white-space:nowrap}
+.cy-status i{width:8px;height:8px;border-radius:50%;background:var(--cy-arc);box-shadow:0 0 8px var(--cy-arc)}
+.cy-status[data-state=listening] i{background:#bfff78;box-shadow:0 0 8px #bfff78}
+.cy-status[data-state=thinking] i,.cy-status[data-state=executing] i{animation:cy-blink 1s infinite}
+.cy-status[data-state=error] i{background:var(--cy-alert);box-shadow:0 0 8px var(--cy-alert)}
+@keyframes cy-blink{50%{opacity:.25}}
+.cy-app .cy-stop{color:#ffd5da;background:#ff5a6a1a;border-color:#ff5a6a73;padding:.35rem .8rem;font-size:.8rem;border-radius:999px}
+.cy-app .cy-stop:hover:not(:disabled){background:#ff5a6a33;border-color:#ff5a6acc;box-shadow:0 0 18px -6px #ff5a6acc}
+.cy-body{flex:1;display:flex;min-height:0}
+.cy-nav{width:208px;flex:none;padding:10px 8px;border-right:1px solid #2bdf9a14;display:flex;flex-direction:column;gap:2px}
+.cy-nav button{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:.6rem;border:0;background:none;color:#eafff5b3;font:inherit;font-size:15px;text-align:left;cursor:pointer;position:relative;min-height:0;box-shadow:none;width:100%}
+.cy-nav button:hover{background:#2bdf9a0f;color:var(--cy-ice)}
+.cy-nav button.active{background:linear-gradient(90deg,#2bdf9a24,#2bdf9a08);color:#9bf7cf}
+.cy-nav button.active:before{content:"";position:absolute;left:-8px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--cy-arc);box-shadow:0 0 10px var(--cy-arc)}
+.cy-main{flex:1;min-width:0;position:relative;overflow:hidden}
+.cy-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#2bdf9a0b 1px,#0000 1px),linear-gradient(90deg,#2bdf9a0b 1px,#0000 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(#000 30%,#0000 80%);mask-image:radial-gradient(#000 30%,#0000 80%)}
+.cy-view{position:relative;padding:24px 28px 120px;max-width:1040px;margin:0 auto}
+.cy-home{display:flex;flex-direction:column;align-items:center;text-align:center}
+.cy-hello{font-size:32px;font-weight:300;margin:10px 0 6px;letter-spacing:.01em}
+.cy-sub{color:#eafff599;font-size:14px;margin:0 0 6px}
+.cy-orb-wrap{position:relative;margin:4px 0 0}
+.cy-orb{display:block;margin:0 auto}
+.cy-orb-label{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace;letter-spacing:.3em;font-size:10px;color:#9bf7cfb3;margin-top:6px}
+.cy-ask{display:flex;align-items:center;gap:8px;width:min(680px,100%);margin:22px auto 26px;padding:8px 8px 8px 16px;border-radius:14px}
+.cy-app .cy-ask input{flex:1;min-width:0;width:auto;background:none!important;border:0!important;outline:none;color:var(--cy-ice);font:inherit;font-size:16px;padding:8px 0!important;box-shadow:none!important;min-height:0;border-radius:0;-webkit-appearance:none;appearance:none}
+.cy-ask input::placeholder,.cy-composer textarea::placeholder{color:#eafff566}
+.cy-app .cy-icon-btn svg,.cy-app .cy-nav svg{width:18px;height:18px;flex:none}
+.cy-icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:10px;border:1px solid #2bdf9a40;background:#2bdf9a12;color:var(--cy-ice);cursor:pointer;padding:0;min-height:0;box-shadow:none}
+.cy-icon-btn:hover{background:#2bdf9a26;border-color:#2bdf9a80}
+.cy-send{background:linear-gradient(135deg,#2bdf9a59,#0f9d6e59);border-color:#2bdf9a99}
+.cy-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;width:100%}
+.cy-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;text-align:left;min-width:0}
+.cy-app .cy-gauge{flex:none;transform:rotate(-90deg);width:64px;height:64px;max-width:none}
+.cy-card-text{min-width:0}
+.cy-card-value{font-size:17px;margin:2px 0;line-height:1.25;overflow-wrap:anywhere}
+.cy-card-detail{font-size:11px;color:#eafff573;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cy-chat{display:flex;flex-direction:column;gap:12px;min-height:calc(100dvh - 210px)}
+.cy-chat-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cy-chat-head h2,.cy-page h1{font-size:24px;font-weight:300;margin:0}
+.cy-chat-head small{color:#eafff566}
+.cy-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cy-row .field{flex:1;min-width:180px;width:auto}
+.cy-context{max-width:320px}
+.cy-messages{flex:1;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding:4px 2px;min-height:240px}
+.cy-msg{max-width:min(720px,88%);padding:12px 14px;border-radius:14px;border:1px solid #2bdf9a26;background:#03110ccc}
+.cy-msg small{display:block;font-size:11px;color:#9bf7cf99;margin-bottom:4px}
+.cy-msg-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:15px}
+.cy-msg.user{align-self:flex-end;background:linear-gradient(135deg,#2bdf9a2e,#0f9d6e26);border-color:#2bdf9a59}
+.cy-msg.assistant{align-self:flex-start}
+.cy-app .cy-action{margin-top:8px}
+.cy-note{color:#eafff580;font-size:13px;margin:6px 0 0}
+.cy-empty{margin:auto;text-align:center;color:#eafff580}
+.cy-composer{display:flex;align-items:flex-end;gap:8px;padding:8px;border-radius:14px;position:sticky;bottom:96px}
+.cy-app .cy-composer textarea{flex:1;min-width:0;width:auto;resize:none;background:none!important;border:0!important;outline:none;color:var(--cy-ice);font:inherit;font-size:15px;line-height:1.45;padding:9px 6px!important;max-height:160px;box-shadow:none!important;min-height:0;border-radius:0}
+.cy-file{color:#9bf7cfb3}
+.cy-page{display:flex;flex-direction:column;gap:14px}
+.cy-page>h1+.cy-sub,.cy-chat-head .cy-sub{margin-top:4px}
+.cy-panel{border-radius:14px;padding:16px;display:grid;gap:12px}
+.cy-panel p{margin:0}
+.cy-chips{display:flex;flex-wrap:wrap;gap:8px}
+.cy-volume{flex:1;min-width:160px;accent-color:var(--cy-arc)}
+.cy-volume-value{font-family:ui-monospace,monospace;color:#9bf7cf;min-width:44px;text-align:right}
+.cy-log{display:grid;gap:8px;max-height:320px;overflow-y:auto}
+.cy-log-row{display:grid;gap:2px;padding:8px 10px;border-radius:10px;background:#2bdf9a0d;font-size:14px}
+.cy-log-row span{color:#eafff5b3;white-space:pre-wrap}
+.cy-log-row.error span{color:#ffb3bc}
+.cy-steps{margin:0;padding-left:20px;display:grid;gap:6px;color:#eafff5cc}
+.cy-mem-list{display:grid;gap:6px}
+.cy-mem-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:#2bdf9a0b}
+.cy-app .cypher-pc,.cy-app .cypher-desktop{margin:0;border-color:#2bdf9a40;background:linear-gradient(160deg,rgba(10,46,34,.7),rgba(3,16,11,.92));color:var(--cy-ice)}
+@media (max-width:900px){
+  .cy-body{flex-direction:column}
+  .cy-nav{width:auto;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid #2bdf9a14;padding:8px 10px;gap:6px;scrollbar-width:none;position:sticky;top:49px;z-index:2;background:#010805e6}
+  .cy-nav::-webkit-scrollbar{display:none}
+  .cy-nav button{width:auto;flex:none;padding:8px 12px;font-size:14px;gap:8px;border:1px solid #2bdf9a1f}
+  .cy-nav button.active:before{display:none}
+  .cy-nav button.active{border-color:#2bdf9a66}
+  .cy-view{padding:18px 14px 130px}
+  .cy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cy-hello{font-size:28px}
+  .cy-status{margin-left:4px}
+  .cy-ver{display:none}
+  .cy-msg{max-width:94%}
+  .cy-context{max-width:none}
+}
+@media (max-width:420px){.cy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.cy-card{padding:8px;gap:8px}.cy-app .cy-gauge{width:44px;height:44px}.cy-card-value{font-size:15px}.cy-app .cy-stop span{display:none}}
+
+/* Cypher takes the whole width on desktop: the chat list is hidden while the AI tab is open. */
+@media(min-width:701px){#app>.shell.ai-wide{grid-template-columns:80px minmax(0,1fr)}#app>.shell.ai-wide>.side{display:none}}
+@media(min-width:1500px){#app>.shell.ai-wide{grid-template-columns:95px minmax(0,1fr)}}
+@media(min-width:701px) and (max-width:1000px){#app>.shell.ai-wide{grid-template-columns:66px minmax(0,1fr)}}
+/* Phones: cards keep their full text, the tab row shows icons and the active tab's name. */
+@media (max-width:700px){
+  .cy-view{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  .cy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cy-card{align-items:flex-start}
+  .cy-card-value,.cy-card-detail{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+  .cy-card-value{font-size:15px;line-height:1.25}
+  .cy-app .cy-gauge{width:40px;height:40px}
+  .cy-nav{justify-content:space-between;overflow:visible}
+  .cy-nav button{flex:1 1 0;justify-content:center;padding:9px 6px;min-width:0}
+  .cy-nav button span{display:none}
+  .cy-nav button.active{flex:2.6 1 0}
+  .cy-nav button.active span{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
