@@ -1,29 +1,43 @@
 // Shrinks camera photos before upload, the way Telegram does: a 4-8 MB shot becomes a few hundred KB
 // that looks the same on a phone screen. Re-encoding also drops EXIF metadata such as GPS location.
-const MAX_SIDE=2560,QUALITY=0.85,SKIP_BELOW=300*1024;
-const lossy=new Set(['image/jpeg','image/png','image/webp']);
+// iPhone HEIC photos and pictures with no type are converted too, because the server accepts only JPG/PNG/WebP/GIF.
+const MAX_SIDE=2048,QUALITY=0.82,SKIP_BELOW=200*1024;
+const accepted=new Set(['image/jpeg','image/png','image/webp']);
 
 function encode(canvas,type){
-  if(canvas.convertToBlob)return canvas.convertToBlob({type,quality:QUALITY});
+  if(canvas.convertToBlob)return canvas.convertToBlob({type,quality:QUALITY}).catch(()=>null);
   return new Promise(resolve=>canvas.toBlob(resolve,type,QUALITY));
 }
 
 export async function compressPhoto(file){
+  if(!file)return file;
+  const type=imageType(file);
+  if(type==='image/gif')return file.type===type?file:new File([file],file.name||'photo.gif',{type});
+  // Already small and in a format the server takes: send as is.
+  if(accepted.has(file.type)&&file.size<SKIP_BELOW)return file;
+  let image=null;
+  try{image=await decodeImage(file);}catch{}
+  const w=image?.width||image?.naturalWidth,h=image?.height||image?.naturalHeight;
+  if(!w||!h){
+    if(accepted.has(file.type))return file;
+    if(accepted.has(type))return new File([file],file.name||'photo',{type});
+    throw Object.assign(new Error('Не удалось открыть фото. Выберите снимок в формате JPG или PNG.'),{status:400});
+  }
   try{
-    if(!file||!lossy.has(file.type)||file.size<SKIP_BELOW||typeof createImageBitmap!=='function')return file;
-    const bitmap=await createImageBitmap(file);
-    const scale=Math.min(1,MAX_SIDE/Math.max(bitmap.width,bitmap.height));
-    const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
+    const scale=Math.min(1,MAX_SIDE/Math.max(w,h));
+    const width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
     const canvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(width,height):Object.assign(document.createElement('canvas'),{width,height});
     const context=canvas.getContext('2d');
-    // PNG/WebP may be transparent: keep alpha with WebP when the browser can encode it, else leave as is.
-    const type=file.type==='image/jpeg'?'image/jpeg':'image/webp';
-    context.drawImage(bitmap,0,0,width,height);bitmap.close?.();
-    const blob=await encode(canvas,type);
-    if(!blob||blob.type!==type||blob.size>=file.size)return file;
-    const name=String(file.name||'photo').replace(/\.[^.]*$/,'')+(type==='image/jpeg'?'.jpg':'.webp');
-    return new File([blob],name,{type,lastModified:file.lastModified||Date.now()});
-  }catch{return file;}
+    // PNG/WebP may be transparent: try WebP to keep alpha. Safari cannot encode WebP, so then use JPEG on white.
+    const transparent=type==='image/png'||type==='image/webp';
+    let blob=null,out='image/jpeg';
+    if(transparent){context.drawImage(image,0,0,width,height);blob=await encode(canvas,'image/webp');if(blob?.type==='image/webp')out='image/webp';else blob=null;}
+    if(!blob){context.clearRect(0,0,width,height);context.fillStyle='#fff';context.fillRect(0,0,width,height);context.drawImage(image,0,0,width,height);blob=await encode(canvas,'image/jpeg');}
+    if(!blob||blob.type!==out){if(accepted.has(file.type))return file;throw Object.assign(new Error('Не удалось обработать фото'),{status:400});}
+    if(accepted.has(file.type)&&blob.size>=file.size)return file;
+    const name=String(file.name||'photo').replace(/\.[^.]*$/,'')+(out==='image/jpeg'?'.jpg':'.webp');
+    return new File([blob],name,{type:out,lastModified:file.lastModified||Date.now()});
+  }finally{image?.close?.();}
 }
 
 // Profile photos: any picture the phone offers (JPG, PNG, WebP, HEIC from iPhone, files with no type)

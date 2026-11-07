@@ -23,6 +23,7 @@ import {renderCustom,stickerPanel} from './stickers.js';
 import {toggleEmojiPanel,closeEmojiPanel,emojiPanelOpen,setupStickerSuggestions,showStickerPreview} from './sticker-panel.js';
 import {jumboSize} from './emoji-data.js';
 import { $,esc,icon,button,avatar,tone,time,toast,api,upload,modal,guard,asSheet } from './ui.js';
+import {imageType} from './media-compress.js';
 import { applyTheme, settingsPage, themes } from './settings.js';
 import {navTabs,navSettingsDialog} from './nav-tabs.js';
 import {applyChatWallpaper,wallpaperPicker} from './wallpapers.js';
@@ -585,7 +586,7 @@ function attachments(){
     else if(action==='treat')await queueOutgoing(state.chat,{kind:'treat'});
   }));
 }
-function pickFile(accept,capture){const input=document.createElement('input');input.type='file';input.accept=accept;if(capture)input.capture=capture;input.onchange=guard(async()=>{const file=input.files[0];if(!file)return;$('#modal').close();const kind=accept==='*/*'?'file':file.type.startsWith('image/')?'photo':'video';await queueOutgoing(state.chat,{kind,reply:state.reply},file);});input.click();}
+function pickFile(accept,capture){const input=document.createElement('input');input.type='file';input.accept=accept;if(capture)input.capture=capture;input.onchange=guard(async()=>{const file=input.files[0];if(!file)return;$('#modal').close();const kind=accept==='*/*'?'file':imageType(file).startsWith('image/')?'photo':'video';await queueOutgoing(state.chat,{kind,reply:state.reply},file);});input.click();}
 async function sendFiles(list){const chat=state.chat;if(!chat)return;const reply=state.reply;if(reply)cancelReply();for(const {file,kind,caption}of list)await queueOutgoing(chat,{kind,reply,...(caption?{body:caption}:{})},file);}
 function createPoll(){pollEditor(state.chat,loadMessages).catch(e=>toast(e.message));}
 export function newChat(defaultKind='direct'){return createChatDialog(defaultKind,{refresh,openChat});}
