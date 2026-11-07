@@ -41,7 +41,7 @@ export function createOrb(canvas,{size=320}={}){
     if(!dragging){yaw+=dt*speed*0.35+dragVX*dt;dragVX*=Math.pow(0.15,dt);pitch+=dragVY*dt;dragVY*=Math.pow(0.15,dt);pitch*=Math.pow(0.6,dt);}
     const tilt=pitch+Math.sin(time*0.15)*0.15;
     RINGS.forEach((ring,i)=>ringAngles[i]+=dt*speed*ring.spin);
-    const W=canvas.width,half=W/2,scale=half*0.98,ctxColor=current.color.map(v=>Math.min(255,v*current.brightness));
+    const W=canvas.width,half=W/2,scale=half*0.9,ctxColor=current.color.map(v=>Math.min(255,v*current.brightness));
     ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,W);ctx.globalCompositeOperation='lighter';
     const project=(x,y,z)=>{const d=CAMERA-z;return [half+x*FOCAL/d*scale,half-y*FOCAL/d*scale,d];};
     // Orbit rings (behind and in front, drawn faintly with additive light).

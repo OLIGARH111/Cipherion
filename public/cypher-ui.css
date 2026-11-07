@@ -41,7 +41,7 @@
 .cy-sub{color:#eafff599;font-size:14px;margin:0 0 6px}
 .cy-orb-wrap{position:relative;margin:4px 0 0}
 .cy-orb{display:block;margin:0 auto}
-.cy-orb-label{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace;letter-spacing:.3em;font-size:10px;color:#9bf7cfb3;margin-top:-8px}
+.cy-orb-label{font-family:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,monospace;letter-spacing:.3em;font-size:10px;color:#9bf7cfb3;margin-top:6px}
 .cy-ask{display:flex;align-items:center;gap:8px;width:min(680px,100%);margin:22px auto 26px;padding:8px 8px 8px 16px;border-radius:14px}
 .cy-app .cy-ask input{flex:1;min-width:0;width:auto;background:none!important;border:0!important;outline:none;color:var(--cy-ice);font:inherit;font-size:16px;padding:8px 0!important;box-shadow:none!important;min-height:0;border-radius:0;-webkit-appearance:none;appearance:none}
 .cy-ask input::placeholder,.cy-composer textarea::placeholder{color:#eafff566}
@@ -53,7 +53,7 @@
 .cy-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;text-align:left;min-width:0}
 .cy-app .cy-gauge{flex:none;transform:rotate(-90deg);width:64px;height:64px;max-width:none}
 .cy-card-text{min-width:0}
-.cy-card-value{font-size:17px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cy-card-value{font-size:17px;margin:2px 0;line-height:1.25;overflow-wrap:anywhere}
 .cy-card-detail{font-size:11px;color:#eafff573;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cy-chat{display:flex;flex-direction:column;gap:12px;min-height:calc(100dvh - 210px)}
 .cy-chat-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -105,3 +105,22 @@
   .cy-context{max-width:none}
 }
 @media (max-width:420px){.cy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.cy-card{padding:8px;gap:8px}.cy-app .cy-gauge{width:44px;height:44px}.cy-card-value{font-size:15px}.cy-app .cy-stop span{display:none}}
+
+/* Cypher takes the whole width on desktop: the chat list is hidden while the AI tab is open. */
+@media(min-width:701px){#app>.shell.ai-wide{grid-template-columns:80px minmax(0,1fr)}#app>.shell.ai-wide>.side{display:none}}
+@media(min-width:1500px){#app>.shell.ai-wide{grid-template-columns:95px minmax(0,1fr)}}
+@media(min-width:701px) and (max-width:1000px){#app>.shell.ai-wide{grid-template-columns:66px minmax(0,1fr)}}
+/* Phones: cards keep their full text, the tab row shows icons and the active tab's name. */
+@media (max-width:700px){
+  .cy-view{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  .cy-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cy-card{align-items:flex-start}
+  .cy-card-value,.cy-card-detail{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+  .cy-card-value{font-size:15px;line-height:1.25}
+  .cy-app .cy-gauge{width:40px;height:40px}
+  .cy-nav{justify-content:space-between;overflow:visible}
+  .cy-nav button{flex:1 1 0;justify-content:center;padding:9px 6px;min-width:0}
+  .cy-nav button span{display:none}
+  .cy-nav button.active{flex:2.6 1 0}
+  .cy-nav button.active span{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
