@@ -120,6 +120,7 @@ export async function cypherPage(state,save,openChat,{aiSettings,cypherDesktop})
   function render(){
     orb?.stop();orb=null;sessionStorage.setItem('cypher-view',view);
     root.querySelectorAll('[data-cy-view]').forEach(b=>b.classList.toggle('active',b.dataset.cyView===view));
+    root.classList.toggle('cy-chat-mode',view==='chat');root.scrollTop=0;
     const box=q('.cy-view');box.innerHTML=view==='chat'?chatView():view==='pc'?pcView():view==='memory'?memoryView():view==='settings'?settingsView():homeView();
     const canvas=q('.cy-orb');if(canvas){const small=canvas.classList.contains('cy-orb-small');orb=createOrb(canvas,{size:small?150:Math.min(400,Math.max(240,box.clientWidth-32))});orb.set(status);}
     const ask_=q('.cy-ask');if(ask_)ask_.onsubmit=guard(async e=>{e.preventDefault();const input=ask_.elements.text,text=input.value.trim();input.value='';await ask(text,'');});

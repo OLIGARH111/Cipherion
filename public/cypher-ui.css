@@ -124,3 +124,25 @@
   .cy-nav button.active{flex:2.6 1 0}
   .cy-nav button.active span{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* Chat: only the message list scrolls; the composer stays pinned at the bottom, above the tab bar, and
+   messages never slide under it. */
+.cy-app.cy-chat-mode{overflow:hidden}
+.cy-chat-mode .cy-body{flex:1 1 0;min-height:0}
+.cy-chat-mode .cy-main{display:flex;flex-direction:column;min-height:0}
+.cy-chat-mode .cy-view{flex:1 1 0;min-height:0;width:100%;display:flex;flex-direction:column;padding-bottom:16px}
+.cy-chat-mode .cy-chat{flex:1 1 0;min-height:0}
+.cy-chat-mode .cy-messages{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px 2px 12px}
+.cy-chat-mode .cy-composer{position:relative;bottom:auto;flex:none}
+.cy-chat-mode .cy-file:empty{display:none}
+@media (max-width:700px){.cy-chat-mode .cy-view{padding-bottom:calc(var(--ci-tabbar-h,60px) + 34px + env(safe-area-inset-bottom,0px))}.cy-chat-mode .cy-chat-head small{display:none}}
+@media (max-width:700px){.cy-chat-mode .cy-chat-head>div:first-child{display:none}.cy-chat-mode .cy-view{padding-top:12px}}
+
+/* Composer and send button: round, like the chat composer. */
+.cy-app .cy-composer,.cy-app .cy-ask{border-radius:28px;padding:6px;align-items:center}
+.cy-app .cy-ask{padding-left:18px}
+.cy-app .cy-composer textarea{padding:10px 8px!important}
+.cy-app .cy-icon-btn{width:44px;height:44px;border-radius:50%}
+.cy-app .cy-send{background:linear-gradient(135deg,#2bdf9a,#0f9d6e);border-color:transparent;color:#01140d;box-shadow:0 6px 18px -6px #2bdf9acc}
+.cy-app .cy-send:hover{background:linear-gradient(135deg,#46f0ad,#13b07b)}
+.cy-app .cy-send svg{stroke-width:2.6}

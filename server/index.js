@@ -7,6 +7,7 @@ import {backupBeforeMigration, migrate} from './migrations.js';
 import {createDelivery} from './delivery.js';
 import {createAdmin} from './admin.js';
 import {createOfficial,OFFICIAL_NAME} from './official.js';
+import {createUpdates} from './updates.js';
 import {vipBadgeValue} from '../public/vip-badges.js';
 import {createProfiles} from './profiles.js';
 import {createPolls} from './polls.js';
@@ -189,6 +190,8 @@ setInterval(()=>{try{halloween.sweep();chatFeatures.sweep();}catch(error){logFai
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message,messageExtras});
 migrate(db);
 const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
+const updates=createUpdates({db,one,all,run,now,id,official});
+try{updates.publish();}catch(error){logFailure('official_release_failed',error);}
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,family});
 const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
@@ -319,6 +322,7 @@ const server = http.createServer(async (req, res) => {
     if(path==='/api/activity'&&req.method==='POST')return json({ok:true});
     if(await privacy.route({path,req,b,user,json}))return;
     if(await security.route({path,req,b,user,json}))return;
+    if(path==='/api/stories/event'&&req.method==='GET')return json(updates.currentEvent());
     if(await stories.route({path,req,b,user,json,url}))return;
     if(await polls.route({path,req,b,user,json,url}))return;
     if(await adminAccess.route({path,req,b,user,json}))return;
