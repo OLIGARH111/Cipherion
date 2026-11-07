@@ -1,6 +1,6 @@
 /* The AI tab in the look of the Cypher desktop app (public/cypher-ui.js). Scoped to .cy-app. */
 .cy-app{--cy-void:#010805;--cy-arc:#2bdf9a;--cy-arc-soft:#9bf7cf;--cy-ice:#eafff5;--cy-alert:#ff5a6a;--cy-amber:#ffc65c;--panel-opacity:.92;
-  position:relative;min-height:100%;display:flex;flex-direction:column;color:var(--cy-ice);font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  position:relative;height:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;color:var(--cy-ice);font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
   background:radial-gradient(1200px 700px at 70% -10%,#2bdf9a1a,transparent 60%),radial-gradient(900px 600px at -10% 110%,#1e5ac824,transparent 60%),var(--cy-void)}
 .cy-app *{box-sizing:border-box}
 .cy-app .holo{background:linear-gradient(160deg,rgba(10,46,34,calc(var(--panel-opacity)*.75)),rgba(3,16,11,var(--panel-opacity)));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid #2bdf9a29;box-shadow:inset 0 1px #9bf7cf12,0 0 0 1px #00000059,0 18px 50px -20px #000c}
@@ -27,7 +27,7 @@
 @keyframes cy-blink{50%{opacity:.25}}
 .cy-app .cy-stop{color:#ffd5da;background:#ff5a6a1a;border-color:#ff5a6a73;padding:.35rem .8rem;font-size:.8rem;border-radius:999px}
 .cy-app .cy-stop:hover:not(:disabled){background:#ff5a6a33;border-color:#ff5a6acc;box-shadow:0 0 18px -6px #ff5a6acc}
-.cy-body{flex:1;display:flex;min-height:0}
+.cy-body{flex:1 0 auto;display:flex}
 .cy-nav{width:208px;flex:none;padding:10px 8px;border-right:1px solid #2bdf9a14;display:flex;flex-direction:column;gap:2px}
 .cy-nav button{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:.6rem;border:0;background:none;color:#eafff5b3;font:inherit;font-size:15px;text-align:left;cursor:pointer;position:relative;min-height:0;box-shadow:none;width:100%}
 .cy-nav button:hover{background:#2bdf9a0f;color:var(--cy-ice)}
