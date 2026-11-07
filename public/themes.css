@@ -1,0 +1,21 @@
+/* Vivid themes (settings.js → vivid()): a colourful sky behind the app and gradient own bubbles. */
+body.vivid{background:var(--theme-sky),var(--bg);background-attachment:fixed}
+body.vivid .ambient{background:var(--wallpaper,none),var(--theme-sky),var(--bg);background-size:cover}
+body.vivid{--on-accent:var(--theme-ink)}
+body.vivid .message.own .bubble{background:var(--theme-bubble);color:var(--theme-ink);border-color:transparent}
+body.vivid .message.own.last .bubble:not(.bare):not(.media-only)::after{background:var(--theme-tail)}
+body.vivid .message.own .bubble :is(time,.edited,.message-footer){color:inherit;opacity:.7}
+body.vivid .message.own .bubble :is(.author,.mention,a,.comment-link,.member-tag){color:inherit}
+body.vivid .message.own .bubble .author{font-weight:700}
+body.vivid .message.own .bubble .mention{font-weight:650;text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:2px}
+body.vivid .message.own .bubble .comment-link{border-top-color:color-mix(in srgb,currentColor 18%,transparent);font-weight:600}
+body.vivid .preview-bubble.own{background:var(--theme-bubble);color:var(--theme-ink)}
+
+/* Theme picker: vivid cards show their sky and a bubble in the theme's colours. */
+.theme-card.vivid{background:var(--theme-art),var(--theme-bg);border-color:#ffffff2e}
+.themes .theme-card{height:92px}
+.themes .theme-card:before{position:absolute;left:12px;top:12px;margin:0;width:50%;height:14px;border-radius:8px 8px 8px 3px}
+.themes .theme-card:after{top:32px;right:12px;width:45%;height:14px;border-radius:8px 8px 3px 8px}
+.theme-card.vivid:after{background:var(--theme-bubble);opacity:1;box-shadow:0 4px 12px #0005}
+.theme-card.vivid:before{background:#fff;opacity:.18}
+.theme-card.vivid strong{color:#fff;text-shadow:0 1px 6px #0009;font-size:12px}
