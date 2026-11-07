@@ -754,6 +754,7 @@ async function openNotificationLink(href){
  const url=new URL(href,location.origin);if(url.origin!==location.origin)return;
  const link=new URLSearchParams(url.hash.slice(1));
  if(link.get('qr-login')){history.replaceState(null,'',location.pathname+location.search);await approveDevice(link.get('qr-login'),link.get('k'),state.user.id);return;}
+ if(link.get('tab')==='ai'){history.replaceState(null,'',location.pathname+location.search);await navigate('ai');return;}
  if(link.get('cypher-link')){history.replaceState(null,'',location.pathname+location.search);await approveCypher(link.get('cypher-link'));return;}
  if(link.get('e2e-transfer')){history.replaceState(null,'',location.pathname+location.search);await sendTransfer(state,link.get('e2e-transfer'),link.get('k'));return;}
  if(link.get('account')&&link.get('account')!==state.user.id){await accountManager.switchTo(link.get('account'));}

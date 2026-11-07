@@ -210,7 +210,7 @@ const bots=createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy,broa
   edit:(m,text,markup)=>{if(text!==undefined){family.content(m.chat_id,text,false);run('UPDATE messages SET body=?,edited=? WHERE id=?',text,now(),m.id);}if(markup!==undefined)run('UPDATE messages SET markup=? WHERE id=?',markup?JSON.stringify(markup):null,m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});},
   remove:m=>{run("UPDATE messages SET deleted=1,body='',transcript=NULL,e2e=NULL WHERE id=?",m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});}});
 setInterval(()=>bots.tick(),2000).unref();
-const cypherLink=createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,post:botPost,vip});
+const cypherLink=createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,vip,broadcast});
 // Group calls and voice rooms go through the server's SFU when it can be reached (see server/sfu.js).
 const sfuEnabled=()=>process.env.SFU_ENABLED==='1'||(process.env.SFU_ENABLED!=='0'&&(!!process.env.SFU_PUBLIC_IP||rtcConfiguration('sfu').relayConfigured||managedTurnConfigured()));
 const roomSeen=new Map();
@@ -225,6 +225,7 @@ const staticFiles = createStaticFiles();
 const appShell = createAppShell(resolve(root, 'public'), staticFiles);
 // The bundle is built at start-up, not on the first visitor's request.
 appShell.get().catch(error => logFailure('app_shell_failed', error));
+try{const removed=cypherLink.purgeLegacyBots();if(removed)console.log(`Removed ${removed} legacy Cypher remote chats`);}catch(error){logFailure('cypher_purge_failed',error);}
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');

@@ -6,56 +6,60 @@
 // never the person's messenger session.
 //
 // What a linked Cypher gets:
-//  • a personal bot «Cypher · ПК» owned by the person, with a chat between them: the remote control for
-//    the PC. Chats with bots are not end-to-end encrypted, the desktop app reads them through the bot API;
+//  • commands from the AI section: the person picks «Компьютер …» as the context, the text waits in
+//    cypher_remote until that PC takes it (long polling), and the PC's answer comes back into the AI history;
 //  • notifications about new messages: sender, chat and kind. The text only for messages that are not
 //    end-to-end encrypted — the server cannot read encrypted ones and does not pretend to;
 //  • the person's AI memory (the same records as in the messenger's AI section), for two-way sync.
+//
+// 1.0.7 used a personal bot «Cypher · ПК» for the remote; those bots and their chats are removed on start.
 import {createHash,randomBytes,timingSafeEqual} from 'node:crypto';
 
 const digest=text=>createHash('sha256').update(String(text)).digest('hex');
 const CODE_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_TTL=10*60*1000;
-export const CYPHER_BOT_NAME='Cypher · ПК';
 const TOKEN=/^cyl_[A-Za-z0-9_-]{43}$/;
 const KIND_LABEL={photo:'Фото',video:'Видео',file:'Файл',voice:'Голосовое сообщение',round:'Видеосообщение',audio:'Аудио',poll:'Опрос',sticker:'Стикер',gif:'GIF'};
-const WELCOME=device=>`Готово, сэр. Это ваш пульт Cypher на компьютере «${device}».
+const REMOTE_TTL=10*60*1000;
 
-Пишите сюда, как в чат с Cypher на ПК, например:
-• включи музыку / следующий трек / громкость 30
-• открой YouTube, найди котиков
-• что на экране?
-• агент, подготовь компьютер к работе
-
-Команды выполняет Cypher на этом компьютере, пока он включён и запущен. Перед опасными действиями он сначала спросит подтверждение. Писать сюда можете только вы — сообщения других людей Cypher не выполняет.`;
-
-export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,post,vip}){
+export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,vip,broadcast=()=>{}}){
   db.exec(`CREATE TABLE IF NOT EXISTS cypher_link_requests(secret_hash TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,device TEXT NOT NULL,created INTEGER NOT NULL,expires INTEGER NOT NULL,user_id TEXT,decision TEXT);
     CREATE TABLE IF NOT EXISTS cypher_links(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),token_hash TEXT UNIQUE NOT NULL,device TEXT NOT NULL,created INTEGER NOT NULL,last_seen INTEGER DEFAULT 0,remote INTEGER DEFAULT 0);
     CREATE INDEX IF NOT EXISTS cypher_links_user ON cypher_links(user_id);
-    CREATE TABLE IF NOT EXISTS cypher_bots(user_id TEXT PRIMARY KEY REFERENCES users(id),bot_id TEXT NOT NULL,chat_id TEXT NOT NULL);`);
+    CREATE TABLE IF NOT EXISTS cypher_remote(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,link_id TEXT NOT NULL,text TEXT NOT NULL,created INTEGER NOT NULL,picked INTEGER DEFAULT 0,reply TEXT,replied INTEGER DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS cypher_remote_link ON cypher_remote(link_id,picked);`);
+
+  // 1.0.7 personal remote bots: delete the bots and their chats for everyone. Called once every module has
+  // created its tables, with the same order of deletes as removing a community (foreign keys are on).
+  function purgeLegacyBots(){
+    if(!one("SELECT name FROM sqlite_master WHERE type='table' AND name='cypher_bots'"))return 0;
+    const has=table=>!!one("SELECT name FROM sqlite_master WHERE type='table' AND name=?",table);
+    const pairs=all('SELECT * FROM cypher_bots');
+    for(const pair of pairs){
+      const chat=pair.chat_id,members=all('SELECT user_id FROM members WHERE chat_id=?',chat);
+      db.exec('BEGIN IMMEDIATE');try{
+        if(has('push_attempts')&&has('notification_jobs'))run('DELETE FROM push_attempts WHERE job IN (SELECT id FROM notification_jobs WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?))',chat);
+        if(has('notification_jobs'))run('DELETE FROM notification_jobs WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?)',chat);
+        for(const table of ['votes','reactions','message_stickers','message_requests','poll_attempts','poll_comments','story_replies'])if(has(table))run(`DELETE FROM ${table} WHERE message_id IN (SELECT id FROM messages WHERE chat_id=?)`,chat);
+        for(const table of ['message_events','notification_events','scheduled','poll_schedule','chat_mutes','audit','calls','drafts'])if(has(table))run(`DELETE FROM ${table} WHERE chat_id=?`,chat);
+        if(has('bot_callbacks'))run('DELETE FROM bot_callbacks WHERE bot_id=?',pair.bot_id);
+        run('DELETE FROM messages WHERE chat_id=?',chat);run('DELETE FROM members WHERE chat_id=?',chat);run('DELETE FROM chats WHERE id=?',chat);
+        if(bots.ownedBy(pair.user_id,pair.bot_id))bots.removeBot(pair.bot_id);
+        run('DELETE FROM cypher_bots WHERE user_id=?',pair.user_id);
+        db.exec('COMMIT');
+      }catch(e){db.exec('ROLLBACK');throw e;}
+      for(const m of members)broadcast(chat,'refresh',{chat,user:m.user_id});
+    }
+    db.exec('DROP TABLE cypher_bots');return pairs.length;
+  }
+  const pickers=new Map(),resultWaiters=new Map();
+  const wakeAll=(map,key)=>{for(const resolve of map.get(key)||[])resolve();map.delete(key);};
+  const wait=(map,key,seconds)=>new Promise(resolve=>{const set=map.get(key)||new Set();set.add(resolve);map.set(key,set);setTimeout(()=>{set.delete(resolve);resolve();},seconds*1000).unref?.();});
 
   const code=()=>{const raw=Array.from(randomBytes(8),b=>CODE_ALPHABET[b%CODE_ALPHABET.length]).join('');return raw.slice(0,4)+'-'+raw.slice(4);};
   const normalCode=value=>{const raw=String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return raw.length===8?raw.slice(0,4)+'-'+raw.slice(4):'';};
   const sweep=()=>run('DELETE FROM cypher_link_requests WHERE expires<?',now());
-  const linkView=l=>({id:l.id,device:l.device,created:l.created,lastSeen:l.last_seen||null,remote:!!l.remote});
-
-  // The person's own bot and the chat with it; created once, reused by every linked PC.
-  function ensureBot(userId){
-    const known=one('SELECT * FROM cypher_bots WHERE user_id=?',userId);
-    if(known&&bots.ownedBy(userId,known.bot_id)&&one('SELECT 1 FROM members WHERE chat_id=? AND user_id=?',known.chat_id,userId))return known;
-    let username;for(let i=0;i<8&&!username;i++){const candidate='cypher_'+randomBytes(5).toString('hex')+'bot';if(!one('SELECT 1 FROM users WHERE username=?',candidate))username=candidate;}
-    if(!username)fail(503,'Не удалось создать бота, попробуйте ещё раз');
-    const botId=bots.createOwned(userId,{username,name:CYPHER_BOT_NAME,description:'Пульт Cypher на вашем компьютере. Пишите команды — Cypher выполнит их на ПК.'});
-    const chatId=id();
-    db.exec('BEGIN');try{
-      run("INSERT INTO chats(id,kind,title,permissions,created) VALUES(?,'direct','',?,?)",chatId,'{}',now());
-      run("INSERT INTO members(chat_id,user_id,role) VALUES(?,?,'member')",chatId,userId);
-      run("INSERT INTO members(chat_id,user_id,role) VALUES(?,?,'member')",chatId,botId);
-      run('INSERT INTO cypher_bots(user_id,bot_id,chat_id) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET bot_id=excluded.bot_id,chat_id=excluded.chat_id',userId,botId,chatId);
-      db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
-    return one('SELECT * FROM cypher_bots WHERE user_id=?',userId);
-  }
+  const linkView=l=>({id:l.id,device:l.device,created:l.created,lastSeen:l.last_seen||null,online:now()-(l.last_seen||0)<90_000});
 
   function desktop(req){
     const header=String(req.headers.authorization||''),token=header.startsWith('Bearer ')?header.slice(7).trim():'';
@@ -70,13 +74,12 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
 
   // New messages for the person, newest last. The text only when the server can read it.
   function notifications(userId,after,limit){
-    const own=one('SELECT bot_id FROM cypher_bots WHERE user_id=?',userId)?.bot_id||'';
     return all(`SELECT m.id,m.chat_id,m.kind,m.body,m.e2e,m.created,u.name sender,u.username sender_username,c.kind chat_kind,c.title
       FROM messages m JOIN members me ON me.chat_id=m.chat_id AND me.user_id=? AND me.role!='banned'
       JOIN chats c ON c.id=m.chat_id JOIN users u ON u.id=m.user_id
-      WHERE m.created>? AND m.user_id!=? AND m.user_id!=? AND m.deleted=0 AND m.created>me.read_at AND c.kind IN ('direct','group')
+      WHERE m.created>? AND m.user_id!=? AND m.deleted=0 AND m.created>me.read_at AND c.kind IN ('direct','group')
       AND NOT EXISTS(SELECT 1 FROM chat_mutes x WHERE x.user_id=? AND x.chat_id=m.chat_id AND (x.until_at=-1 OR x.until_at>?))
-      ORDER BY m.created LIMIT ?`,userId,after,userId,own,userId,now(),limit).map(m=>{
+      ORDER BY m.created LIMIT ?`,userId,after,userId,userId,now(),limit).map(m=>{
       const encrypted=!!m.e2e,text=encrypted?null:m.kind==='text'?String(m.body||'').slice(0,500):null;
       return {id:m.id,chat:m.chat_id,chatKind:m.chat_kind,chatTitle:m.chat_kind==='direct'?m.sender:(m.title||'Группа'),sender:m.sender,senderUsername:m.sender_username,
         kind:m.kind,label:m.kind==='text'?(encrypted?'Зашифрованное сообщение':'Сообщение'):(KIND_LABEL[m.kind]||'Сообщение'),text,encrypted,date:m.created};
@@ -105,24 +108,32 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
       run('DELETE FROM cypher_link_requests WHERE secret_hash=?',request.secret_hash);
       if(request.decision!=='approved'){json({status:'declined'});return true;}
       const person=one('SELECT id,username,name FROM users WHERE id=?',request.user_id);if(!person?.username)fail(410,'Аккаунт недоступен');
-      const pair=ensureBot(person.id),botToken=bots.issueToken(pair.bot_id),bot=one('SELECT id,username,name FROM users WHERE id=?',pair.bot_id);
       const token='cyl_'+randomBytes(32).toString('base64url'),linkId=id();
-      // Only the newest PC holds the remote control: issuing a bot token cut off the previous one.
-      run('UPDATE cypher_links SET remote=0 WHERE user_id=?',person.id);
-      run('INSERT INTO cypher_links(id,user_id,token_hash,device,created,last_seen,remote) VALUES(?,?,?,?,?,?,1)',linkId,person.id,digest(token),request.device,now(),now());
-      try{post({chat:one('SELECT * FROM chats WHERE id=?',pair.chat_id),botId:pair.bot_id,text:WELCOME(request.device),reply:null,topic:null});}catch{}
-      json({status:'approved',token,link:linkId,user:person,bot:{...bot,token:botToken,chat:pair.chat_id}});return true;
+      run('INSERT INTO cypher_links(id,user_id,token_hash,device,created,last_seen) VALUES(?,?,?,?,?,?)',linkId,person.id,digest(token),request.device,now(),now());
+      json({status:'approved',token,link:linkId,user:person});return true;
     }
 
     // --- Desktop side: linked Cypher ----------------------------------------------------------
     if(path==='/api/cypher/me'&&req.method==='GET'){
-      const {link,user:person}=desktop(req);const pair=one('SELECT * FROM cypher_bots WHERE user_id=?',person.id);
-      json({user:person,link:linkView(link),bot:pair?{id:pair.bot_id,chat:pair.chat_id,...one('SELECT username,name FROM users WHERE id=?',pair.bot_id)}:null});return true;
+      const {link,user:person}=desktop(req);json({user:person,link:linkView(link)});return true;
     }
     if(path==='/api/cypher/unlink'&&req.method==='POST'){
-      const {link}=desktop(req);run('DELETE FROM cypher_links WHERE id=?',link.id);
-      const pair=one('SELECT * FROM cypher_bots WHERE user_id=?',link.user_id);if(link.remote&&pair)bots.issueToken(pair.bot_id);
-      json({ok:true});return true;
+      const {link}=desktop(req);run('DELETE FROM cypher_links WHERE id=?',link.id);run('DELETE FROM cypher_remote WHERE link_id=? AND replied=0',link.id);json({ok:true});return true;
+    }
+    // Commands from the AI section for this PC: long polling, each command is handed out once.
+    if(path==='/api/cypher/remote/next'&&req.method==='GET'){
+      const {link}=desktop(req);const timeout=Math.min(25,Math.max(0,Number(url.searchParams.get('timeout'))||0));
+      const take=()=>{const rows=all('SELECT id,text,created FROM cypher_remote WHERE link_id=? AND picked=0 AND created>? ORDER BY created LIMIT 5',link.id,now()-REMOTE_TTL);for(const r of rows)run('UPDATE cypher_remote SET picked=? WHERE id=?',now(),r.id);return rows;};
+      let items=take();if(!items.length&&timeout){await wait(pickers,link.id,timeout);items=take();}
+      json({items});return true;
+    }
+    if(path==='/api/cypher/remote/reply'&&req.method==='POST'){
+      const {link}=desktop(req);const item=one('SELECT * FROM cypher_remote WHERE id=? AND link_id=?',String(b.id||''),link.id);if(!item)fail(404,'Команда не найдена');
+      if(item.replied)fail(409,'Ответ уже отправлен');
+      const text=clean(b.text,8000)||'Готово.';
+      run('UPDATE cypher_remote SET reply=?,replied=? WHERE id=?',text,now(),item.id);
+      run('INSERT INTO ai_history(id,user_id,role,body,created) VALUES(?,?,?,?,?)',id(),item.user_id,'assistant',text,now());
+      wakeAll(resultWaiters,item.id);json({ok:true});return true;
     }
     if(path==='/api/cypher/notifications'&&req.method==='GET'){
       const {user:person}=desktop(req);
@@ -159,16 +170,33 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
       json({ok:true,device:request.device});return true;
     }
     if(path==='/api/cypher/links'&&req.method==='GET'){
-      const pair=one('SELECT * FROM cypher_bots WHERE user_id=?',user.id);
-      json({links:all('SELECT * FROM cypher_links WHERE user_id=? ORDER BY created DESC',user.id).map(linkView),chat:pair?.chat_id||null});return true;
+      json({links:all('SELECT * FROM cypher_links WHERE user_id=? ORDER BY created DESC',user.id).map(linkView)});return true;
     }
     if(path==='/api/cypher/links'&&req.method==='DELETE'){
       const link=one('SELECT * FROM cypher_links WHERE id=? AND user_id=?',String(b.id||''),user.id);if(!link)fail(404,'Компьютер не найден');
-      run('DELETE FROM cypher_links WHERE id=?',link.id);
-      const pair=one('SELECT * FROM cypher_bots WHERE user_id=?',user.id);if(link.remote&&pair)bots.issueToken(pair.bot_id);
+      run('DELETE FROM cypher_links WHERE id=?',link.id);run('DELETE FROM cypher_remote WHERE link_id=? AND replied=0',link.id);
       json({ok:true});return true;
+    }
+    // The AI section sends a command to one of the person's linked PCs.
+    if(path==='/api/cypher/remote'&&req.method==='POST'){
+      rate('cypher-remote:'+user.id,30);
+      const link=one('SELECT * FROM cypher_links WHERE id=? AND user_id=?',String(b.link||''),user.id);if(!link)fail(404,'Компьютер не найден. Подключите Cypher заново.');
+      const text=clean(b.text,4000);if(!text)fail(400,'Пустая команда');
+      run('DELETE FROM cypher_remote WHERE created<?',now()-24*3600_000);
+      const itemId=id();run('INSERT INTO cypher_remote(id,user_id,link_id,text,created) VALUES(?,?,?,?,?)',itemId,user.id,link.id,text,now());
+      run('INSERT INTO ai_history(id,user_id,role,body,created) VALUES(?,?,?,?,?)',id(),user.id,'user','💻 '+link.device+': '+text,now());
+      wakeAll(pickers,link.id);json({id:itemId,device:link.device,online:linkView(link).online},201);return true;
+    }
+    if(path==='/api/cypher/remote/result'&&req.method==='GET'){
+      const itemId=String(url.searchParams.get('id')||''),timeout=Math.min(25,Math.max(0,Number(url.searchParams.get('timeout'))||0));
+      let item=one('SELECT * FROM cypher_remote WHERE id=? AND user_id=?',itemId,user.id);if(!item)fail(404,'Команда не найдена');
+      if(!item.replied&&timeout){await wait(resultWaiters,item.id,timeout);item=one('SELECT * FROM cypher_remote WHERE id=?',item.id);}
+      if(item.replied){json({status:'done',reply:item.reply});return true;}
+      if(!item.picked&&now()-item.created>REMOTE_TTL){json({status:'expired',error:'Компьютер не забрал команду за 10 минут. Включён ли он и запущен ли Cypher?'});return true;}
+      const link=one('SELECT * FROM cypher_links WHERE id=?',item.link_id);
+      json({status:item.picked?'running':'waiting',online:!!link&&linkView(link).online});return true;
     }
     fail(404,'Не найдено');
   }
-  return {route};
+  return {route,purgeLegacyBots};
 }
