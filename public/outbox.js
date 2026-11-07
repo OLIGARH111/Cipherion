@@ -1,5 +1,8 @@
 import {api,upload} from './ui.js';
 import {compressPhoto} from './media-compress.js';
+// Photos start shrinking as soon as they are queued, so the wait overlaps earlier uploads.
+const prepared=new WeakMap();
+const preparePhoto=file=>{let p=prepared.get(file);if(!p){p=compressPhoto(file);prepared.set(file,p);p.catch(()=>prepared.delete(file));}return p;};
 import {encryptFile,SEAL_LIMIT} from './sealed-media.js';
 const sealable=new Set(['text','photo','video','file','voice','round','location','poll']);
 // Built-in sticker packs are public static files, so their stickers can be sent encrypted.
@@ -35,11 +38,11 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
     await save(item);
     // Photos are shrunk before upload; files sent as «Файл» keep their original bytes.
     if(item.file){
-     const prepared=item.payload.kind==='photo'?await compressPhoto(item.file):item.file;
+     const outgoing=item.payload.kind==='photo'?await preparePhoto(item.file):item.file;
      // In an encrypted chat the file is encrypted on this device before it leaves it.
-     const seal=encrypt&&protect&&prepared.size<=SEAL_LIMIT&&await protect(item.chat).catch(()=>false);
-     if(seal){const {blob,meta}=await encryptFile(prepared);const media=await upload(blob,user);item.payload.media=media.id;item.fileKey=meta;}
-     else{const media=await upload(prepared,user);item.payload.media=media.id;}
+     const seal=encrypt&&protect&&outgoing.size<=SEAL_LIMIT&&await protect(item.chat).catch(()=>false);
+     if(seal){const {blob,meta}=await encryptFile(outgoing);const media=await upload(blob,user);item.payload.media=media.id;item.fileKey=meta;}
+     else{const media=await upload(outgoing,user);item.payload.media=media.id;}
      delete item.file;await save(item);
     }
     // Encrypt once and keep the envelope: a retry must repeat the identical request.
@@ -80,6 +83,7 @@ export function createOutbox(user,onChange,encrypt=null,protect=null){
    const item={id:crypto.randomUUID(),user,chat,payload:{...payload},...(file?{file}:{}),created:(lastCreated=Math.max(Date.now(),lastCreated+1))};
    if(!navigator.onLine){item.error='Нет подключения. Отправим при восстановлении связи.';item.transient=true;}
    memory.set(item.id,item);notify({type:'pending',item});
+   if(file&&item.payload.kind==='photo')void preparePhoto(file).catch(()=>{});
    return save(item).then(()=>{online();return item;}).catch(()=>{item.error='Не удалось сохранить сообщение на устройстве. Повторите отправку.';notify({type:'pending',item});return item;});
   },
   remove:async(id)=>{await ready;await saving.get(id)?.catch(()=>{});await transaction('readwrite',s=>s.delete(id));memory.delete(id);saving.delete(id);}

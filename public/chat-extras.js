@@ -1,6 +1,7 @@
 // Telegram-like conveniences around a conversation: cloud drafts, swipe to
 // reply, double tap to react, and sending files by drag & drop or Ctrl+V.
 import {$,esc,api,icon,modal,guard} from './ui.js';
+import {imageType} from './media-compress.js';
 import {draftKey,activeAccount} from './account-context.js';
 import {sealDraft} from './e2e.js';
 // The server copy of a draft is encrypted with the account's history key when this device has it.
@@ -73,7 +74,7 @@ export function heartBurst(x,y){
 }
 
 // ---------- Files from drag & drop and the clipboard ----------
-const kindOf=(file,asFile)=>asFile?'file':file.type.startsWith('image/')?'photo':file.type.startsWith('video/')?'video':'file';
+const kindOf=(file,asFile)=>asFile?'file':imageType(file).startsWith('image/')?'photo':file.type.startsWith('video/')?'video':'file';
 const size=bytes=>bytes<1024*1024?Math.max(1,Math.round(bytes/1024))+' КБ':(bytes/1024/1024).toFixed(1)+' МБ';
 export function confirmFiles(input,send){
   const files=[...input].filter(f=>f&&f.size>0).slice(0,10);if(!files.length)return;

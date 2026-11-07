@@ -113,7 +113,13 @@ export async function sendMedia(file,account,send){
 }
 export async function upload(file,account=activeAccount()) {
   const limit=await uploadLimit(account).catch(()=>0);if(limit&&file.size>limit*1024*1024)throw new Error(`Максимальный размер файла — ${limit} МБ`);
-  return sendMedia(file,account,()=>requestJSON('/api/media',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'file')},body:file},account));
+  // A stalled upload on a weak mobile network must not hang forever and block the messages queued after it:
+  // give it a minute plus time for a slow (~30 KB/s) link, then fail so the outbox retries.
+  const timeout=()=>AbortSignal.timeout?.(60000+Math.ceil(file.size/30)),send=async()=>{
+    try{return await requestJSON('/api/media',{method:'POST',signal:timeout(),headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'file')},body:file},account);}
+    catch(error){if(error.name==='TimeoutError')throw Object.assign(new Error('Загрузка идёт слишком долго. Повторим автоматически.'),{transient:true});throw error;}
+  };
+  return sendMedia(file,account,send);
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;
