@@ -216,3 +216,15 @@ dialog .tgp.painted.expanded header.tgp-hero{padding-top:calc(var(--photo-h) - 1
 @media (max-width:700px){.studio-stage .studio-profile.sp{padding:14px 12px 12px;gap:8px}.studio-stage .sp .avatar.large{width:64px!important;height:64px!important}.studio-stage .sp h2{font-size:18px;margin-top:6px}.studio-stage .sp-actions i{width:32px;height:32px}.studio-stage .sp-card{display:none}}
 /* Background swatches show the full three-colour gradient */
 .studio-swatch>span{background:linear-gradient(180deg,var(--a),var(--b) 55%,var(--c,var(--b)))}
+
+/* «Изменить профиль» → «Оформление профиля»: a card painted in the current profile colours. */
+.pe-look{display:flex;align-items:center;gap:14px;width:100%;padding:10px 14px 10px 10px;border:1px solid var(--ci-hairline,rgba(255,255,255,.1));border-radius:20px;background:var(--ci-island,rgba(255,255,255,.06));color:var(--text);text-align:left;font:inherit;cursor:pointer;transition:transform .15s}
+.pe-look:active{transform:scale(.98)}
+.pe-look>svg{width:18px;height:18px;opacity:.5;flex:none}
+.pe-look-art{position:relative;flex:none;width:72px;height:72px;border-radius:16px;background:var(--look);box-shadow:0 6px 18px rgba(0,0,0,.22),inset 0 0 0 1px rgba(255,255,255,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.pe-look-dot{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.pe-look-line{width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.75)}
+.pe-look-line.short{width:24px;opacity:.6}
+.pe-look-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.pe-look-text b{font-size:16px}
+.pe-look-text small{font-size:13px;opacity:.65;line-height:1.3}
