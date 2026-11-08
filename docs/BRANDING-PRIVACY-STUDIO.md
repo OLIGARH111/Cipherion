@@ -4,7 +4,7 @@ This is a partial implementation of the requested larger release. It must not be
 
 ## Implemented
 
-- Original uploaded JPEG is preserved byte-for-byte under `public/brand/original.jpeg`. Proportional dark-padded PNG derivatives are 32, 120, 152, 167, 180, 192 and 512 pixels. No redraw, background removal or color edits.
+- Original uploaded logo (PNG) is preserved byte-for-byte under `public/brand/original.png`. Proportional dark-padded PNG derivatives are 32, 120, 152, 167, 180, 192 and 512 pixels. No redraw, background removal or color edits.
 - Apple Touch Icon, versioned icon URLs, standalone web manifest, PNG/manifest MIME types, immutable fingerprinted assets and revalidated mutable paths. Logo appears in sign-in/registration, navigation, About, notifications and startup/failure UI. Startup completes with application readiness, without a fixed delay.
 - Additive SQLite privacy policies, allow/deny exceptions (deny wins), explicit contacts, phone/birthday/public avatar, server-filtered profile/search/chat-member/author projections, protected avatar retrieval, messages/calls/invitations checks, separate direct/group receipts, privacy revision conflict detection and cross-device settings refresh.
 - Existing passwords remain scrypt hashes. TOTP 2FA adds an independent factor, setup confirmation, replay rejection and ten one-time hashed recovery codes. Existing sessions and revocation remain in use. Security events are owner-only.
