@@ -116,7 +116,7 @@ test('a new version is saved in the background only after all its files are down
 test('hashed icons and sticker art open from the saved copy, also offline',async()=>{
  const network={fn:async()=>reply('icon v1','public, max-age=31536000, immutable')};
  const sw=await serviceWorker(network);
- const icon={method:'GET',mode:'no-cors',url:'https://c.test/brand/icon-192-99e4c7990351.png'};
+ const icon={method:'GET',mode:'no-cors',url:'https://c.test/brand/icon-192-1f66c49421df.png'};
  let r=await sw.fetchEvent(icon);assert.equal(r.value.body,'icon v1');await r.settled();
  network.fn=async()=>{throw new TypeError('offline');};
  r=await sw.fetchEvent(icon);assert.equal(r.value.body,'icon v1');await r.settled();

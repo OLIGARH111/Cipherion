@@ -28,7 +28,7 @@ const CAMERA='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l
 export const splashTiming={hold:1900};
 export function authSplash(title,subtitle=''){
  const el=document.createElement('dialog');el.className='auth-splash';el.setAttribute('aria-live','polite');
- el.innerHTML=`<div class="auth-splash-burst" aria-hidden="true">${'<i></i>'.repeat(12)}</div><img class="auth-splash-logo" src="/brand/icon-192-99e4c7990351.png" alt="" width="96" height="96"><h1>${esc(title)}</h1>${subtitle?`<p>${esc(subtitle)}</p>`:''}`;
+ el.innerHTML=`<div class="auth-splash-burst" aria-hidden="true">${'<i></i>'.repeat(12)}</div><img class="auth-splash-logo" src="/brand/icon-192-1f66c49421df.png" alt="" width="96" height="96"><h1>${esc(title)}</h1>${subtitle?`<p>${esc(subtitle)}</p>`:''}`;
  el.addEventListener('cancel',e=>e.preventDefault());
  document.body.append(el);if(typeof el.showModal==='function')el.showModal();else el.setAttribute('open','');
  return {hide(){el.classList.add('leaving');setTimeout(()=>{el.close?.();el.remove();},500);}};

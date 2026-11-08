@@ -34,7 +34,7 @@ export function lock(){
   // Dialogs sit in the top layer above any overlay, so they close first.
   document.querySelectorAll('dialog[open]').forEach(d=>d.close());
   const screen=document.createElement('div');screen.className='passcode-lock';screen.setAttribute('role','dialog');screen.setAttribute('aria-modal','true');screen.setAttribute('aria-label','Введите код-пароль');
-  screen.innerHTML=`<div class="passcode-card"><img src="/brand/icon-192-99e4c7990351.png" alt="" width="64" height="64"><h2>Cipherion</h2><p>Введите код-пароль</p><form id="passcode-form"><input id="passcode-input" type="password" inputmode="numeric" autocomplete="off" maxlength="32" aria-label="Код-пароль" required><button class="primary">Открыть</button></form><p class="passcode-error" id="passcode-error" aria-live="assertive"></p><button type="button" class="link-button" id="passcode-forgot">Забыли код?</button></div>`;
+  screen.innerHTML=`<div class="passcode-card"><img src="/brand/icon-192-1f66c49421df.png" alt="" width="64" height="64"><h2>Cipherion</h2><p>Введите код-пароль</p><form id="passcode-form"><input id="passcode-input" type="password" inputmode="numeric" autocomplete="off" maxlength="32" aria-label="Код-пароль" required><button class="primary">Открыть</button></form><p class="passcode-error" id="passcode-error" aria-live="assertive"></p><button type="button" class="link-button" id="passcode-forgot">Забыли код?</button></div>`;
   document.body.append(screen);document.body.classList.add('passcode-locked');
   // Dialogs opened underneath stay hidden until the code is entered.
   const input=screen.querySelector('#passcode-input');setTimeout(()=>input.focus(),50);

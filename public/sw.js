@@ -115,7 +115,7 @@ self.addEventListener('push',event=>{event.waitUntil((async()=>{
   // Every push must display a notification (including an already expired call).
   await self.registration.showNotification(p.title||'Cipherion',{
     body:expired?'Пропущенный звонок':p.body||'У вас новое сообщение',
-    icon:'/brand/icon-192-99e4c7990351.png',badge:'/brand/icon-192-99e4c7990351.png',
+    icon:'/brand/icon-192-1f66c49421df.png',badge:'/brand/icon-192-1f66c49421df.png',
     tag:p.tag||'cipherion',renotify:call&&!expired,silent:!!p.silent,...(!p.silent?{vibrate:call&&!expired?RING:p.vibrate||[]}:{}),
     requireInteraction:call&&!expired,
     ...(call&&!expired?{actions:[{action:'answer',title:'Ответить'},{action:'decline',title:'Отклонить'}]}:{}),
