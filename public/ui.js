@@ -1,5 +1,8 @@
 import {activeAccount,accountFetch,accountURL,accountEpoch} from './account-context.js';
 import {vipBadgeValue,vipBadgeText,isCustomBadge} from './vip-badges.js';
+import {makePreview} from './media-compress.js';
+// Small copy of a photo for bubbles, avatars and grids; the server sends the full photo when there is none.
+export const previewURL=(id,account)=>accountURL('/api/media/'+encodeURIComponent(id)+'?preview=1',account);
 // Adaptive emoji: any sticker drawn as a one-colour shape (with its inner details kept) in the current text colour.
 export function adaptiveEmoji(id,extra=''){const src=accountURL('/api/stickers/'+encodeURIComponent(id)+'/file?poster=1');return `<span class="adaptive-emoji ${extra}" role="img" aria-label="Адаптивный эмодзи" style="--ae:url('${esc(src)}')"></span>`;}
 // Blue check for official and verified accounts, shown before the VIP mark.
@@ -53,7 +56,7 @@ export const button = (name, title, attrs = '') => `<button class="icon-button" 
 // Letters on a coloured gradient when there is no photo; the colour is stable per name.
 export const initials = name => { const words = String(name || '?').trim().split(/\s+/).filter(Boolean); const first = w => Array.from(w || '')[0] || ''; return ((first(words[0]) || '?') + (words.length > 1 ? first(words[1]) : '')).toUpperCase(); };
 export const tone = name => { let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h % 7; };
-export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}" data-tone="${tone(name)}">${media ? `<img src="${accountURL('/api/media/'+encodeURIComponent(media))}" alt="">` : esc(initials(name))}</span>`;
+export const avatar = (name, media, cls = '') => `<span class="avatar ${cls}" data-tone="${tone(name)}">${media ? `<img src="${previewURL(media)}" alt="">` : esc(initials(name))}</span>`;
 // Creating a date formatter is slow (it loads locale data each time) and a chat shows dozens of
 // times, so each format is made once and reused. The output is the same as toLocale*String.
 const formats = new Map();
@@ -119,7 +122,12 @@ export async function upload(file,account=activeAccount()) {
     try{return await requestJSON('/api/media',{method:'POST',signal:timeout(),headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'file')},body:file},account);}
     catch(error){if(error.name==='TimeoutError')throw Object.assign(new Error('Загрузка идёт слишком долго. Повторим автоматически.'),{transient:true});throw error;}
   };
-  return sendMedia(file,account,send);
+  const media=await sendMedia(file,account,send);
+  // The preview is uploaded before the message is sent, so other people get it at once. If it fails,
+  // everyone simply gets the full photo.
+  if(/^image\/(jpeg|png|webp)$/.test(media?.type||'')){try{const preview=await makePreview(file);
+    if(preview)await requestJSON('/api/media/'+encodeURIComponent(media.id)+'/preview',{method:'POST',signal:AbortSignal.timeout?.(20000),headers:{'Content-Type':preview.type},body:preview},account);}catch{}}
+  return media;
 }
 export function modal(title, content, wide=false) {
   const el=$('#modal');el.classList.toggle('wide',wide);el.classList.remove('tgp-modal');el.style.removeProperty('--tgp-bg');el.innerHTML=`<header><div><span class="eyebrow">CIPHERION</span><h2>${esc(title)}</h2></div>${button('close','Закрыть','id="modal-close"')}</header><div class="modal-body">${content}</div>`;

@@ -37,7 +37,7 @@ import { createMessageExtras } from './message-extras.js';
 import { createAntispam } from './antispam.js';
 import { createSFU, sfuOptions } from './sfu.js';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { open, unlink, mkdir } from 'node:fs/promises';
+import { open, unlink, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { database, databaseConfig } from './db.js';
@@ -50,6 +50,7 @@ import { allowed, defaults, adminPermissions, memberPermissions } from './permis
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = resolve(process.env.DATA_DIR || resolve(root, 'data'));
 await mkdir(resolve(data, 'media'), { recursive: true });
+await mkdir(resolve(data, 'previews'), { recursive: true });
 if(!databaseConfig().remote)await backupBeforeMigration(data);
 const db = database(data);
 const all = (sql, ...p) => db.prepare(sql).all(...p);
@@ -171,6 +172,7 @@ const mime = { '.webp':'image/webp', '.png':'image/png', '.jpeg':'image/jpeg', '
 const storage=createStorage({db,one,run,data});
 const adminAccess=createAdmin({db,one,run,fail,now,rate});
 const traffic=createTraffic({db,run,all,now});
+const PREVIEW_MAX=300*1024;
 // Background jobs run fast while people use the app and slow down when it is idle (see pacer.js).
 const pacer=createPacer();
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null,verified:official.isVerified(uid),...(official.isBot(uid)?{official:true}:{})};}});
@@ -279,7 +281,7 @@ const server = http.createServer(async (req, res) => {
     rate(req.socket.remoteAddress, 600);
     const user = accounts.authenticate(req);
     let b = {};
-    if (!['GET', 'HEAD'].includes(req.method) && path !== '/api/media') {
+    if (!['GET', 'HEAD'].includes(req.method) && path !== '/api/media' && !/^\/api\/media\/[^/]+\/preview$/.test(path)) {
       if (!(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'Ожидается JSON');
       try { b = JSON.parse((await body(req)).toString() || '{}'); } catch (error) { if (error.status) throw error; fail(400, 'Некорректный JSON'); }
     }
@@ -608,6 +610,21 @@ const server = http.createServer(async (req, res) => {
       catch(error){await file?.close();await unlink(destination).catch(()=>{});throw error;}finally{uploadsInFlight--;const left=(userUploads.get(user.id)||1)-1;if(left)userUploads.set(user.id,left);else userUploads.delete(user.id);}
       await storage.releaseLocal('media',mediaId);return json({id:mediaId,name,type,size},201);
     }
+    // A small copy of a photo for chat bubbles, avatars and grids. Only the owner adds it, right after the upload;
+    // the full photo is downloaded only when opened. This cuts most of the media traffic.
+    const previewRoute=/^\/api\/media\/([^/]+)\/preview$/.exec(path);
+    if(previewRoute&&req.method==='POST'){
+      storage.writable();rate('preview:'+user.id,120);
+      const mediaId=previewRoute[1],media=one('SELECT * FROM media WHERE id=?',mediaId);
+      if(!media||media.user_id!==user.id)fail(404,'Файл не найден');
+      if(!/^image\/(jpeg|png|webp)$/.test(media.type))fail(400,'Превью бывает только у фото');
+      const type=clean(req.headers['content-type']||'',100).split(';')[0];if(!/^image\/(jpeg|webp)$/.test(type))fail(400,'Превью должно быть JPEG или WebP');
+      const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>PREVIEW_MAX)fail(413,'Превью слишком большое');chunks.push(chunk);}
+      if(!size)fail(400,'Пустой файл');const body=Buffer.concat(chunks);validateUpload(body,type,'preview');
+      const destination=resolve(data,'previews',mediaId);await writeFile(destination,body);
+      try{await storage.persist('previews',mediaId,user.id,destination,type);}finally{await storage.releaseLocal('previews',mediaId);}
+      return json({ok:true,size},201);
+    }
     if(path.startsWith('/api/media/') && req.method==='GET') {
       const mediaId=path.slice('/api/media/'.length);const media=one('SELECT * FROM media WHERE id=?',mediaId);if(!media)fail(404,'Файл не найден');
       const visible=media.user_id===user.id || one("SELECT m.id FROM messages m JOIN members p ON p.chat_id=m.chat_id WHERE m.media_id=? AND m.deleted=0 AND p.user_id=? AND p.role!='banned'",mediaId,user.id) || all('SELECT id FROM users WHERE avatar=?',mediaId).some(u=>privacy.permits(u.id,user.id,'avatar')) || one('SELECT user_id FROM private_profiles WHERE public_avatar=?',mediaId) || one("SELECT c.id FROM chats c JOIN members p ON p.chat_id=c.id WHERE c.avatar=? AND p.user_id=? AND p.role!='banned'",mediaId,user.id);
@@ -617,6 +634,10 @@ const server = http.createServer(async (req, res) => {
       const safe=/^(image\/(png|jpeg|webp|gif)|audio\/(webm|ogg|mpeg|mp4|wav)|video\/(webm|mp4|ogg))$/.test(media.type);
       const mediaPath=resolve(data,'media',mediaId);const byteLength=media.size;
       // Media bytes never change for an id: devices keep a private copy for a day, then a 304 re-checks access.
+      const preview=url.searchParams.get('preview')==='1'&&one("SELECT mime_type,size FROM media_objects WHERE namespace='previews' AND media_id=? AND status='ready'",mediaId);
+      if(preview){const etag=`"p-${mediaId}"`;res.setHeader('ETag',etag);res.setHeader('Cache-Control','private, max-age=2592000');
+        if(etagMatches(req.headers['if-none-match'],etag)){res.writeHead(304);return res.end();}
+        const stream=await storage.get('previews',mediaId);res.writeHead(200,{'Content-Type':preview.mime_type,'Content-Length':preview.size});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);}
       const etag=`"m-${mediaId}"`;res.setHeader('ETag',etag);res.setHeader('Cache-Control','private, max-age=86400');
       if(etagMatches(req.headers['if-none-match'],etag)){res.writeHead(304);return res.end();}
       res.setHeader('Content-Type',safe?media.type:'application/octet-stream');res.setHeader('Content-Disposition',`${safe?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(media.name)}`);res.setHeader('Accept-Ranges','bytes');

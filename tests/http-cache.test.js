@@ -215,3 +215,23 @@ test('a page of messages and the sync feed match the single-message view, reacti
  for(const m of feed)assert.deepEqual(strip(m),strip(await call(b,'/messages/'+m.id)),'sync entry equals single view');
  assert.ok(feed.length>=4);
 });
+
+test('photo previews: only the owner adds one, people with access get it, others do not',async()=>{
+ const register=async name=>{const r=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true,username:name,password:'integration-password-123'})});return r.headers.get('set-cookie').split(';')[0];};
+ const owner=await register('preview_owner'),stranger=await register('preview_stranger');
+ const full=await readFile('public/apple-touch-icon.png');
+ const media=await (await fetch(base+'/api/media',{method:'POST',headers:{Cookie:owner,'Content-Type':'image/png','X-File-Name':'a.png'},body:full})).json();
+ // No preview yet: the full photo is sent.
+ const before=await raw('/api/media/'+media.id+'?preview=1',{Cookie:owner});assert.equal(before.status,200);assert.deepEqual(before.body,full);
+ const jpeg=Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]),Buffer.alloc(200,1)]);
+ const send=(cookie,type,body)=>fetch(base+'/api/media/'+media.id+'/preview',{method:'POST',headers:{Cookie:cookie,'Content-Type':type},body});
+ assert.equal((await send(stranger,'image/jpeg',jpeg)).status,404);
+ assert.equal((await send(owner,'image/jpeg',Buffer.from('not a jpeg'))).status,400);
+ assert.equal((await send(owner,'image/svg+xml',jpeg)).status,400);
+ assert.equal((await send(owner,'image/jpeg',jpeg)).status,201);
+ const small=await raw('/api/media/'+media.id+'?preview=1',{Cookie:owner});
+ assert.equal(small.status,200);assert.deepEqual(small.body,jpeg);assert.equal(small.headers['content-type'],'image/jpeg');assert.match(small.headers.etag,/^"p-/);
+ assert.equal((await raw('/api/media/'+media.id+'?preview=1',{Cookie:owner,'If-None-Match':small.headers.etag})).status,304);
+ assert.deepEqual((await raw('/api/media/'+media.id,{Cookie:owner})).body,full,'without ?preview the full photo is sent');
+ assert.equal((await raw('/api/media/'+media.id+'?preview=1',{Cookie:stranger})).status,403);
+});
