@@ -128,11 +128,12 @@ export function createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy
     fail(404,'Неизвестный метод');
   }
 
-  let busy=false;
+  let busy=false,cleaned=-Infinity;
   async function tick(){
     if(busy)return;busy=true;
     try{
-      run('DELETE FROM bot_updates WHERE created<?',now()-86400_000);
+      // Old updates are removed every few minutes, not every tick: on Turso each query is metered traffic.
+      if(now()-cleaned>=300_000){cleaned=now();run('DELETE FROM bot_updates WHERE created<?',now()-86400_000);}
       for(const bot of all("SELECT user_id,webhook,secret FROM bots WHERE webhook!=''")){
         for(const u of all('SELECT * FROM bot_updates WHERE bot_id=? AND next_at<=? ORDER BY id LIMIT 20',bot.user_id,now())){
           let ok=false;
