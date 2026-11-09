@@ -1,6 +1,6 @@
 // Background jobs poll the database. With a remote database (Turso) every query is network
 // traffic that the hosting provider meters, even when nobody uses the app. So jobs run at full
-// speed only while people are active (a request in the last couple of minutes) and slow down
+// speed only while people are active (a change in the last couple of minutes) and slow down
 // when the app is idle. Time-based work (scheduled messages, retries, expiry) still runs, just
 // less often. Uses the real clock, not the app's `now`, because it paces real timers.
 export function createPacer({activeFor=120_000,clock=()=>performance.now()}={}){
