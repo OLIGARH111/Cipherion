@@ -1,5 +1,5 @@
 import {VIP_BADGES} from './vip-badges.js';
-import {icon} from './ui.js';
+import {icon,previewURL} from './ui.js';
 import {accountURL,accountFetch,draftKey} from './account-context.js';
 import {saveAction} from './ui.js';
 import {profileStudio,profileVisual,profileEffect,profileBackground} from './profile-studio.js';
@@ -30,7 +30,7 @@ function readPhoto(src){if(photoColors.has(src))return photoColors.get(src);cons
  resolve({gradient:`linear-gradient(180deg,${hex(row(0),0)} 0%,${hex(row(2),.28)} 50%,${hex(row(3),.58)} 100%)`,spread:`linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.18) 60%,rgba(0,0,0,.42)),${blobs.join(',')},${hex(row(2),.35)}`});}catch{resolve(null);}};img.onerror=()=>resolve(null);img.src=src;});photoColors.set(src,job);return job;}
 const mediaKinds={media:['photo','video','round'],files:['file'],voice:['voice'],links:['text']};
 function mediaTab(kind,rows){
- if(kind==='media')return `<div class="tgp-grid">${rows.map(m=>{const src=accountURL('/api/media/'+encodeURIComponent(m.media_id));return `<a class="tgp-tile ${m.kind==='round'?'round':''}" href="${src}" target="_blank" rel="noopener">${m.kind==='photo'?`<img src="${src}" alt="" loading="lazy" decoding="async">`:`<video src="${src}#t=0.1" muted playsinline preload="metadata"></video><i>${icon('video')}</i>`}</a>`;}).join('')}</div>`;
+ if(kind==='media')return `<div class="tgp-grid">${rows.map(m=>{const src=accountURL('/api/media/'+encodeURIComponent(m.media_id));return `<a class="tgp-tile ${m.kind==='round'?'round':''}" href="${src}" target="_blank" rel="noopener">${m.kind==='photo'?`<img src="${previewURL(m.media_id)}" alt="" loading="lazy" decoding="async">`:`<video src="${src}#t=0.1" muted playsinline preload="metadata"></video><i>${icon('video')}</i>`}</a>`;}).join('')}</div>`;
  if(kind==='links')return `<div class="tgp-list">${rows.map(m=>{const link=(String(m.body).match(/https?:\/\/\S+/)||[''])[0];return `<a class="tgp-row" href="${esc(link)}" target="_blank" rel="noopener noreferrer"><i>${icon('link')}</i><span><b>${esc(link.replace(/^https?:\/\//,'').slice(0,60))}</b><small>${esc(String(m.body).slice(0,90))}</small></span></a>`;}).join('')}</div>`;
  return `<div class="tgp-list">${rows.map(m=>`<a class="tgp-row" href="${accountURL('/api/media/'+encodeURIComponent(m.media_id))}" target="_blank" rel="noopener"><i>${icon(kind==='voice'?'mic':'file')}</i><span><b>${esc(m.body||(kind==='voice'?'Голосовое сообщение':'Файл'))}</b><small>${new Date(m.created).toLocaleString('ru',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</small></span></a>`).join('')}</div>`;
 }
@@ -119,7 +119,7 @@ export async function editProfile(){
  let gallery=[...new Set((p.savedProfile?.gallery||p.profile?.gallery||[]).filter(Boolean))];const galleryMax=p.vip?10:2,pending=new Map();let galleryChain=Promise.resolve();
  const saveGallery=()=>galleryChain=galleryChain.catch(()=>{}).then(()=>api('/profile','PATCH',{gallery}));
  const drawGallery=()=>{const box=$('#pe-gallery');if(!box?.isConnected)return;const free=galleryMax-gallery.length-pending.size;
-  box.innerHTML=gallery.map(id=>`<figure class="pe-gallery-item"><img src="${esc(accountURL('/api/media/'+encodeURIComponent(id)))}" alt="Фото профиля" decoding="async"><button type="button" class="pe-gallery-main" data-gallery-main="${esc(id)}" title="Сделать главным">★</button><button type="button" class="pe-gallery-remove" data-gallery-remove="${esc(id)}" aria-label="Удалить фото">×</button></figure>`).join('')+[...pending.values()].map(url=>`<figure class="pe-gallery-item loading"><img src="${url}" alt=""><i></i></figure>`).join('')+(free>0?`<button type="button" class="pe-gallery-add" id="pe-gallery-add">${icon('plus')}<small>Добавить</small></button>`:'');
+  box.innerHTML=gallery.map(id=>`<figure class="pe-gallery-item"><img src="${esc(previewURL(id))}" alt="Фото профиля" decoding="async"><button type="button" class="pe-gallery-main" data-gallery-main="${esc(id)}" title="Сделать главным">★</button><button type="button" class="pe-gallery-remove" data-gallery-remove="${esc(id)}" aria-label="Удалить фото">×</button></figure>`).join('')+[...pending.values()].map(url=>`<figure class="pe-gallery-item loading"><img src="${url}" alt=""><i></i></figure>`).join('')+(free>0?`<button type="button" class="pe-gallery-add" id="pe-gallery-add">${icon('plus')}<small>Добавить</small></button>`:'');
   $('#pe-gallery-hint').textContent=`${gallery.length} из ${galleryMax}${p.vip?'':' · с VIP до 10 фото'} · ★ — сделать главным`;
   $('#pe-gallery-add')?.addEventListener('click',addGallery);
   box.querySelectorAll('[data-gallery-remove]').forEach(b=>b.onclick=guard(async()=>{gallery=gallery.filter(x=>x!==b.dataset.galleryRemove);drawGallery();await saveGallery();}));

@@ -1,5 +1,5 @@
 import {createChatDialog} from './create-chat.js';
-import {vipBadge} from './ui.js';
+import {vipBadge,previewURL} from './ui.js';
 import {saveAction} from './ui.js';
 import {createAccountSessionManager} from './accounts.js';
 import {emailAuthView} from './email-auth.js';
@@ -203,7 +203,7 @@ function renderSearch(target,q){
       +(!chats.length&&!people.length&&s.people?`<div class="empty-list">${icon('search')}Ничего не найдено</div>`:'');
   }else{
     const rows=s.results[tab];const title=m=>state.chats.find(c=>c.id===m.chat_id);
-    if(rows?.length&&tab==='media')body=`<div class="search-media">${rows.map(m=>`<button class="search-thumb" data-hit="${esc(m.id)}" data-hit-chat="${esc(m.chat_id)}" aria-label="${esc(mediaLabel[m.kind]||'Медиа')} · ${esc(title(m)?.title||'')}">${m.kind==='photo'?`<img src="${accountURL('/api/media/'+m.media.id)}" alt="" loading="lazy">`:`<video src="${accountURL('/api/media/'+m.media.id)}#t=0.1" preload="metadata" muted playsinline></video><span class="thumb-badge">${icon('video')}</span>`}</button>`).join('')}</div>`;
+    if(rows?.length&&tab==='media')body=`<div class="search-media">${rows.map(m=>`<button class="search-thumb" data-hit="${esc(m.id)}" data-hit-chat="${esc(m.chat_id)}" aria-label="${esc(mediaLabel[m.kind]||'Медиа')} · ${esc(title(m)?.title||'')}">${m.kind==='photo'?`<img src="${previewURL(m.media.id)}" alt="" loading="lazy">`:`<video src="${accountURL('/api/media/'+m.media.id)}#t=0.1" preload="metadata" muted playsinline></video><span class="thumb-badge">${icon('video')}</span>`}</button>`).join('')}</div>`;
     else if(rows?.length)body=rows.map(m=>{const c=title(m),link=tab==='links'?firstLink(m.body):'';return `<button class="chat-item search-hit" data-hit="${esc(m.id)}" data-hit-chat="${esc(m.chat_id)}">${tab==='links'?`<span class="avatar link-avatar">${icon('link')}</span>`:chatAvatar(c)}<span class="chat-info"><span class="chat-line"><strong class="chat-title"><span class="chat-name">${esc(tab==='links'?link.replace(/^https?:\/\//,''):c?.title||'Чат')}</span></strong><span class="chat-meta"><time>${listTime(m.created)}</time></span></span><span class="chat-line"><span class="chat-preview">${tab==='links'?esc(c?.title||'')+' · ':m.user_id===state.user.id?'<span class="preview-author">Вы:</span> ':c?.kind==='group'?`<span class="preview-author">${esc(m.author?.name?.split(' ')[0]||'')}:</span> `:''}${highlight(m.body||preview(m),q)}</span></span></span></button>`;}).join('');
     else if(rows)body=`<div class="empty-list">${icon('search')}Ничего не найдено</div>`;
   }
@@ -372,7 +372,7 @@ function messageHTML(m,{first,last,kind,others}){
       else content+=`<a class="file sealed-media" data-sealed="${id}" href="#" download="${esc(f.n)}"><span class="file-icon">${icon('file')}</span><span>${esc(f.n)}<br><small>${(f.s/1024/1024).toFixed(2)} МБ · ${icon('lock')} зашифровано</small></span>${icon('download')}</a>`;
     }
     else if(m.media){const source=accountURL('/api/media/'+m.media.id),locked=restricted(c);
-      if(m.kind==='photo'){visual=true;content+=`<div class="media" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть фотографию"><img src="${source}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`;}
+      if(m.kind==='photo'){visual=true;content+=`<div class="media" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть фотографию"><img src="${previewURL(m.media.id)}" alt="${esc(m.media.name)}" loading="lazy" draggable="false"></div>`;}
       else if(m.kind==='round'){visual=true;content+=`<div class="round-note" role="button" tabindex="0" data-round="${source}" aria-label="Воспроизвести видео-кружок"><video class="round" src="${source}#t=0.001" muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video><span class="round-duration"></span><span class="round-muted" aria-hidden="true">${icon('speakeroff')}</span></div>`;}
       else if(m.kind==='video'){visual=true;content+=`<div class="media media-video" data-view="${esc(m.id)}" role="button" tabindex="0" aria-label="Открыть видео"><video src="${source}#t=0.1" muted playsinline preload="metadata" disablepictureinpicture></video><span class="play-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span></div>`;}
       else if(m.kind==='voice')content+=`${waveHTML(m)}<audio src="${source}" controls preload="metadata"${locked?' controlslist="nodownload"':''}></audio><button class="chip audio-speed">1×</button>`;

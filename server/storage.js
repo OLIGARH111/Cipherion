@@ -17,7 +17,7 @@ export function createStorage({db,one,run,data,env=process.env,client}) {
  const s3=client||(configured?new S3Client({region:env.S3_REGION||'auto',endpoint:env.S3_ENDPOINT||undefined,forcePathStyle:env.S3_FORCE_PATH_STYLE==='1',credentials:{accessKeyId:env.S3_ACCESS_KEY_ID,secretAccessKey:env.S3_SECRET_ACCESS_KEY},requestChecksumCalculation:'WHEN_REQUIRED'}):null);
  const uploadToS3=!!s3&&!temporary&&!inDatabase,provider=uploadToS3?'s3':inDatabase?'db':'local';
  const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
- function local(namespace,key){if(!['media','stickers'].includes(namespace)||!/^[a-zA-Z0-9_-]+(?:\.png)?$/.test(key))fail(400,'Некорректный ID файла');return resolve(data,namespace,key);}
+ function local(namespace,key){if(!['media','stickers','previews'].includes(namespace)||!/^[a-zA-Z0-9_-]+(?:\.png)?$/.test(key))fail(400,'Некорректный ID файла');return resolve(data,namespace,key);}
  function writable(){if(!s3&&!temporary&&!inDatabase&&(env.NODE_ENV==='production'||env.RENDER==='true'))fail(503,'Постоянное хранилище ещё не подключено. Загрузка временно недоступна.');}
  async function persist(namespace,key,owner,file,type) {
   writable();const size=(await stat(file)).size,hash=createHash('sha256');for await(const chunk of createReadStream(file))hash.update(chunk);const checksum=hash.digest('hex');

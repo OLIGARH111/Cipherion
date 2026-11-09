@@ -4,9 +4,9 @@
 const MAX_SIDE=2048,QUALITY=0.82,SKIP_BELOW=200*1024;
 const accepted=new Set(['image/jpeg','image/png','image/webp']);
 
-function encode(canvas,type){
-  if(canvas.convertToBlob)return canvas.convertToBlob({type,quality:QUALITY}).catch(()=>null);
-  return new Promise(resolve=>canvas.toBlob(resolve,type,QUALITY));
+function encode(canvas,type,quality=QUALITY){
+  if(canvas.convertToBlob)return canvas.convertToBlob({type,quality}).catch(()=>null);
+  return new Promise(resolve=>canvas.toBlob(resolve,type,quality));
 }
 
 export async function compressPhoto(file){
@@ -48,6 +48,25 @@ async function decodeImage(file){
   if(typeof createImageBitmap==='function'){try{return await createImageBitmap(file);}catch{}}
   const url=URL.createObjectURL(file);
   try{const img=new Image();img.src=url;await img.decode();return img;}finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
+}
+// A small copy of a photo for chat bubbles, avatars and grids (the full photo loads only when opened).
+// Returns null when the photo is already small enough to show as is.
+const PREVIEW_SIDE=800,PREVIEW_QUALITY=0.72,PREVIEW_SKIP_BELOW=90*1024;
+export async function makePreview(file){
+  if(!file||!accepted.has(file.type)||file.size<PREVIEW_SKIP_BELOW)return null;
+  let image=null;
+  try{
+    try{image=await decodeImage(file);}catch{return null;}
+    const w=image?.width||image?.naturalWidth,h=image?.height||image?.naturalHeight;
+    if(!w||!h||Math.max(w,h)<=PREVIEW_SIDE)return null;
+    const scale=PREVIEW_SIDE/Math.max(w,h),width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale));
+    const canvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(width,height):Object.assign(document.createElement('canvas'),{width,height});
+    const context=canvas.getContext('2d');let blob=null;
+    // Transparent pictures keep alpha as WebP; where WebP cannot be encoded (Safari) they keep no preview.
+    if(file.type!=='image/jpeg'){context.drawImage(image,0,0,width,height);blob=await encode(canvas,'image/webp',PREVIEW_QUALITY);if(blob?.type!=='image/webp')return null;}
+    else{context.fillStyle='#fff';context.fillRect(0,0,width,height);context.drawImage(image,0,0,width,height);blob=await encode(canvas,'image/jpeg',PREVIEW_QUALITY);if(blob?.type!=='image/jpeg')return null;}
+    return blob.size<file.size*0.7&&blob.size<=280*1024?blob:null;
+  }catch{return null;}finally{image?.close?.();}
 }
 export function imageType(file){return file?.type||EXTENSION_TYPES[String(file?.name||'').split('.').pop().toLowerCase()]||'';}
 // Any photo from the phone becomes a small JPEG the server accepts (re-encoding also drops EXIF such as GPS).
