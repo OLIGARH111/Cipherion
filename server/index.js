@@ -175,6 +175,9 @@ const traffic=createTraffic({db,run,all,now});
 const PREVIEW_MAX=300*1024;
 // Background jobs run fast while people use the app and slow down when it is idle (see pacer.js).
 const pacer=createPacer();
+// While nobody changes anything, jobs check the database every 5 minutes: scheduled messages and push
+// retries may then wait up to that long.
+const IDLE_PERIOD=300_000;
 const privacy=createPrivacy({db,one,all,run,fail,now,id,emit,isOnline:uid=>streams.has(uid),vipInfo:uid=>{const active=vip.active(uid);return {vip:active,vipBadge:active?vipBadgeValue(social.profile(uid).badge):null,verified:official.isVerified(uid),...(official.isBot(uid)?{official:true}:{})};}});
 const security=createSecurity({db,one,all,run,fail,now,privacy,rate});
 const family=createFamily({db,one,all,run,fail,now,emit});
@@ -191,7 +194,7 @@ const chatFeatures=createChatFeatures({db,one,all,run,fail,now,id,clean,membersh
 const linkPreview=createLinkPreview({db,one,run,fail,now,rate});
 const antispam=createAntispam({db,one,all,run,fail,now,emit,broadcast,audit,isBot:uid=>bots.isBot(uid)});
 const messageExtras2=createMessageExtras({db,one,all,run,fail,now,privacy,isBot:uid=>bots.isBot(uid)});
-pacer.every(5000,60_000,()=>{try{halloween.sweep();chatFeatures.sweep();}catch(error){logFailure('ghost_sweep_failed',error);}});
+pacer.every(5000,IDLE_PERIOD,()=>{try{halloween.sweep();chatFeatures.sweep();}catch(error){logFailure('ghost_sweep_failed',error);}});
 const delivery=createDelivery({db,one,all,run,fail,now,id,membership,emit,broadcast,family,projectMessage:message,messageExtras});
 migrate(db);
 const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
@@ -217,7 +220,7 @@ function botPost({chat,botId,text,reply,topic,markup=null}){
 const bots=createBots({db,one,all,run,fail,now,id,clean,rate,family,privacy,broadcast,logFailure,post:botPost,
   edit:(m,text,markup)=>{if(text!==undefined){family.content(m.chat_id,text,false);run('UPDATE messages SET body=?,edited=? WHERE id=?',text,now(),m.id);}if(markup!==undefined)run('UPDATE messages SET markup=? WHERE id=?',markup?JSON.stringify(markup):null,m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});},
   remove:m=>{run("UPDATE messages SET deleted=1,body='',transcript=NULL,e2e=NULL WHERE id=?",m.id);broadcast(m.chat_id,'message',{chat:m.chat_id,id:m.id});}});
-pacer.every(2000,60_000,()=>bots.tick());
+pacer.every(2000,IDLE_PERIOD,()=>bots.tick());
 const cypherLink=createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,bots,vip,broadcast});
 // Group calls and voice rooms go through the server's SFU when it can be reached (see server/sfu.js).
 const sfuEnabled=()=>process.env.SFU_ENABLED==='1'||(process.env.SFU_ENABLED!=='0'&&(!!process.env.SFU_PUBLIC_IP||rtcConfiguration('sfu').relayConfigured||managedTurnConfigured()));
@@ -228,7 +231,7 @@ const sfu=createSFU({options:sfuOptions(),iceServers:async()=>(await rtcConfigur
   onFailed:(callId,userId)=>emit(userId,'signal',{call:callId,from:'sfu',signal:{reconnect:true}})});
 const communities=createCommunities({db,one,all,run,fail,now,id,membership,family,chatView,emit,liveCalls,endCall});
 let databaseHealth=health(db);
-pacer.every(3000,60_000,()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)));
+pacer.every(3000,IDLE_PERIOD,()=>delivery.tick().catch(e=>logFailure('push_worker_failed',e)));
 const staticFiles = createStaticFiles();
 const appShell = createAppShell(resolve(root, 'public'), staticFiles);
 // The bundle is built at start-up, not on the first visitor's request.
@@ -240,7 +243,9 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   traffic.track(res, req.url.split('?')[0]);
-  {const p=req.url.split('?')[0];if(p!=='/health'&&p!=='/api/events')pacer.nudge();}
+  // Background work (push, bot updates, ghost and expiring messages) comes from changes, so only writes
+  // speed the jobs up. Reads such as the stories refresh of an open tab must not keep them fast forever.
+  if(!['GET','HEAD','OPTIONS'].includes(req.method))pacer.nudge();
   const json = (value, status = 200) => {
     let body = Buffer.from(JSON.stringify(value));const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Vary': 'Accept-Encoding' };
     const encoding = body.length > 1024 && encodingFor(req.headers['accept-encoding'], headers['Content-Type']);
@@ -694,7 +699,7 @@ const maintenance=[()=>{for(const [key,value] of limits)if(value.until<now())lim
     if(!call.participants.size&&now()-call.created>60_000)endCall(call,'ended');else if(changed)broadcast(call.chat,'call',callView(call,'room'));continue;}
   if(call.participants.size<2 && now()-call.created>45_000)endCall(call,'missed');}}];
 setInterval(()=>{for(const step of maintenance)try{step();}catch(error){logFailure('maintenance_failed',error);}},15_000).unref();
-pacer.every(15_000,60_000,()=>{for(const step of databaseMaintenance)try{step();}catch(error){logFailure('maintenance_failed',error);}});
+pacer.every(15_000,IDLE_PERIOD,()=>{for(const step of databaseMaintenance)try{step();}catch(error){logFailure('maintenance_failed',error);}});
 const port=Number(process.env.PORT||3000);
 server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Cipherion: http://${process.env.HOST||'127.0.0.1'}:${server.address().port}`));
 function shutdown(){try{traffic.flush(true);}catch(error){logFailure('traffic_flush_failed',error);}for(const call of liveCalls.values())endCall(call);for(const set of streams.values())for(const res of set)res.end();server.close(()=>{db.close();process.exit(0);});}
