@@ -6,3 +6,13 @@
 /* Taps respond at once: no double-tap zoom wait on buttons and list rows. */
 button,a,[role=button],.chat-item,label{touch-action:manipulation}
 @media (prefers-reduced-motion:reduce){.ambient::before{animation:none}}
+/* Sheets and dialogs appear at once: a short slide instead of a third of a second of animation. */
+dialog:not(.story-viewer):not(.auth-splash)[open]{animation-duration:.14s!important}
+dialog[open]::backdrop{animation-duration:.1s!important}
+/* While a section or profile loads, its sheet is already open with a small indicator. */
+.sheet-loading{display:flex;justify-content:center;gap:6px;padding:48px 0}
+.sheet-loading span{width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:.35;animation:sheet-dot 1s ease-in-out infinite}
+.sheet-loading span:nth-child(2){animation-delay:.15s}.sheet-loading span:nth-child(3){animation-delay:.3s}
+@keyframes sheet-dot{50%{opacity:1;transform:scale(1.25)}}
+.tgp-loading .avatar.skeleton{width:96px;height:96px;border-radius:50%;margin:0 auto;background:color-mix(in srgb,var(--accent) 22%,transparent);animation:sheet-dot 1.2s ease-in-out infinite}
+.tgp-loading .tgp-sub{text-align:center}

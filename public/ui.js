@@ -94,9 +94,17 @@ async function requestJSON(url,options,account=activeAccount()) {
   if(responseFilter)result=await responseFilter(result,account);
   if(ticket!==accountEpoch())throw new DOMException('Аккаунт переключён','AbortError');return result;
 }
+// Counts changes sent to the server, so cached screens know when they may be out of date.
+let writes=0;export const writeCount=()=>writes;
 export async function api(path, method='GET', data, signal, account=activeAccount()) {
+  if(method!=='GET')writes++;
+  else if(data===undefined&&!signal){const key=account+'\n'+path,hit=prefetched.get(key);if(hit){prefetched.delete(key);if(hit.writes===writes&&Date.now()-hit.time<30000)return hit.promise;}}
   return requestJSON('/api'+path,{method,signal,headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)},account);
 }
+// Screens that are one tap away load their data ahead, so the tap opens them at once.
+// A prefetched answer is used once, within 30 seconds, and only if nothing was changed since.
+const prefetched=new Map();
+export function prefetch(...paths){const account=activeAccount();for(const path of paths){const key=account+'\n'+path,hit=prefetched.get(key);if(hit&&hit.writes===writes&&Date.now()-hit.time<30000)continue;const promise=requestJSON('/api'+path,{method:'GET',headers:{}},account);promise.catch(()=>{if(prefetched.get(key)?.promise===promise)prefetched.delete(key);});prefetched.set(key,{promise,time:Date.now(),writes});}}
 // The account's upload limit rarely changes: ask once per account instead of before every photo.
 const uploadLimits=new Map();
 async function uploadLimit(account){
@@ -126,7 +134,7 @@ export function modal(title, content, wide=false) {
   $('#modal-close').onclick=()=>el.close();el.onclick=e=>{if(e.target===el){const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el.close();}};if(!el.open)el.showModal();el.scrollTop=0;return el;
 }
 // Profile, group info and settings sections open as a side sheet (full screen on phones).
-export async function asSheet(fn) { const dialog=$('#modal');dialog.classList.add('sheet');dialog.addEventListener('close',()=>dialog.classList.remove('sheet'),{once:true});try{await fn();}finally{if(!dialog.open)dialog.classList.remove('sheet');} }
+export async function asSheet(fn) { const dialog=$('#modal');dialog.classList.add('sheet');dialog.addEventListener('close',()=>dialog.classList.remove('sheet'),{once:true});try{await fn();}catch(error){if(dialog.open&&dialog.querySelector('.sheet-loading,.tgp-loading'))dialog.close();throw error;}finally{if(!dialog.open)dialog.classList.remove('sheet');} }
 export function guard(fn) { const ticket=accountEpoch();return async (...args)=>{if(ticket!==accountEpoch())return;try{await fn(...args);}catch(error){if(ticket===accountEpoch()&&error.name!=='AbortError')toast(error.message);}}; }
 
 
