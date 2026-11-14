@@ -31,6 +31,25 @@ function patchNode(old,next){
   }
   while(old.childNodes.length>next.childNodes.length)old.lastChild.remove();
 }
+// Parse and patch only changed rows. Keep focus, images and event handlers on
+// unchanged chats; no persistent cache survives removal or account switching.
+export function reconcileChatList(box,rows,bind){
+  const existing=new Map([...box.children].map(el=>[el.dataset.chat,el]));
+  const keep=new Set();let position=box.firstElementChild;
+  for(const {id,html} of rows){
+    let node=existing.get(String(id));
+    if(!node||node._chatHTML!==html){
+      const template=box.ownerDocument.createElement('template');template.innerHTML=html;
+      const next=template.content.firstElementChild;
+      if(node)patchNode(node,next);else node=next;
+      node._chatHTML=html;bind(node);
+    }
+    keep.add(node);
+    if(node!==position)box.insertBefore(node,position);
+    position=node.nextElementSibling;
+  }
+  for(const node of [...box.children])if(!keep.has(node))node.remove();
+}
 // Keep the article (and unchanged media nodes) attached throughout acknowledgement.
 export function reconcileMessages(box,html){
   const template=box.ownerDocument.createElement('template');template.innerHTML=html;
@@ -53,3 +72,4 @@ export function optimisticMessage(item){
     forwarded:item.payload.forwarded,reply_id:item.payload.reply,...(item.payload.topic?{topic:item.payload.topic}:{}),...(item.payload.ghost?{ghost:1}:{}),created:item.created,pending:true,status:item.error?'failed':'sending',error:item.error,
     attachmentName:item.file?.name};
 }
+
