@@ -132,7 +132,7 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
       if(item.replied)fail(409,'Ответ уже отправлен');
       const text=clean(b.text,8000)||'Готово.';
       run('UPDATE cypher_remote SET reply=?,replied=? WHERE id=?',text,now(),item.id);
-      run('INSERT INTO ai_history(id,user_id,role,body,created) VALUES(?,?,?,?,?)',id(),item.user_id,'assistant',text,now());
+      run('INSERT INTO ai_history(id,user_id,role,body,created,scope) VALUES(?,?,?,?,?,?)',id(),item.user_id,'assistant',text,now(),'pc');
       wakeAll(resultWaiters,item.id);json({ok:true});return true;
     }
     if(path==='/api/cypher/notifications'&&req.method==='GET'){
@@ -145,7 +145,7 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
       if(req.method==='GET'){json(all('SELECT id,body,created FROM ai_memory WHERE user_id=? ORDER BY created',person.id));return true;}
       if(req.method==='POST'){
         const text=String(b.body||'').replace(/\s+/g,' ').trim().slice(0,2000);if(!text)fail(400,'Пустая запись');
-        if(b.id){if(!one('SELECT 1 FROM ai_memory WHERE id=? AND user_id=?',String(b.id),person.id))fail(404,'Запись не найдена');run('UPDATE ai_memory SET body=? WHERE id=? AND user_id=?',text,String(b.id),person.id);json({id:String(b.id),body:text});return true;}
+        if(b.id){if(!one('SELECT 1 FROM ai_memory WHERE id=? AND user_id=?',String(b.id),person.id))fail(404,'Запись не найдена');run('UPDATE ai_memory SET body=?,used=0 WHERE id=? AND user_id=?',text,String(b.id),person.id);json({id:String(b.id),body:text});return true;}
         if(one('SELECT COUNT(*) n FROM ai_memory WHERE user_id=?',person.id).n>=(vip.active(person.id)?500:100))fail(409,'Память AI в Cipherion заполнена');
         const memoryId=id();run('INSERT INTO ai_memory(id,user_id,body,created) VALUES(?,?,?,?)',memoryId,person.id,text,now());json({id:memoryId,body:text},201);return true;
       }
@@ -184,7 +184,7 @@ export function createCypherLink({db,one,all,run,fail,now,id,clean,rate,family,b
       const text=clean(b.text,4000);if(!text)fail(400,'Пустая команда');
       run('DELETE FROM cypher_remote WHERE created<?',now()-24*3600_000);
       const itemId=id();run('INSERT INTO cypher_remote(id,user_id,link_id,text,created) VALUES(?,?,?,?,?)',itemId,user.id,link.id,text,now());
-      run('INSERT INTO ai_history(id,user_id,role,body,created) VALUES(?,?,?,?,?)',id(),user.id,'user','💻 '+link.device+': '+text,now());
+      run('INSERT INTO ai_history(id,user_id,role,body,created,scope) VALUES(?,?,?,?,?,?)',id(),user.id,'user','💻 '+link.device+': '+text,now(),'pc');
       wakeAll(pickers,link.id);json({id:itemId,device:link.device,online:linkView(link).online},201);return true;
     }
     if(path==='/api/cypher/remote/result'&&req.method==='GET'){
