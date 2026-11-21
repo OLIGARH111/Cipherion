@@ -1,31 +1,124 @@
-/* Bottom menu on a phone: real liquid glass. Barely tinted, so chats show
-   through; bright rim, specular sheen on top and a soft inner shadow below.
-   Only for the «Liquid Glass» panel background; colour/gradient/photo keep their look. */
-@media(max-width:700px){
-  body.glass-ui:not(.nav-filled) .nav,body.glass-ui.light:not(.nav-filled) .nav{
-    background-color:color-mix(in srgb,#fff 16%,transparent);
-    border:1px solid color-mix(in srgb,#fff 55%,transparent);
-    box-shadow:0 10px 34px #0000002e,0 1px 2px #00000014,inset 0 1px 0 #ffffffd9,inset 0 -1px 0 #ffffff40,inset 0 -10px 18px -12px #00000026;
-    backdrop-filter:blur(9px) saturate(210%) brightness(1.06) contrast(1.04);
-    -webkit-backdrop-filter:blur(9px) saturate(210%) brightness(1.06) contrast(1.04)
-  }
-  body.glass-ui:not(.light):not(.nav-filled) .nav{
-    background-color:color-mix(in srgb,#14181a 22%,transparent);
-    border-color:#ffffff2e;
-    box-shadow:0 10px 34px #00000066,inset 0 1px 0 #ffffff4d,inset 0 -1px 0 #ffffff14,inset 0 -10px 18px -12px #0000004d;
-    backdrop-filter:blur(9px) saturate(190%) brightness(.92);
-    -webkit-backdrop-filter:blur(9px) saturate(190%) brightness(.92)
-  }
-  /* Specular sheen: light caught on the upper curve of the glass. */
-  body.glass-ui:not(.nav-filled) .nav::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
-    background:linear-gradient(180deg,#ffffff59 0%,#ffffff14 38%,transparent 55%,#ffffff0d 100%),radial-gradient(120% 90% at 18% -30%,#ffffff40,transparent 60%)}
-  body.glass-ui:not(.light):not(.nav-filled) .nav::after{background:linear-gradient(180deg,#ffffff24 0%,#ffffff08 40%,transparent 58%,#ffffff08 100%),radial-gradient(120% 90% at 18% -30%,#ffffff1f,transparent 60%)}
-  /* Icons and labels stay readable over any chat behind the glass. */
-  body.glass-ui:not(.nav-filled) .nav button{text-shadow:0 1px 2px #0000002e}
-  body.glass-ui:not(.light):not(.nav-filled) .nav button{text-shadow:0 1px 3px #00000080}
-  body.glass-ui:not(.nav-filled) .nav button svg{filter:drop-shadow(0 1px 1.5px #00000033)}
-  body.glass-ui:not(.nav-filled) .nav button.active{background:color-mix(in srgb,#fff 30%,transparent);box-shadow:inset 0 1px 0 #ffffffb3,0 2px 8px #0000001a}
-  body.glass-ui:not(.light):not(.nav-filled) .nav button.active{background:#ffffff1f;box-shadow:inset 0 1px 0 #ffffff33,0 2px 8px #00000033}
+/* Liquid glass poured onto Cipherion's own controls.
+   The bar keeps its shape and does not blur the page. The lens blurs only a
+   clone of the bar's icons. Buttons are unchanged until a finger presses them.
+   Only a switch knob or a slider thumb blurs. */
+
+body.glass-ui .nav,
+body.glass-ui .nav button,
+body.glass-ui .nav button.active{
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
 }
-/* Holding a menu item opens the section settings; no text selection or system menu. */
+body.glass-ui .nav button.active{background:transparent;box-shadow:none}
+body.glass-ui .nav button::after{opacity:.0}
+
+.lg-lens{
+  position:absolute;z-index:0;left:0;top:0;overflow:hidden;pointer-events:none;border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.42) 46%,rgba(236,248,242,.55));
+  box-shadow:inset 0 1px 0 #fff,inset 0 -8px 14px rgba(255,255,255,.28),inset 0 0 0 .6px rgba(255,255,255,.65),0 8px 16px rgba(16,40,30,.12);
+  will-change:transform;
+}
+body:not(.light) .lg-lens{
+  background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,.12) 48%,rgba(18,36,30,.42));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 0 .6px rgba(255,255,255,.22),0 8px 16px rgba(0,0,0,.28);
+}
+.lg-lens-clone{position:absolute;left:0;top:0;filter:blur(6px) saturate(1.25);opacity:.9;pointer-events:none}
+.lg-clone-tab{
+  position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:var(--nav-foreground,var(--muted));font-size:9px;line-height:1;
+}
+.lg-clone-tab.active{color:var(--accent)}
+.lg-clone-tab svg{width:22px;height:22px}
+.lg-shine,.lg-rim{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.lg-shine{background:linear-gradient(115deg,transparent 18%,rgba(255,255,255,.95) 46%,transparent 64%);mix-blend-mode:screen;opacity:0}
+.lg-rim{box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+
+/* Pressed glass sits behind the existing glyph and fades out at rest. */
+.lg-hot{transition:none!important}
+.lg-hot:active{transform:none}
+#attach,#record,#emoji,#composer-ai,.composer>.send,.composer>.icon-button,.header-actions>.icon-button,.pill-head>.mobile-back,.side-actions>.icon-button{position:relative;--lg:0;--sx:0}
+.lg-fx,.lg-glint,.lg-flash{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.lg-fx{
+  z-index:0;
+  background:
+    radial-gradient(90% 70% at calc(30% + var(--sx,0) * 28%) 18%,rgba(255,255,255,.98),transparent 52%),
+    linear-gradient(185deg,rgba(255,255,255,.78),rgba(232,246,238,.34) 58%,rgba(255,255,255,.2));
+  box-shadow:inset 0 1px 0 #fff,inset 0 -7px 12px rgba(255,255,255,.35),inset 0 0 0 .6px rgba(255,255,255,.72),0 8px 16px rgba(16,40,30,.14);
+  opacity:var(--lg,0);
+  transform:scale(calc(.78 + var(--lg,0) * .22));
+}
+.composer>.send .lg-fx,#record.lg-hot .lg-fx{
+  background:radial-gradient(85% 70% at calc(28% + var(--sx,0) * 36%) 16%,rgba(255,255,255,.72),transparent 58%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
+}
+.lg-glint{
+  z-index:2;
+  background:linear-gradient(calc(108deg + var(--sx,0) * 50deg),transparent 22%,rgba(255,255,255,.95) 48%,transparent 70%);
+  mix-blend-mode:screen;opacity:calc(var(--lg,0) * .9);
+}
+.lg-flash{
+  z-index:3;
+  background:radial-gradient(circle at calc(50% + var(--sx,0) * 18%) 38%,rgba(255,255,255,.95),transparent 62%);
+  opacity:var(--flash,0);
+}
+.composer>.icon-button>svg,.composer>.icon-button>.lg-fx,.header-actions>.icon-button>svg,.pill-head>.mobile-back>svg{position:relative;z-index:1}
+.composer>.icon-button>svg,.header-actions>.icon-button>svg,.pill-head>.mobile-back>svg,.side-actions>.icon-button>svg{z-index:1}
+
+/* Knob only: the track stays a flat Cipherion track. */
+.setting-row input[type=checkbox],
+.tg-switch input[type=checkbox],
+.nav-editor-row input[type=checkbox]{--kx:0px;--ks:1;--ky:1;--flash:0}
+.setting-row input[type=checkbox]:checked,
+.tg-switch input[type=checkbox]:checked,
+.nav-editor-row input[type=checkbox]:checked{--kx:18px}
+.setting-row input[type=checkbox]:before,
+.setting-row input[type=checkbox]:checked:before,
+.tg-switch input[type=checkbox]:before,
+.tg-switch input[type=checkbox]:checked:before,
+.nav-editor-row input[type=checkbox]:before,
+.nav-editor-row input[type=checkbox]:checked:before{
+  transform:translateX(var(--kx)) scale(var(--ks),var(--ky));
+  background:
+    radial-gradient(circle at 32% 28%,rgba(255,255,255,var(--flash)),transparent 60%),
+    linear-gradient(180deg,#fff,rgba(255,255,255,.62));
+  -webkit-backdrop-filter:blur(8px) saturate(1.6);
+  backdrop-filter:blur(8px) saturate(1.6);
+  box-shadow:inset 0 1px 0 #fff,inset 0 -5px 8px rgba(255,255,255,.35),0 2px 6px rgba(0,0,0,.22);
+}
+.tg-switch input[type=checkbox],.nav-editor-row input[type=checkbox]{
+  appearance:none;width:46px;height:28px;border:0;border-radius:20px;position:relative;cursor:pointer;flex:none;
+  background:color-mix(in srgb,var(--muted) 45%,transparent);
+}
+.tg-switch input[type=checkbox]:before,.nav-editor-row input[type=checkbox]:before{
+  content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+}
+.tg-switch input[type=checkbox]:checked,.nav-editor-row input[type=checkbox]:checked{background:var(--ci-grad)}
+input.lg-hot:before,input.lg-hot:checked:before{transition:none}
+
+input[type=range]{-webkit-appearance:none;appearance:none;--pct:0%;--ks:1;--ky:1;--flash:0;height:28px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track,input[type=range]::-moz-range-track{
+  height:4px;border:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent) var(--pct),color-mix(in srgb,var(--muted) 40%,transparent) var(--pct));
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:22px;height:22px;margin-top:-9px;border:0;border-radius:50%;
+  background:
+    radial-gradient(circle at 32% 28%,rgba(255,255,255,var(--flash)),transparent 58%),
+    linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.5));
+  box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.22);
+  -webkit-backdrop-filter:blur(8px) saturate(1.6);
+  backdrop-filter:blur(8px) saturate(1.6);
+  transform:scale(var(--ks),var(--ky));
+}
+input[type=range]::-moz-range-thumb{
+  width:22px;height:22px;border:0;border-radius:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.5));
+  box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.22);
+  transform:scale(var(--ks),var(--ky));
+}
+
 .nav button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+@media (prefers-reduced-motion:reduce){
+  .lg-lens{transition:none}
+}

@@ -10,6 +10,8 @@ import './viewport.js';
 import {bindStickerEffects} from './sticker-effects.js';
 import {createSync,savedMessages} from './sync.js';
 import './motion.js';
+import {installLiquidGlass} from './liquid-glass.js';
+installLiquidGlass();
 import {createOutbox} from './outbox.js';
 import {seal,emojiKeys,open as openSealed,ensureDevice,encryptionInfo,warmKeys} from './e2e.js';
 import {mergeMessages,messageKey,reconcileMessages,optimisticMessage} from './message-state.js';
