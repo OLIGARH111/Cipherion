@@ -3,7 +3,8 @@
  * Cipherion Liquid Glass mock.
  * Tab bar: no backdrop blur of the page. The lens blurs a clone of the bar's
  * own icons, then stretches and bounces with a spring.
- * Buttons: highlight, scale-up, stretch, bounce.
+ * Buttons: Cipherion glyphs stay put. Highlight, scale, stretch and bounce
+ * are a glass effect on press, not a new button shape.
  * Switches and sliders: blur only on the moving knob.
  */
 
@@ -51,6 +52,17 @@ function svg(name, size) {
   const body = ICONS[name] ?? "";
   const s = size ?? 24;
   return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+/**
+ * @param {string} action
+ * @param {string} icon
+ * @param {string} label
+ * @param {string} [extra]
+ */
+function glassBtn(action, icon, label, extra) {
+  const cls = extra ? `lg-btn ${extra}` : "lg-btn";
+  return `<button type="button" class="${cls}" data-action="${action}" aria-label="${label}">${svg(icon)}<i class="lg-fx" aria-hidden="true"></i><i class="glint" aria-hidden="true"></i><i class="flash" aria-hidden="true"></i></button>`;
 }
 
 class Spring {
@@ -157,7 +169,7 @@ function chatsView() {
       return `<button type="button" class="row">${av}<span class="who"><span class="who-top"><b>${name}</b><time>${time}</time></span><span class="who-bot">${prev}${badge}</span></span></button>`;
     })
     .join("");
-  return `<div class="view chats is-on" data-view="chats"><div class="large-title"><h2>Чаты</h2><button type="button" class="lg-btn" data-action="plain" aria-label="Новый чат">${svg("pen")}<i class="glint"></i><i class="flash"></i></button></div><div class="search">${svg("search")}Поиск</div>${html}</div>`;
+  return `<div class="view chats is-on" data-view="chats"><div class="large-title"><h2>Чаты</h2>${glassBtn("plain", "pen", "Новый чат")}</div><div class="search">${svg("search")}Поиск</div>${html}</div>`;
 }
 
 function contactsView() {
@@ -232,13 +244,13 @@ function tabbar(startIndex) {
 
 function chatScreen() {
   return `<div class="screen chat-screen">${statusbar()}
-    <div class="chat-head"><button type="button" class="icon-plain" aria-label="Назад">${svg("back")}</button><span class="avatar sm online" style="${toneVars(6)}">М</span><span class="peer"><b>Мария Ковалёва</b><small>в сети</small></span><button type="button" class="lg-btn" data-action="plain" aria-label="Звонок">${svg("phone")}<i class="glint"></i><i class="flash"></i></button><button type="button" class="lg-btn" data-action="plain" aria-label="Видеозвонок">${svg("video")}<i class="glint"></i><i class="flash"></i></button></div>
+    <div class="chat-head"><button type="button" class="icon-plain" aria-label="Назад">${svg("back")}</button><span class="avatar sm online" style="${toneVars(6)}">М</span><span class="peer"><b>Мария Ковалёва</b><small>в сети</small></span>${glassBtn("plain", "phone", "Звонок")}${glassBtn("plain", "video", "Видеозвонок")}</div>
     <div class="view chats is-on" data-view="thread"><div class="msgs" data-msgs>
       <div class="day">Сегодня</div>
       <div class="msg"><div class="bubble">Смотри, как линза едет между вкладками.<span class="meta">20:12</span></div></div>
       <div class="msg"><div class="bubble">Фон под баром остаётся резким — блюра там нет.<span class="meta">20:12</span></div></div>
       <div class="msg own"><div class="bubble">А кнопки внизу?<span class="meta">20:18 ${svg("ticks", 16)}</span></div></div>
-      <div class="msg"><div class="bubble">Скрепка, микрофон и видео — стекло. Нажатие подсвечивает, увеличивает, тянется и пружинит.<span class="meta">20:19</span></div></div>
+      <div class="msg"><div class="bubble">Скрепка, микрофон и видео — кнопки Cipherion. Стекло вспыхивает только пока палец на кнопке.<span class="meta">20:19</span></div></div>
       <div class="msg own"><div class="bubble">Переключатели тоже?<span class="meta">20:36 ${svg("ticks", 16)}</span></div></div>
       <div class="msg"><div class="bubble">Блюр только у бегунка. Дорожка сплошная.<span class="meta">20:37</span></div></div>
     </div></div>
@@ -246,17 +258,17 @@ function chatScreen() {
     <div class="composer" data-composer>
       <div class="attach-wrap">
         <div class="lg-menu" data-menu>
-          <div class="lg-pop"><button type="button" class="lg-btn" data-action="pop" aria-label="Камера">${svg("cam")}<i class="glint"></i><i class="flash"></i></button><em>Камера</em></div>
-          <div class="lg-pop"><button type="button" class="lg-btn" data-action="pop" aria-label="Галерея">${svg("image")}<i class="glint"></i><i class="flash"></i></button><em>Галерея</em></div>
-          <div class="lg-pop"><button type="button" class="lg-btn" data-action="pop" aria-label="Файл">${svg("file")}<i class="glint"></i><i class="flash"></i></button><em>Файл</em></div>
-          <div class="lg-pop"><button type="button" class="lg-btn" data-action="pop" aria-label="Геопозиция">${svg("pin")}<i class="glint"></i><i class="flash"></i></button><em>Гео</em></div>
+          <div class="lg-pop">${glassBtn("pop", "cam", "Камера", "lg-fill")}<em>Камера</em></div>
+          <div class="lg-pop">${glassBtn("pop", "image", "Галерея", "lg-fill")}<em>Галерея</em></div>
+          <div class="lg-pop">${glassBtn("pop", "file", "Файл", "lg-fill")}<em>Файл</em></div>
+          <div class="lg-pop">${glassBtn("pop", "pin", "Геопозиция", "lg-fill")}<em>Гео</em></div>
         </div>
-        <button type="button" class="lg-btn" data-action="attach" aria-label="Прикрепить">${svg("clip")}<i class="glint"></i><i class="flash"></i></button>
+        ${glassBtn("attach", "clip", "Прикрепить")}
       </div>
       <label class="field"><input data-input placeholder="Сообщение" aria-label="Сообщение" /></label>
       <div class="rec-strip"><i class="rec-dot"></i><span class="rec-time" data-rec-time>0:00</span><span class="rec-hint" data-rec-hint>Влево — отмена</span></div>
-      <button type="button" class="lg-btn" data-action="video" aria-label="Видеосообщение">${svg("video")}<i class="glint"></i><i class="flash"></i></button>
-      <button type="button" class="lg-btn lg-mic" data-action="mic" aria-label="Голосовое"><span class="mic-ico">${svg("mic")}</span><span class="send-ico">${svg("send")}</span><i class="glint"></i><i class="flash"></i></button>
+      ${glassBtn("video", "video", "Видеосообщение")}
+      <button type="button" class="lg-btn lg-mic" data-action="mic" aria-label="Голосовое"><span class="mic-ico">${svg("mic")}</span><span class="send-ico">${svg("send")}</span><i class="lg-fx" aria-hidden="true"></i><i class="glint" aria-hidden="true"></i><i class="flash" aria-hidden="true"></i></button>
     </div>
     <div class="home-ind"></div>
   </div>`;
@@ -282,16 +294,16 @@ function shell() {
     <header class="studio-head">
       <p class="kicker">Cipherion · макет</p>
       <h1>Liquid Glass</h1>
-      <p class="lede">Как у Telegram на iOS 26, но без системного стекла — те же линза, подсветка, масштаб, растяжение и пружина на iOS 18 и старше. Это ветка макета, в main ничего не влито.</p>
+      <p class="lede">Линза, подсветка, масштаб, растяжение и пружина — без системного стекла, на iOS 18 и старше. Кнопки остаются кнопками Cipherion: жидкое стекло только в момент нажатия. Ветка макета, в main ничего не влито.</p>
     </header>
     <div class="rules">
       <div class="rule"><b>Таб-бар</b><span>Сама панель не блюрит фон. Линза блюрит только иконки бара, тянется по скорости и пружинит.</span></div>
-      <div class="rule"><b>Кнопки</b><span>Скрепка, микрофон и видео: вспышка, увеличение, растяжение за пальцем и отскок.</span></div>
+      <div class="rule"><b>Кнопки</b><span>Скрепка, звонок, микрофон и видео — как в Cipherion. Стекло не заменяет их: вспышка, увеличение, растяжение и отскок только пока палец на кнопке.</span></div>
       <div class="rule"><b>Тумблеры и слайдеры</b><span>Дорожка сплошная. Блюр, блик и растяжение только у движущейся ручки.</span></div>
     </div>
     <div class="board">
       <figure class="slot"><div class="scaler"><div class="device" data-phone="chats">${listScreen("chats")}</div></div><figcaption><b>Чаты</b>Нажмите вкладки — линза едет, тянется и отскакивает. Текст под баром остаётся резким.</figcaption></figure>
-      <figure class="slot"><div class="scaler"><div class="device" data-phone="chat">${chatScreen()}</div></div><figcaption><b>Кнопки</b>Зажмите микрофон или видео, потяните в сторону. Скрепка открывает стеклянное меню.</figcaption></figure>
+      <figure class="slot"><div class="scaler"><div class="device" data-phone="chat">${chatScreen()}</div></div><figcaption><b>Кнопки Cipherion</b>Форма своя. Зажмите микрофон или видео — линза вспыхивает, тянется и пружинит. Скрепка открывает меню вложений.</figcaption></figure>
       <figure class="slot"><div class="scaler"><div class="device" data-phone="settings">${listScreen("settings")}</div></div><figcaption><b>Переключатели</b>Потяните ручку: она увеличивается, тянется и блюрит только себя.</figcaption></figure>
     </div>
   </div>`;
@@ -620,6 +632,10 @@ function bindButtons(phone) {
       const sx = item.scale.x * (1 + Math.abs(item.stretch.x));
       const sy = item.scale.x * (1 - Math.abs(item.stretch.x) * 0.42);
       item.el.style.transform = `scale(${sx}, ${sy})`;
+      const pressAmt = clamp((item.scale.x - 1) / 0.16, 0, 1);
+      const glass = clamp(Math.max(item.flash.x, item.down || item.recording ? 1 : 0, pressAmt), 0, 1);
+      item.el.style.setProperty("--lg", glass.toFixed(3));
+      item.el.style.setProperty("--sx", item.stretch.x.toFixed(3));
       const flashEl = item.el.querySelector(".flash");
       if (flashEl instanceof HTMLElement) flashEl.style.opacity = String(clamp(item.flash.x, 0, 1));
       if (!item.scale.settled() || !item.stretch.settled() || item.flash.x > 0.01 || item.down) alive = true;
