@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cipherion · Liquid Glass</title>
+    <link rel="stylesheet" href="./liquid-glass.css" />
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module">
+      import { mountLiquidGlass } from "./liquid-glass.js";
+      const root = document.querySelector("#app");
+      if (root instanceof HTMLElement) mountLiquidGlass(root);
+    </script>
+  </body>
+</html>
