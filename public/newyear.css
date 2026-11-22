@@ -1,0 +1,153 @@
+/* New Year season — snow, garland, countdown banner, «Что нового», settings and «Итоги года». */
+
+/* Snow: falls over the whole app, never catches taps. */
+.ny-snow{position:fixed;inset:0;pointer-events:none;z-index:39;overflow:hidden}
+.ny-snow i{position:absolute;top:-12px;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;background:radial-gradient(circle,#fff 0 45%,#ffffff00 70%);opacity:var(--o);animation:ny-fall var(--t) linear var(--d) infinite;will-change:transform}
+@keyframes ny-fall{to{transform:translate3d(var(--w),105vh,0)}}
+
+/* Garland along the top of the chat list. */
+.side-header{position:relative}
+.ny-garland{position:absolute;left:10px;right:10px;top:2px;height:22px;display:flex;justify-content:space-between;pointer-events:none;background:radial-gradient(120% 60px at 50% -36px,transparent 96%,#ffffff26 97%,transparent 99%) 0 0/12.5% 100% repeat-x}
+.ny-garland span{position:relative;top:calc(8px + 5px * sin(var(--i) * 0.8));width:7px;height:10px;border-radius:50% 50% 45% 45%;background:var(--bulb);box-shadow:0 0 10px var(--bulb),0 0 3px var(--bulb);animation:ny-blink 2.4s ease-in-out calc(var(--i) * -.37s) infinite}
+.ny-garland .c0{--bulb:#ff5a6e}.ny-garland .c1{--bulb:#ffd166}.ny-garland .c2{--bulb:#5ce1a8}.ny-garland .c3{--bulb:#6ab7ff}
+@keyframes ny-blink{50%{opacity:.35;box-shadow:none}}
+
+/* Countdown banner with the entry to «Итоги». */
+.ny-banner{position:relative;display:flex;align-items:center;gap:12px;margin:10px 0 4px;padding:12px 40px 12px 14px;border-radius:18px;background:linear-gradient(120deg,#2b6cff33,#c13dff2e 55%,#ffd16626);border:1px solid #9fc2ff44;cursor:pointer;text-align:left;color:var(--text);overflow:hidden}
+.ny-banner:before{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#ffffff1f 45%,transparent 60%);transform:translateX(-100%);animation:ny-shine 5s ease-in-out 1.5s infinite;pointer-events:none}
+.ny-banner:hover{border-color:#cfe0ff77}
+.ny-banner:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ny-banner-tree{font-size:32px;line-height:1;filter:drop-shadow(0 0 12px #ffd16699);animation:ny-bob 2.6s ease-in-out infinite}
+.ny-banner-text{display:flex;flex-direction:column;min-width:0}
+.ny-banner-text b{font-size:14px}
+.ny-banner-text small{font-size:12px;color:var(--muted);line-height:1.3}
+.ny-banner-close{position:absolute;top:8px;right:8px;width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+.ny-banner-close:hover{background:var(--hover);color:var(--text)}
+@keyframes ny-bob{50%{transform:translateY(-3px) rotate(4deg)}}
+@keyframes ny-shine{40%,100%{transform:translateX(100%)}}
+
+/* «Что нового» */
+.ny-news{display:flex;flex-direction:column;gap:4px}
+.ny-news-hero{font-size:56px;text-align:center;filter:drop-shadow(0 0 22px #ffd166aa);animation:ny-bob 2.6s ease-in-out infinite}
+.ny-news-lead{text-align:center;color:var(--muted);margin:0 0 6px}
+.ny-feature{display:flex;gap:12px;align-items:flex-start;padding:10px 2px;border-top:1px solid var(--line)}
+.ny-feature>span{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:#6ab7ff1f}
+.ny-feature b{display:block}
+.ny-feature small{display:block;color:var(--muted);line-height:1.35}
+.ny-news-note{font-size:12px;color:var(--muted);text-align:center;margin:8px 0}
+.ny-news .primary,.ny-news .secondary{width:100%}
+
+/* Settings */
+.ny-settings-group .settings-icon{--c:#2f9e6a!important}
+.ny-open-review{width:100%;margin-bottom:12px}
+.ny-theme-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.ny-theme-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:4px;height:92px;padding:10px;border-radius:16px;border:2px solid transparent;color:#fff;font-weight:600;cursor:pointer;background:linear-gradient(160deg,#6ab7ff,#101a4a)}
+.ny-theme-card[data-ny-theme="Ёлка"]{background:linear-gradient(160deg,#1f8a4c,#0b2a17 70%,#c9302c)}
+.ny-theme-card span{font-size:26px}
+.ny-theme-card.selected{border-color:#fff}
+
+/* Salute */
+.ny-fireworks{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483000}
+/* Inside «Итоги» the salute goes behind the card, over the slide background. */
+.yr-slide .ny-fireworks{position:absolute;width:100%;height:100%;z-index:0}
+.yr-slide>:not(canvas){position:relative;z-index:1}
+
+/* ---------- «Итоги года» ---------- */
+dialog.yr{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#050814!important;color:#fff;overflow:hidden;box-shadow:none;backdrop-filter:none;transform:none;animation:yr-in .35s ease both}
+@keyframes yr-in{from{opacity:0}}
+.yr::backdrop{background:#000c}
+.yr-stage{position:relative;height:100%;max-width:480px;margin:0 auto;overflow:hidden;background:#0b1030}
+@media(min-width:700px){.yr-stage{height:min(860px,calc(100dvh - 40px));margin-top:max(20px,calc((100dvh - 860px)/2));border-radius:28px;box-shadow:0 30px 90px #000a}}
+.yr-progress{position:absolute;z-index:5;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:4px}
+.yr-progress span{flex:1;height:3px;border-radius:3px;background:#ffffff40;overflow:hidden}
+.yr-progress i{display:block;height:100%;width:0;background:#fff}
+.yr-close{position:absolute;z-index:6;right:10px;top:calc(22px + env(safe-area-inset-top,0px));width:36px;height:36px;border:0;border-radius:50%;background:#0003;color:#fff;font-size:16px;cursor:pointer}
+.yr-nav{position:absolute;z-index:3;top:70px;bottom:120px;width:34%;border:0;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.yr-nav.prev{left:0}.yr-nav.next{right:0;width:66%}
+.yr-flakes{position:absolute;inset:0;z-index:1;pointer-events:none}
+.yr-flakes i{position:absolute;top:-10px;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;background:#fff;opacity:.55;animation:ny-fall var(--t) linear var(--d) infinite;--w:20px}
+.yr-slides,.yr-slide{position:absolute;inset:0}
+.yr-slide{z-index:2;display:flex;flex-direction:column;justify-content:center;padding:84px 26px 40px;opacity:0;visibility:hidden;transition:opacity .45s ease,visibility 0s linear .45s}
+.yr-slide.active{opacity:1;visibility:visible;transition:opacity .45s ease}
+.yr-slide.active>:not(canvas){animation:yr-rise .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes yr-rise{from{opacity:0;transform:translateY(26px)}}
+.yr-slide .avatar,.yr-slide button{position:relative;z-index:4}
+.yr-slide .yr-actions{position:relative;z-index:4}
+
+.tone-intro{background:radial-gradient(ellipse at 80% 0%,#5b8cff99,transparent 55%),radial-gradient(ellipse at 0% 100%,#c13dff88,transparent 60%),#0b1030}
+.tone-messages{background:radial-gradient(ellipse at 100% 0%,#ff5f8f99,transparent 55%),radial-gradient(ellipse at 0% 100%,#ffb26b88,transparent 60%),#2a0b25}
+.tone-kinds{background:radial-gradient(ellipse at 0% 0%,#00c6ff88,transparent 55%),radial-gradient(ellipse at 100% 100%,#3d82ffaa,transparent 60%),#061a2e}
+.tone-rhythm{background:radial-gradient(ellipse at 100% 0%,#2bff9a66,transparent 55%),radial-gradient(ellipse at 0% 100%,#a24bff88,transparent 60%),#06191c}
+.tone-people{background:radial-gradient(ellipse at 0% 0%,#ffd16677,transparent 55%),radial-gradient(ellipse at 100% 100%,#ff6a3d88,transparent 60%),#24100a}
+.tone-extras{background:radial-gradient(ellipse at 100% 0%,#ff7ae088,transparent 55%),radial-gradient(ellipse at 0% 100%,#5ce1ff77,transparent 60%),#160a2c}
+.tone-persona{background:radial-gradient(ellipse at 50% 30%,#ffd16688,transparent 55%),radial-gradient(ellipse at 50% 110%,#6a3dffaa,transparent 60%),#0d0820}
+.tone-final,.tone-quiet{background:radial-gradient(ellipse at 50% 0%,#1f8a4c99,transparent 55%),radial-gradient(ellipse at 100% 100%,#c9302c77,transparent 55%),radial-gradient(ellipse at 0% 90%,#ffd16644,transparent 50%),#071a12}
+
+.yr-kicker{margin:0 0 8px;font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:#ffffffb3}
+.yr-slide h2{margin:0 0 10px;font-size:26px;line-height:1.15;font-weight:750;letter-spacing:-.02em}
+.yr-slide p{margin:0;color:#ffffffd9;font-size:16px;line-height:1.4}
+.yr-center{text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+.yr-hero{text-align:center;display:flex;flex-direction:column;align-items:center}
+.yr-hero .avatar.large{width:96px;height:96px;font-size:34px;box-shadow:0 0 0 4px #ffffff30,0 18px 50px #0008;margin-bottom:22px}
+.yr-year{margin:0;font-size:clamp(84px,30vw,132px);line-height:.9;font-weight:850;letter-spacing:-.05em;background:linear-gradient(180deg,#fff,#c9d6ff);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 10px 60px #8ab8ff55}
+.yr-lead{margin-top:16px!important;font-size:18px!important;max-width:300px}
+.yr-big{font-size:clamp(68px,24vw,112px);line-height:1;font-weight:850;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 12px 50px #ff5f8f66}
+.yr-pill{display:inline-block;margin:10px 0 8px!important;padding:8px 14px;border-radius:999px;background:#ffffff26;font-weight:650;font-size:14px!important}
+.yr-emoji{font-size:96px;line-height:1.1;filter:drop-shadow(0 14px 40px #0008)}
+.yr-pop{animation:yr-pop .9s cubic-bezier(.2,1.6,.4,1) .25s both}
+@keyframes yr-pop{from{transform:scale(.2) rotate(-20deg);opacity:0}}
+.yr-title{font-size:36px!important}
+
+.yr-bars{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.yr-bar{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;font-size:15px}
+.yr-bar i{grid-column:1/-1;grid-row:2;height:12px;border-radius:12px;background:linear-gradient(90deg,#ffffff,#9fdcff);width:var(--w);transform-origin:left;animation:yr-grow 1s cubic-bezier(.2,.8,.2,1) .3s both}
+.yr-bar b{font-variant-numeric:tabular-nums}
+@keyframes yr-grow{from{transform:scaleX(0)}}
+
+.yr-months{display:flex;align-items:flex-end;gap:5px;height:130px;margin:16px 0 20px}
+.yr-months span{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.yr-months i{display:block;width:100%;height:var(--h);border-radius:6px;background:#ffffff4d;transform-origin:bottom;animation:yr-up .9s cubic-bezier(.2,.8,.2,1) .2s both}
+.yr-months .peak i{background:linear-gradient(180deg,#7dffc4,#4fd8ff);box-shadow:0 0 22px #7dffc488}
+.yr-months small{font-size:11px;color:#ffffffa6}
+@keyframes yr-up{from{transform:scaleY(0)}}
+.yr-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.yr-facts div{padding:12px 10px;border-radius:16px;background:#ffffff1a;backdrop-filter:blur(8px)}
+.yr-facts b{display:block;font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.yr-facts div:last-child b{font-size:15px}
+.yr-facts small{display:block;margin-top:4px;font-size:12px;line-height:1.25;color:#ffffffbf}
+
+.yr-best{text-align:center;margin:10px 0 18px}
+.yr-best .avatar.large{width:104px;height:104px;font-size:38px;margin:0 auto 12px;box-shadow:0 0 0 4px #ffd16699,0 0 50px #ffd16666}
+.yr-people{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.yr-people li{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:16px;background:#ffffff1a}
+.yr-people li>span:nth-of-type(3){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yr-rank{width:20px;font-weight:800;color:#ffd166}
+.yr-people .avatar{width:36px;height:36px;font-size:14px}
+
+.yr-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.yr-tile{display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:20px;background:#ffffff1c;backdrop-filter:blur(8px);min-height:126px;justify-content:flex-end}
+.yr-tile b{font-size:24px;font-variant-numeric:tabular-nums}
+.yr-tile small{font-size:12.5px;line-height:1.3;color:#ffffffc7}
+.yr-tile-emoji{font-size:30px;margin-bottom:auto}
+.yr-sticker{width:64px;height:64px;object-fit:contain;margin-bottom:auto}
+
+.yr-card{padding:20px;border-radius:26px;background:linear-gradient(150deg,#ffffff2e,#ffffff0d);border:1px solid #ffffff40;backdrop-filter:blur(14px);box-shadow:0 24px 70px #0007}
+.yr-card-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.yr-card-head b{display:block;font-size:17px}
+.yr-card-head small{color:#ffffffb3}
+.yr-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.yr-card-grid div{padding:12px;border-radius:16px;background:#0000002e}
+.yr-card-grid b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
+.yr-card-grid small{font-size:12px;color:#ffffffbf}
+.yr-card-line{margin-top:14px!important;font-size:14px!important}
+.yr-wish{text-align:center;margin:22px 0 14px!important}
+.yr-actions{display:flex;gap:10px}
+.yr-actions button{flex:1}
+.yr .primary{background:#fff;color:#0b1030}
+.yr .secondary{background:#ffffff26;color:#fff;border-color:transparent}
+
+@media(prefers-reduced-motion:reduce){
+  .ny-snow,.yr-flakes{display:none}
+  .ny-garland span,.ny-banner-tree,.ny-news-hero,.ny-banner:before{animation:none}
+  .yr-slide.active>*,.yr-bar i,.yr-months i,.yr-pop{animation:none}
+}

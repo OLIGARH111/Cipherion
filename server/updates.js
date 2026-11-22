@@ -48,6 +48,20 @@ export const EVENTS=[{
     ['🍬 «Сладость или гадость»\n\nМини-игра в личных чатах и группах — в меню 📎','sunset'],
     ['🦇 Жуткие стикеры\n\nНабор «Хэллоуин» уже в вашей панели стикеров','night']
   ]
+},{
+  // Opens on 1 December (Moscow time): `from` holds the stories back until then.
+  id:'newyear-2026',
+  highlight:'Новый год',
+  emoji:'🎄',
+  text:'Снег, новогодние темы и ваши итоги 2026 года — до 14 января',
+  from:Date.UTC(2026,10,30,21,0),
+  until:Date.UTC(2027,0,14,21,0),
+  stories:[
+    ['🎄 Новый год в Cipherion\n\nС 1 декабря по 14 января','night'],
+    ['✨ Ваши итоги 2026\n\nСколько сообщений, с кем больше всего общались и кто вы в этом году. Баннер над списком чатов','aurora'],
+    ['❄️ Снег и гирлянда\n\nТемы «Зимняя ночь» и «Ёлка». Настройки → 🎄 Новый год','ocean'],
+    ['🎆 Обратный отсчёт\n\nБаннер считает дни до Нового года, а в полночь — салют','sunset']
+  ]
 }];
 
 export function createUpdates({db,one,all,run,now,id,official}){
@@ -64,12 +78,12 @@ export function createUpdates({db,one,all,run,now,id,official}){
   function publish(){
     const result={releases:[],events:[]};
     for(const r of RELEASES){if(!claim(r.id))continue;postStories(r.stories,r.highlight,now()+r.days*DAY);const sent=official.announce(r.message);result.releases.push({id:r.id,sent});}
-    for(const e of EVENTS){if(e.until<=now()||!claim(e.id))continue;postStories(e.stories,e.highlight,e.until);result.events.push(e.id);}
+    for(const e of EVENTS){if(e.until<=now()||(e.from&&e.from>now())||!claim(e.id))continue;postStories(e.stories,e.highlight,e.until);result.events.push(e.id);}
     return result;
   }
   // The running event, for the «События» card: its stories, newest event first.
   function currentEvent(){
-    const e=EVENTS.find(x=>x.until>now()&&one('SELECT id FROM official_releases WHERE id=?',x.id));
+    const e=EVENTS.find(x=>x.until>now()&&!(x.from>now())&&one('SELECT id FROM official_releases WHERE id=?',x.id));
     if(!e)return null;
     return {id:e.id,title:e.highlight,emoji:e.emoji,text:e.text,until:e.until,author:official.botId,stories:all("SELECT id FROM stories WHERE user_id=? AND highlight=? AND deleted=0 AND expires>? ORDER BY created",official.botId,e.highlight,now()).map(r=>r.id)};
   }

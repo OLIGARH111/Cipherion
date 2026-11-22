@@ -28,6 +28,7 @@ import { createAI } from './ai.js';
 import { validateWallpaperSettings } from './wallpapers.js';
 import { createE2E } from './e2e.js';
 import { createHalloween, GHOST_SECONDS } from './halloween.js';
+import { createNewYear } from './newyear.js';
 import { createLinkPreview } from './link-preview.js';
 import { createChatFeatures } from './chat-features.js';
 import { createDeviceLogin } from './device-login.js';
@@ -200,6 +201,9 @@ migrate(db);
 const official=createOfficial({db,one,all,run,fail,now,id,broadcast,isAdmin:adminAccess.isAdmin});
 const updates=createUpdates({db,one,all,run,now,id,official});
 try{updates.publish();}catch(error){logFailure('official_release_failed',error);}
+// Seasonal events start on their own date, so look for one that has just opened every hour.
+setInterval(()=>{try{updates.publish();}catch(error){logFailure('official_release_failed',error);}},3600_000).unref();
+const newYear=createNewYear({db,one,all,now,profile:(u,viewer)=>publicUser(u,viewer),isBot:uid=>official.isBot(uid)||bots.isBot(uid),isOfficialChat:chatId=>official.isOfficialChat(chatId)});
 const accounts=createAccounts({one,all,run,now,fail,clean,publicUser,privacy,streams});
 const emailAuth=createEmailAuth({db,one,all,run,fail,now,id,rate,accounts,publicUser,security,emit,family});
 const recovery=createRecovery({db,one,run,fail,now,rate,accounts,publicUser,security,streams});
@@ -322,7 +326,7 @@ const server = http.createServer(async (req, res) => {
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode, ...(b.register?{recoveryKey:recovery.issue(account.id)}:{}) });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, ...await rtcConfigurationAsync(user.id) }); }
+    if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, newYear:{active:newYear.season(),year:newYear.year(),at:newYear.countdown()}, ...await rtcConfigurationAsync(user.id) }); }
     if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
     // A child may finish the profile and manage parent linking before a parent is attached.
@@ -334,6 +338,7 @@ const server = http.createServer(async (req, res) => {
     if(await privacy.route({path,req,b,user,json}))return;
     if(await security.route({path,req,b,user,json}))return;
     if(path==='/api/stories/event'&&req.method==='GET')return json(updates.currentEvent());
+    if(path==='/api/year-review'&&req.method==='GET'){if(!newYear.season())fail(404,'Итоги года откроются в декабре');rate('year-review:'+user.id,20);return json(newYear.review(user));}
     if(await stories.route({path,req,b,user,json,url}))return;
     if(await polls.route({path,req,b,user,json,url}))return;
     if(await adminAccess.route({path,req,b,user,json}))return;
