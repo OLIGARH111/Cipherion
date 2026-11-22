@@ -326,7 +326,7 @@ const server = http.createServer(async (req, res) => {
       return json({ user: publicUser(account,account.id), settings: JSON.parse(account.settings), familyCode, ...(b.register?{recoveryKey:recovery.issue(account.id)}:{}) });
     }
     if (!user) fail(401, 'Войдите в аккаунт');
-    if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, newYear:{active:newYear.season(),year:newYear.year(),at:newYear.countdown()}, ...await rtcConfigurationAsync(user.id) }); }
+    if (path === '/api/me' && req.method === 'GET') { official.ensure(user.id); return json({ user: {...publicUser(user,user.id),vip:vip.active(user.id)}, settings: JSON.parse(user.settings), family:family.info(user.id), rtcDebug:process.env.NODE_ENV==='development', transcription: !!process.env.TRANSCRIPTION_KEY, halloween:{active:halloween.season(),ghostSeconds:GHOST_SECONDS}, newYear:{active:newYear.season(),review:newYear.reviewOpen(),year:newYear.year(),at:newYear.countdown()}, ...await rtcConfigurationAsync(user.id) }); }
     if(await communities.route({path,req,b,user,json}))return;
     if(await family.route({path,req,b,user,json}))return;
     // A child may finish the profile and manage parent linking before a parent is attached.
@@ -338,7 +338,7 @@ const server = http.createServer(async (req, res) => {
     if(await privacy.route({path,req,b,user,json}))return;
     if(await security.route({path,req,b,user,json}))return;
     if(path==='/api/stories/event'&&req.method==='GET')return json(updates.currentEvent());
-    if(path==='/api/year-review'&&req.method==='GET'){if(!newYear.season())fail(404,'Итоги года откроются в декабре');rate('year-review:'+user.id,20);return json(newYear.review(user));}
+    if(path==='/api/year-review'&&req.method==='GET'){if(!newYear.reviewOpen())fail(404,'Итоги года доступны с 28 декабря по 31 января');rate('year-review:'+user.id,20);return json(newYear.review(user));}
     if(await stories.route({path,req,b,user,json,url}))return;
     if(await polls.route({path,req,b,user,json,url}))return;
     if(await adminAccess.route({path,req,b,user,json}))return;

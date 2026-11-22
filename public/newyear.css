@@ -40,6 +40,7 @@
 /* Settings */
 .ny-settings-group .settings-icon{--c:#2f9e6a!important}
 .ny-open-review{width:100%;margin-bottom:12px}
+.ny-review-soon{margin:0 0 12px;padding:12px 14px;border-radius:14px;background:#6ab7ff1f;line-height:1.4}
 .ny-theme-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .ny-theme-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:4px;height:92px;padding:10px;border-radius:16px;border:2px solid transparent;color:#fff;font-weight:600;cursor:pointer;background:linear-gradient(160deg,#6ab7ff,#101a4a)}
 .ny-theme-card[data-ny-theme="Ёлка"]{background:linear-gradient(160deg,#1f8a4c,#0b2a17 70%,#c9302c)}

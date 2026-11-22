@@ -1,4 +1,4 @@
-// New Year season (1 December – 14 January): snow, a garland over the chat list, a countdown banner,
+// New Year season (1 December – 14 February; «Итоги года» 28 December – 31 January): snow, a garland over the chat list, a countdown banner,
 // «Что нового», two winter themes and «Итоги года» — full-screen slides with the person's year in numbers.
 // The server decides whether the season is on (/api/me → newYear.active); the user can switch the decoration off.
 import {$,esc,api,modal,guard,toast,avatar} from './ui.js';
@@ -14,6 +14,25 @@ export function newYearActive(server,settings){return server?.newYear?.active===
 export function daysLeft(at,time=Date.now()){return Math.max(0,Math.ceil((at-time)/86400000));}
 export function plural(n,one,few,many){const a=Math.abs(n)%100,b=a%10;return a>10&&a<20?many:b===1?one:b>=2&&b<=4?few:many;}
 export const fmt=n=>Number(n||0).toLocaleString('ru-RU');
+
+// «Итоги года» have their own, shorter window inside the season (/api/me → newYear.review).
+export const reviewReady=state=>state?.newYear?.review===true;
+// Where the season is: before the review opens, while it is open, or after it closed (February).
+export function seasonPhase(newYear,time=Date.now()){
+  if(newYear?.review)return 'review';
+  const left=daysLeft(newYear?.at||0,time);
+  // After midnight on 1 January the next New Year is almost a year away.
+  return left>0&&left<200?'before':'after';
+}
+// The banner and «Что нового» come back once when the review opens.
+const PHASE=state=>STAMP(state)+(reviewReady(state)?'-review':'');
+export function bannerText(newYear,time=Date.now()){
+  const left=daysLeft(newYear?.at||0,time),phase=seasonPhase(newYear,time);
+  const count=phase!=='after'&&left>0&&left<200?`До Нового года ${left} ${plural(left,'день','дня','дней')}`:'С Новым годом! 🎆';
+  if(phase==='review')return {title:`Ваши итоги ${newYear.year}`,text:`${count} · итоги открыты до 31 января`};
+  if(phase==='before')return {title:'Новый год в Cipherion',text:`${count} · итоги года — с 28 декабря`};
+  return {title:'С Новым годом! 🎆',text:'Снег, темы и стикеры — до 14 февраля'};
+}
 
 // ---------- Decoration: body class, snow, garland, banner, theme restore ----------
 export function syncNewYear(state,save){
@@ -44,15 +63,14 @@ function garland(show){
 }
 function banner(state,save){
   const header=document.querySelector('.side-header'),old=document.querySelector('.ny-banner');
-  const show=newYearActive(state,state.settings)&&state.settings.newYearBanner!==STAMP(state)&&header;
+  const show=newYearActive(state,state.settings)&&state.settings.newYearBanner!==PHASE(state)&&header;
   if(!show){old?.remove();return;}
-  const left=daysLeft(state.newYear.at),year=state.newYear.year;
-  const count=left>0?`До Нового года ${left} ${plural(left,'день','дня','дней')}`:'С Новым годом! 🎆';
-  const html=`<span class="ny-banner-tree" aria-hidden="true">🎄</span><span class="ny-banner-text"><b>Ваши итоги ${esc(year)}</b><small>${count} · посмотрите, каким был ваш год</small></span><button type="button" class="ny-banner-close" aria-label="Скрыть баннер">✕</button>`;
+  const {title,text}=bannerText(state.newYear);
+  const html=`<span class="ny-banner-tree" aria-hidden="true">${reviewReady(state)?'✨':'🎄'}</span><span class="ny-banner-text"><b>${esc(title)}</b><small>${esc(text)}</small></span><button type="button" class="ny-banner-close" aria-label="Скрыть баннер">✕</button>`;
   if(old){old.innerHTML=html;return;}
-  header.insertAdjacentHTML('beforeend',`<div class="ny-banner" role="button" tabindex="0" aria-label="Итоги года в Cipherion">${html}</div>`);
+  header.insertAdjacentHTML('beforeend',`<div class="ny-banner" role="button" tabindex="0" aria-label="${reviewReady(state)?'Итоги года в Cipherion':'Новый год в Cipherion'}">${html}</div>`);
   const el=document.querySelector('.ny-banner');
-  el.onclick=guard(async e=>{if(e.target.closest('.ny-banner-close')){e.stopPropagation();state.settings.newYearBanner=STAMP(state);el.remove();await save();return;}await openYearReview(state);});
+  el.onclick=guard(async e=>{if(e.target.closest('.ny-banner-close')){e.stopPropagation();state.settings.newYearBanner=PHASE(state);el.remove();await save();return;}if(reviewReady(state))await openYearReview(state);else newYearNews(state,save);});
   el.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===el){e.preventDefault();el.click();}};
 }
 // Salute at midnight for those who meet the New Year with the app open.
@@ -66,38 +84,39 @@ function scheduleMidnight(state){
 
 // ---------- «Что нового» ----------
 export function maybeNewYearNews(state,save){
-  if(!newYearActive(state,state.settings)||state.settings.newYearSeen===STAMP(state))return;
+  if(!newYearActive(state,state.settings)||state.settings.newYearSeen===PHASE(state))return;
   setTimeout(()=>{if(!document.querySelector('#modal')?.open&&!document.querySelector('.yr'))newYearNews(state,save);},1100);
 }
 export function newYearNews(state,save){
-  const s=state.settings,themed=NEW_YEAR_THEMES.includes(s.theme),year=state.newYear?.year||'';
+  const s=state.settings,themed=NEW_YEAR_THEMES.includes(s.theme),year=state.newYear?.year||'',phase=seasonPhase(state.newYear);
   const feature=(icon,title,text)=>`<div class="ny-feature"><span aria-hidden="true">${icon}</span><div><b>${title}</b><small>${text}</small></div></div>`;
-  const el=modal('Новый год в Cipherion',`<div class="ny-news"><div class="ny-news-hero" aria-hidden="true">🎄</div><p class="ny-news-lead">С 1 декабря по 14 января</p>
-    ${feature('✨',`Итоги ${esc(year)}`,'Сколько вы написали, с кем общались чаще всего, любимый стикер и кто вы в этом году.')}
+  const el=modal('Новый год в Cipherion',`<div class="ny-news"><div class="ny-news-hero" aria-hidden="true">🎄</div><p class="ny-news-lead">С 1 декабря по 14 февраля</p>
+    ${phase==='after'?'':feature('✨',`Итоги ${esc(year)}`,`Сколько вы написали, с кем общались чаще всего, любимый стикер и кто вы в этом году. ${phase==='review'?'Открыты до 31 января.':'Откроются 28 декабря и будут доступны до 31 января.'}`)}
     ${feature('❄️','Снег и гирлянда','Снегопад на фоне и огоньки над списком чатов. Отключаются в настройках.')}
     ${feature('🌌','Темы «Зимняя ночь» и «Ёлка»','Ледяное сияние или ёлочная зелень с золотом.')}
     ${feature('⛄','Стикеры «Новый год»','12 анимированных стикеров: снеговик, ёлка, подарок, салют, мандаринка и другие. Уже в вашей панели стикеров.')}
-    ${feature('🎆','Обратный отсчёт и салют','Баннер считает дни до праздника, а в полночь — салют.')}
+    ${phase==='before'?feature('🎆','Обратный отсчёт и салют','Баннер считает дни до праздника, а в полночь — салют.'):''}
     <p class="ny-news-note">${themed?'Тема уже включена.':'Если включить тему здесь, после праздников вернётся ваша прежняя.'}</p>
-    <button class="primary" id="ny-review">Смотреть мои итоги</button>${themed?'':'<button class="secondary" id="ny-theme-on">Включить «Зимнюю ночь»</button>'}<button class="secondary" id="ny-later">Позже</button></div>`);
-  const done=async()=>{if(s.newYearSeen!==STAMP(state)){s.newYearSeen=STAMP(state);await save();}};
+    ${phase==='review'?'<button class="primary" id="ny-review">Смотреть мои итоги</button>':''}${themed?'':`<button class="${phase==='review'?'secondary':'primary'}" id="ny-theme-on">Включить «Зимнюю ночь»</button>`}<button class="secondary" id="ny-later">Позже</button></div>`);
+  const done=async()=>{if(s.newYearSeen!==PHASE(state)){s.newYearSeen=PHASE(state);await save();}};
   el.addEventListener('close',()=>{done().catch(()=>{});},{once:true});
   $('#ny-later').onclick=()=>el.close();
-  $('#ny-review').onclick=guard(async()=>{el.close();await openYearReview(state);});
-  if($('#ny-theme-on'))$('#ny-theme-on').onclick=guard(async()=>{s.newYearPrevTheme=s.theme||'Emerald';s.theme='Зимняя ночь';delete s.accent;s.newYear=true;s.newYearSeen=STAMP(state);await save();el.close();toast('Тема «Зимняя ночь» включена ❄️');});
+  if($('#ny-review'))$('#ny-review').onclick=guard(async()=>{el.close();await openYearReview(state);});
+  if($('#ny-theme-on'))$('#ny-theme-on').onclick=guard(async()=>{s.newYearPrevTheme=s.theme||'Emerald';s.theme='Зимняя ночь';delete s.accent;s.newYear=true;s.newYearSeen=PHASE(state);await save();el.close();toast('Тема «Зимняя ночь» включена ❄️');});
 }
 
 // ---------- Settings ----------
 export function newYearSettings(state,save){
   const s=state.settings,row=(key,title,detail,value)=>`<label class="setting-row"><div>${title}<small>${detail}</small></div><input type="checkbox" data-ny="${key}" ${value?'checked':''}></label>`;
-  modal('🎄 Новый год',`<button class="primary ny-open-review" id="ny-settings-review">✨ Мои итоги ${esc(state.newYear?.year||'')}</button>
-    <div class="settings-group">${row('newYear','Новогоднее оформление','Баннер с отсчётом и итогами до 14 января',s.newYear!==false)}${row('newYearFx','Снегопад','Снежинки на фоне приложения',s.newYearFx!==false)}${row('newYearGarland','Гирлянда','Огоньки над списком чатов',s.newYearGarland!==false)}</div>
+  const phase=seasonPhase(state.newYear),year=esc(state.newYear?.year||'');
+  modal('🎄 Новый год',`${phase==='review'?`<button class="primary ny-open-review" id="ny-settings-review">✨ Мои итоги ${year}</button>`:phase==='before'?`<p class="note ny-review-soon">✨ Итоги ${year} откроются 28 декабря и будут доступны до 31 января.</p>`:''}
+    <div class="settings-group">${row('newYear','Новогоднее оформление','Баннер, снег и гирлянда до 14 февраля',s.newYear!==false)}${row('newYearFx','Снегопад','Снежинки на фоне приложения',s.newYearFx!==false)}${row('newYearGarland','Гирлянда','Огоньки над списком чатов',s.newYearGarland!==false)}</div>
     <h3 class="group-caption">Темы</h3><div class="ny-theme-row">${NEW_YEAR_THEMES.map(name=>`<button type="button" class="ny-theme-card ${s.theme===name?'selected':''}" data-ny-theme="${esc(name)}"><span>${name==='Ёлка'?'🎄':'❄️'}</span>${esc(name)}</button>`).join('')}</div>
     <button class="secondary" id="ny-news">Что нового</button>`);
   document.querySelectorAll('[data-ny]').forEach(el=>el.onchange=guard(async()=>{s[el.dataset.ny]=el.checked;await save();}));
   document.querySelectorAll('[data-ny-theme]').forEach(el=>el.onclick=guard(async()=>{if(!NEW_YEAR_THEMES.includes(s.theme))s.newYearPrevTheme=s.theme||'Emerald';s.theme=el.dataset.nyTheme;delete s.accent;await save();document.querySelectorAll('[data-ny-theme]').forEach(b=>b.classList.toggle('selected',b===el));}));
   $('#ny-news').onclick=()=>newYearNews(state,save);
-  $('#ny-settings-review').onclick=guard(async()=>{$('#modal').close();await openYearReview(state);});
+  if($('#ny-settings-review'))$('#ny-settings-review').onclick=guard(async()=>{$('#modal').close();await openYearReview(state);});
 }
 
 // ---------- «Итоги года» ----------

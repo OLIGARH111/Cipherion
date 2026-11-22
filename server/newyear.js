@@ -4,19 +4,29 @@
 
 const MSK=3*3600_000,DAY=86400_000;
 
-// Season window in Moscow time: 1 December – 14 January inclusive.
+// Season window in Moscow time: 1 December – 14 February inclusive.
 // NEWYEAR=on|off overrides it (for testing on a staging server).
 export function newYearSeason(time=Date.now(),env=process.env){
   if(env.NEWYEAR==='on')return true;
   if(env.NEWYEAR==='off')return false;
   const d=new Date(time+MSK),month=d.getUTCMonth(),day=d.getUTCDate();
-  return month===11||(month===0&&day<=14);
+  return month===11||month===0||(month===1&&day<=14);
 }
 
-// The year «Итоги» are about: in January it is the year that has just ended.
+// «Итоги года» open later and close earlier than the season: 28 December – 31 January inclusive.
+// YEAR_REVIEW=on|off overrides it; NEWYEAR=on|off switches it together with the season.
+export function reviewOpen(time=Date.now(),env=process.env){
+  const force=env.YEAR_REVIEW||env.NEWYEAR;
+  if(force==='on')return true;
+  if(force==='off')return false;
+  const d=new Date(time+MSK),month=d.getUTCMonth(),day=d.getUTCDate();
+  return (month===11&&day>=28)||month===0;
+}
+
+// The year «Итоги» are about: in January and February it is the year that has just ended.
 export function reviewYear(time=Date.now()){
   const d=new Date(time+MSK);
-  return d.getUTCMonth()===0&&d.getUTCDate()<=14?d.getUTCFullYear()-1:d.getUTCFullYear();
+  return d.getUTCMonth()<=1?d.getUTCFullYear()-1:d.getUTCFullYear();
 }
 
 // The next 1 January 00:00 in Moscow time, for the countdown.
@@ -129,5 +139,5 @@ export function createNewYear({db,one,all,now,profile,isBot,isOfficialChat,ttl=1
     return value;
   }
 
-  return {season:()=>newYearSeason(now()),year:()=>reviewYear(now()),countdown:()=>nextNewYear(now()),review};
+  return {season:()=>newYearSeason(now()),reviewOpen:()=>reviewOpen(now()),year:()=>reviewYear(now()),countdown:()=>nextNewYear(now()),review};
 }

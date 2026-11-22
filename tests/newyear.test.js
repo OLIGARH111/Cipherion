@@ -4,24 +4,50 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { newYearSeason, reviewYear, nextNewYear, longestStreak, persona } from '../server/newyear.js';
-import { newYearActive, daysLeft, plural, reviewSlides, shareText } from '../public/newyear.js';
-import { EVENTS } from '../server/updates.js';
+import { newYearSeason, reviewOpen, reviewYear, nextNewYear, longestStreak, persona } from '../server/newyear.js';
+import { newYearActive, daysLeft, plural, reviewSlides, shareText, seasonPhase, bannerText } from '../public/newyear.js';
+import { EVENTS, createUpdates } from '../server/updates.js';
+import { DatabaseSync } from 'node:sqlite';
 
-test('season covers 1 December – 14 January in Moscow time and can be forced', () => {
+test('season covers 1 December – 14 February in Moscow time and can be forced', () => {
   const at = s => Date.parse(s);
   assert.equal(newYearSeason(at('2026-11-30T20:59:00Z'), {}), false);
   assert.equal(newYearSeason(at('2026-11-30T21:00:00Z'), {}), true);
   assert.equal(newYearSeason(at('2026-12-31T23:00:00Z'), {}), true);
-  assert.equal(newYearSeason(at('2027-01-14T20:59:00Z'), {}), true);
-  assert.equal(newYearSeason(at('2027-01-14T21:00:00Z'), {}), false);
+  assert.equal(newYearSeason(at('2027-01-20T12:00:00Z'), {}), true);
+  assert.equal(newYearSeason(at('2027-02-14T20:59:00Z'), {}), true);
+  assert.equal(newYearSeason(at('2027-02-14T21:00:00Z'), {}), false);
   assert.equal(newYearSeason(at('2026-07-01T00:00:00Z'), { NEWYEAR: 'on' }), true);
   assert.equal(newYearSeason(at('2026-12-15T00:00:00Z'), { NEWYEAR: 'off' }), false);
+});
+
+test('«Итоги года» open 28 December – 31 January in Moscow time', () => {
+  const at = s => Date.parse(s);
+  assert.equal(reviewOpen(at('2026-12-01T12:00:00Z'), {}), false);
+  assert.equal(reviewOpen(at('2026-12-27T20:59:00Z'), {}), false);
+  assert.equal(reviewOpen(at('2026-12-27T21:00:00Z'), {}), true);
+  assert.equal(reviewOpen(at('2027-01-31T20:59:00Z'), {}), true);
+  assert.equal(reviewOpen(at('2027-01-31T21:00:00Z'), {}), false);
+  assert.equal(reviewOpen(at('2027-02-10T12:00:00Z'), {}), false);
+  assert.equal(reviewOpen(at('2026-12-10T12:00:00Z'), { NEWYEAR: 'on' }), true);
+  assert.equal(reviewOpen(at('2026-12-10T12:00:00Z'), { NEWYEAR: 'on', YEAR_REVIEW: 'off' }), false);
+  assert.equal(reviewOpen(at('2026-12-30T12:00:00Z'), { YEAR_REVIEW: 'off' }), false);
+});
+
+test('the banner follows the phase of the season', () => {
+  const at = Date.parse('2026-12-31T21:00:00Z');
+  assert.equal(seasonPhase({ review: false, at }, Date.parse('2026-12-10T12:00:00Z')), 'before');
+  assert.match(bannerText({ review: false, at, year: 2026 }, Date.parse('2026-12-10T12:00:00Z')).text, /До Нового года 22 дня · итоги года — с 28 декабря/);
+  assert.equal(bannerText({ review: true, at, year: 2026 }, Date.parse('2026-12-29T12:00:00Z')).title, 'Ваши итоги 2026');
+  const feb = { review: false, at: Date.parse('2027-12-31T21:00:00Z'), year: 2026 };
+  assert.equal(seasonPhase(feb, Date.parse('2027-02-05T12:00:00Z')), 'after');
+  assert.match(bannerText(feb, Date.parse('2027-02-05T12:00:00Z')).text, /до 14 февраля/);
 });
 
 test('«Итоги» in January are about the year that has just ended; the countdown aims at Moscow midnight', () => {
   assert.equal(reviewYear(Date.parse('2026-12-20T12:00:00Z')), 2026);
   assert.equal(reviewYear(Date.parse('2027-01-05T12:00:00Z')), 2026);
+  assert.equal(reviewYear(Date.parse('2027-02-05T12:00:00Z')), 2026);
   assert.equal(reviewYear(Date.parse('2026-11-22T12:00:00Z')), 2026);
   assert.equal(nextNewYear(Date.parse('2026-12-20T12:00:00Z')), Date.parse('2026-12-31T21:00:00Z'));
   assert.equal(daysLeft(Date.parse('2026-12-31T21:00:00Z'), Date.parse('2026-12-30T21:00:00Z')), 1);
@@ -53,10 +79,12 @@ test('client switch and slides skip what the year does not have', () => {
   assert.match(shareText(full), /1\s?234 сообщения/);
 });
 
-test('the New Year event waits for 1 December', () => {
-  const event = EVENTS.find(e => e.id === 'newyear-2026');
+test('the New Year event runs 1 December – 14 February, the year review 28 December – 31 January', () => {
+  const event = EVENTS.find(e => e.id === 'newyear-2026'), review = EVENTS.find(e => e.id === 'year-review-2026');
   assert.equal(event.from, Date.parse('2026-11-30T21:00:00Z'));
-  assert.ok(event.until > event.from);
+  assert.equal(event.until, Date.parse('2027-02-14T21:00:00Z'));
+  assert.equal(review.from, Date.parse('2026-12-27T21:00:00Z'));
+  assert.equal(review.until, Date.parse('2027-01-31T21:00:00Z'));
 });
 
 let server, base, dir;
@@ -73,6 +101,7 @@ test('«Итоги года» through the API', async () => {
   const a = await account('newyeara'), b = await account('newyearb'), c = await account('newyearc');
   const me = (await request('/me', a.cookie)).data;
   assert.equal(me.newYear.active, true);
+  assert.equal(me.newYear.review, true);
   assert.ok(me.newYear.at > Date.now());
   const ab = (await request('/chats', a.cookie, 'POST', { kind: 'direct', users: [b.data.user.id] })).data;
   const ac = (await request('/chats', a.cookie, 'POST', { kind: 'direct', users: [c.data.user.id] })).data;
@@ -113,4 +142,18 @@ test('the «Новый год» sticker pack is offered to everyone', async () =
   const items = (await request('/packs/v5-newyear', a.cookie)).data.items;
   assert.deepEqual(items.map(s => s.label).slice(0, 3), ['Привет', 'С Новым годом!', 'Подарок']);
   assert.equal(items[0].poster, '/stickers-v5/ny-00-still.svg');
+});
+
+test('«События» shows the year review while it runs, the New Year before and after it', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec("CREATE TABLE stories(id TEXT PRIMARY KEY,user_id TEXT,media_id TEXT,kind TEXT,caption TEXT,design TEXT,created INTEGER,expires INTEGER,audience TEXT,targets TEXT,replies INTEGER DEFAULT 1,highlight TEXT DEFAULT '',deleted INTEGER DEFAULT 0)");
+  const one = (q, ...a) => db.prepare(q).get(...a), all = (q, ...a) => db.prepare(q).all(...a), run = (q, ...a) => db.prepare(q).run(...a);
+  let clock = Date.UTC(2026, 11, 10), n = 0;
+  const updates = createUpdates({ db, one, all, run, now: () => clock, id: () => 'id' + (++n), official: { botId: 'bot', announce: () => 0 } });
+  assert.ok(updates.publish().events.includes('newyear-2026'));
+  assert.equal(updates.currentEvent().title, 'Новый год');
+  clock = Date.UTC(2026, 11, 28, 9); assert.deepEqual(updates.publish().events, ['year-review-2026']);
+  assert.equal(updates.currentEvent().title, 'Итоги года');
+  clock = Date.UTC(2027, 1, 5); assert.equal(updates.currentEvent().title, 'Новый год');
+  clock = Date.UTC(2027, 1, 15); assert.equal(updates.currentEvent(), null);
 });

@@ -53,15 +53,29 @@ export const EVENTS=[{
   id:'newyear-2026',
   highlight:'Новый год',
   emoji:'🎄',
-  text:'Снег, новогодние темы, стикеры и ваши итоги 2026 года — до 14 января',
+  text:'Снег, новогодние темы и стикеры — до 14 февраля, итоги 2026 года — с 28 декабря',
   from:Date.UTC(2026,10,30,21,0),
-  until:Date.UTC(2027,0,14,21,0),
+  until:Date.UTC(2027,1,14,21,0),
   stories:[
-    ['🎄 Новый год в Cipherion\n\nС 1 декабря по 14 января','night'],
-    ['✨ Ваши итоги 2026\n\nСколько сообщений, с кем больше всего общались и кто вы в этом году. Баннер над списком чатов','aurora'],
+    ['🎄 Новый год в Cipherion\n\nС 1 декабря по 14 февраля','night'],
+    ['✨ Итоги 2026 — с 28 декабря\n\nСколько сообщений, с кем больше всего общались и кто вы в этом году. Откроются до 31 января','aurora'],
     ['❄️ Снег и гирлянда\n\nТемы «Зимняя ночь» и «Ёлка». Настройки → 🎄 Новый год','ocean'],
     ['⛄ Стикеры «Новый год»\n\nСнеговик, ёлка, подарок, салют и мандаринка — уже в вашей панели стикеров','night'],
     ['🎆 Обратный отсчёт\n\nБаннер считает дни до Нового года, а в полночь — салют','sunset']
+  ]
+},{
+  // «Итоги года» open on 28 December and close after 31 January (Moscow time).
+  id:'year-review-2026',
+  highlight:'Итоги года',
+  emoji:'✨',
+  text:'Ваши итоги 2026 года — до 31 января',
+  from:Date.UTC(2026,11,27,21,0),
+  until:Date.UTC(2027,0,31,21,0),
+  stories:[
+    ['✨ Итоги 2026 открыты!\n\nДо 31 января включительно','aurora'],
+    ['💬 Сколько вы написали\n\nИ больше, чем какой процент пользователей','sunset'],
+    ['💛 Люди года\n\nС кем вы общались чаще всего','night'],
+    ['🦉 Кто вы в этом году?\n\nОткройте баннер над списком чатов','ocean']
   ]
 }];
 
@@ -82,9 +96,9 @@ export function createUpdates({db,one,all,run,now,id,official}){
     for(const e of EVENTS){if(e.until<=now()||(e.from&&e.from>now())||!claim(e.id))continue;postStories(e.stories,e.highlight,e.until);result.events.push(e.id);}
     return result;
   }
-  // The running event, for the «События» card: its stories, newest event first.
+  // The running event, for the «События» card: when two overlap, the one that started last.
   function currentEvent(){
-    const e=EVENTS.find(x=>x.until>now()&&!(x.from>now())&&one('SELECT id FROM official_releases WHERE id=?',x.id));
+    const e=[...EVENTS].sort((a,b)=>(b.from||0)-(a.from||0)).find(x=>x.until>now()&&!(x.from>now())&&one('SELECT id FROM official_releases WHERE id=?',x.id));
     if(!e)return null;
     return {id:e.id,title:e.highlight,emoji:e.emoji,text:e.text,until:e.until,author:official.botId,stories:all("SELECT id FROM stories WHERE user_id=? AND highlight=? AND deleted=0 AND expires>? ORDER BY created",official.botId,e.highlight,now()).map(r=>r.id)};
   }
