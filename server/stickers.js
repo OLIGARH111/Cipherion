@@ -41,7 +41,10 @@ export function createStickers({beforeSend=()=>{},sealSticker=()=>{throw Object.
  // Seasonal pack «Хэллоуин» (scripts/build-halloween-stickers.js), offered to everyone and kept after the season.
  run("INSERT OR IGNORE INTO sticker_packs VALUES('v5-halloween',NULL,'sticker','Хэллоуин','Сезонные · Тыквы, призраки, котлы и летучие мыши','public',30,30,0)");
  seasonal.halloween.forEach(({label,emoji},n)=>run('INSERT OR IGNORE INTO stickers VALUES(?,?,?,?,?,?,0)','v5-halloween-'+n,'v5-halloween',label,emoji,n,'/stickers-v5/hw-'+String(n).padStart(2,'0')+'.svg'));
- const featured=['v5-halloween','v4-sifa',...v3.map(([slug])=>'v3-'+slug)];
+ // Seasonal pack «Новый год» (scripts/build-newyear-stickers.js), offered to everyone and kept after the holidays.
+ run("INSERT OR IGNORE INTO sticker_packs VALUES('v5-newyear',NULL,'sticker','Новый год','Сезонные · Снеговик, ёлка, подарки, салют и мандаринки','public',40,40,0)");
+ seasonal.newyear.forEach(({label,emoji},n)=>run('INSERT OR IGNORE INTO stickers VALUES(?,?,?,?,?,?,0)','v5-newyear-'+n,'v5-newyear',label,emoji,n,'/stickers-v5/ny-'+String(n).padStart(2,'0')+'.svg'));
+ const featured=['v5-newyear','v5-halloween','v4-sifa',...v3.map(([slug])=>'v3-'+slug)];
  v3.forEach(([slug,title,description,labels,emoji],i)=>{const key='v3-'+slug;run("INSERT OR IGNORE INTO sticker_packs VALUES(?,NULL,'sticker',?,?,'public',?,?,0)",key,title,description,10-i,10-i);const marks=emoji.split(' ');labels.forEach((label,n)=>run('INSERT OR IGNORE INTO stickers VALUES(?,?,?,?,?,?,0)',key+'-'+n,key,label,marks[n]||'',n,'/stickers-v3/'+slug+'-'+String(n).padStart(2,'0')+'.svg'));});
  function offerFeatured(u){for(const key of featured)if(!one('SELECT 1 FROM featured_offered WHERE user_id=? AND pack_id=?',u,key)){run('INSERT OR IGNORE INTO featured_offered VALUES(?,?)',u,key);run('INSERT OR IGNORE INTO user_packs VALUES(?,?)',u,key);}}
  const stillOf=src=>src?.startsWith('/stickers-v2/dev-')||src?.startsWith('/stickers-v3/')||src?.startsWith('/stickers-v4/')||src?.startsWith('/stickers-v5/')?src.replace('.svg','-still.svg'):null;

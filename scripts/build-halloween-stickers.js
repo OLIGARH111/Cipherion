@@ -1,7 +1,7 @@
 // «Хэллоуин» — a seasonal animated pack drawn from scratch for Cipherion. Like the other vector
 // packs every sticker is a self-contained SVG with CSS keyframes that animates inside <img>;
 // the "-still" twin is the poster and the reduced-motion frame. Run: node scripts/build-halloween-stickers.js
-import {writeFileSync,mkdirSync} from 'node:fs';
+import {writeFileSync,readFileSync,mkdirSync,existsSync} from 'node:fs';
 const out='public/stickers-v5';
 mkdirSync(out,{recursive:true});
 
@@ -67,5 +67,7 @@ const stickers=[
 
 const pack=stickers.map(([label,emoji])=>({label,emoji}));
 stickers.forEach(([,,body],n)=>{const name=`hw-${String(n).padStart(2,'0')}`;writeFileSync(`${out}/${name}.svg`,svg(body));writeFileSync(`${out}/${name}-still.svg`,svg(body,{motion:false}));});
-writeFileSync(`${out}/packs.json`,JSON.stringify({halloween:pack},null,2)+'\n');
+// packs.json holds every seasonal pack: keep the others when this one is rebuilt.
+const packs=existsSync(`${out}/packs.json`)?JSON.parse(readFileSync(`${out}/packs.json`,'utf8')):{};
+writeFileSync(`${out}/packs.json`,JSON.stringify({...packs,halloween:pack},null,2)+'\n');
 console.log(`Wrote ${stickers.length} stickers to ${out}`);

@@ -98,3 +98,19 @@ test('«Итоги года» through the API', async () => {
   const empty = await request('/year-review', c.cookie);
   assert.equal(empty.data.messages, 0);
 });
+
+test('the «Новый год» sticker pack is offered to everyone', async () => {
+  const { readFileSync, existsSync } = await import('node:fs');
+  const packs = JSON.parse(readFileSync('public/stickers-v5/packs.json', 'utf8'));
+  assert.equal(packs.newyear.length, 12);
+  assert.equal(packs.halloween.length, 12, 'the Halloween pack stays next to it');
+  for (let n = 0; n < 12; n++) for (const suffix of ['', '-still']) assert.ok(existsSync(`public/stickers-v5/ny-${String(n).padStart(2, '0')}${suffix}.svg`));
+  const a = await account('newyearsticker');
+  const installed = (await request('/packs?mode=installed', a.cookie)).data;
+  const pack = installed.find(p => p.id === 'v5-newyear');
+  assert.ok(pack, 'installed for a new account');
+  assert.equal(installed[0].id, 'v5-newyear', 'listed first');
+  const items = (await request('/packs/v5-newyear', a.cookie)).data.items;
+  assert.deepEqual(items.map(s => s.label).slice(0, 3), ['Привет', 'С Новым годом!', 'Подарок']);
+  assert.equal(items[0].poster, '/stickers-v5/ny-00-still.svg');
+});

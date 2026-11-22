@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><style>
+.a{transform-box:fill-box;transform-origin:center;animation-timing-function:ease-in-out;animation-iteration-count:infinite}
+.bob{animation-name:bob;animation-duration:2.4s}.shadow{animation-name:shadow;animation-duration:2.4s}
+.wave{animation-name:wave;animation-duration:.8s;transform-origin:15% 90%}.blink{animation-name:blink;animation-duration:3.8s}
+.twinkle{animation-name:twinkle;animation-duration:1.4s}.glow{animation-name:glow;animation-duration:1.6s}
+.lid{animation-name:lid;animation-duration:2.2s;transform-origin:50% 100%}.spin{animation-name:spin;animation-duration:9s;animation-timing-function:linear}
+.swing{animation-name:swing;animation-duration:2.6s;transform-origin:50% 0%}.steam{animation-name:steam;animation-duration:2.6s;animation-timing-function:ease-out}
+.clinkL{animation-name:clinkL;animation-duration:1.6s;transform-origin:50% 100%}.clinkR{animation-name:clinkR;animation-duration:1.6s;transform-origin:50% 100%}
+.rise{animation-name:rise;animation-duration:1.8s;animation-timing-function:ease-out}.burst{animation-name:burst;animation-duration:1.8s;animation-timing-function:ease-out}
+.cross{animation-name:cross;animation-duration:3.4s;animation-timing-function:cubic-bezier(.3,0,.4,1)}.ear{animation-name:ear;animation-duration:2.2s}
+.float{animation-name:float;animation-duration:3s}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
+@keyframes shadow{0%,100%{transform:scaleX(1);opacity:.25}50%{transform:scaleX(.82);opacity:.13}}
+@keyframes wave{0%,100%{transform:rotate(0)}50%{transform:rotate(-24deg)}}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+@keyframes twinkle{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.45);opacity:.35}}
+@keyframes glow{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes lid{0%,55%,100%{transform:translateY(0) rotate(0)}70%{transform:translateY(-46px) rotate(-7deg)}82%{transform:translateY(-30px) rotate(4deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes swing{0%,100%{transform:rotate(9deg)}50%{transform:rotate(-9deg)}}
+@keyframes steam{0%{transform:translateY(20px);opacity:0}30%{opacity:.85}100%{transform:translateY(-60px);opacity:0}}
+@keyframes clinkL{0%,100%{transform:rotate(0)}45%{transform:rotate(14deg)}55%{transform:rotate(10deg)}}
+@keyframes clinkR{0%,100%{transform:rotate(0)}45%{transform:rotate(-14deg)}55%{transform:rotate(-10deg)}}
+@keyframes rise{0%{transform:translateY(0) scale(.5);opacity:0}25%{opacity:1}100%{transform:translateY(-110px) scale(1);opacity:0}}
+@keyframes burst{0%{transform:scale(.15);opacity:0}25%{opacity:1}100%{transform:scale(1.12);opacity:0}}
+@keyframes cross{0%{transform:translate(-200px,120px);opacity:0}15%{opacity:1}80%{opacity:1}100%{transform:translate(170px,-100px);opacity:0}}
+@keyframes ear{0%,80%,100%{transform:rotate(0)}88%{transform:rotate(-12deg)}}
+</style><style>*{animation:none!important}</style><defs>
+<radialGradient id="snow" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d4e2fb"/></radialGradient>
+<linearGradient id="tree" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4bdc86"/><stop offset="1" stop-color="#138048"/></linearGradient>
+<radialGradient id="red" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#ff7b7b"/><stop offset="1" stop-color="#c62a33"/></radialGradient>
+<radialGradient id="gold" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#f0ac35"/></radialGradient>
+<radialGradient id="orange" cx="38%" cy="32%" r="78%"><stop offset="0" stop-color="#ffcf70"/><stop offset=".65" stop-color="#ff951f"/><stop offset="1" stop-color="#e96b0c"/></radialGradient>
+<radialGradient id="blue" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#c9e8ff"/><stop offset=".55" stop-color="#5aa8ff"/><stop offset="1" stop-color="#2c5fd6"/></radialGradient>
+<radialGradient id="skin" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#ffe6d6"/><stop offset="1" stop-color="#f6b99c"/></radialGradient>
+<radialGradient id="fur" cx="40%" cy="35%" r="80%"><stop offset="0" stop-color="#c58a57"/><stop offset="1" stop-color="#8a5530"/></radialGradient>
+<radialGradient id="halo"><stop offset="0" stop-color="#ffd166" stop-opacity=".55"/><stop offset="1" stop-color="#ffd166" stop-opacity="0"/></radialGradient>
+<radialGradient id="redhalo"><stop offset="0" stop-color="#ff4d4d" stop-opacity=".6"/><stop offset="1" stop-color="#ff4d4d" stop-opacity="0"/></radialGradient>
+<linearGradient id="trail" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset="1" stop-color="#ffd166" stop-opacity="0"/></linearGradient>
+<linearGradient id="fizz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a3"/><stop offset="1" stop-color="#f2b84b"/></linearGradient>
+<linearGradient id="cocoa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9b6440"/><stop offset="1" stop-color="#5c3420"/></linearGradient>
+</defs><ellipse class="a shadow" cx="256" cy="476" rx="130" ry="16" fill="#000" opacity=".22"/><g class="a bob">
+  <path d="M152 236q-14 160 104 226 118-66 104-226z" fill="url(#snow)"/>
+  <circle cx="256" cy="246" r="92" fill="url(#skin)"/>
+  <path d="M150 236q4-170 160-150 70 10 92 90l-34 0q-20-60-60-70z" fill="url(#red)"/><g class="a float"><circle cx="404" cy="190" r="26" fill="url(#snow)"/></g>
+  <rect x="142" y="208" width="228" height="44" rx="22" fill="url(#snow)"/>
+  <g class="a blink"><circle cx="224" cy="270" r="10" fill="#1e2a40"/><circle cx="288" cy="270" r="10" fill="#1e2a40"/><circle cx="228" cy="266" r="3.2" fill="#fff"/><circle cx="292" cy="266" r="3.2" fill="#fff"/></g><path d="M216 254q14-10 28 0M268 254q14-10 28 0" stroke="#e8eef8" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <ellipse cx="200" cy="300" rx="16" ry="10" fill="#ff8fa3" opacity=".6"/><ellipse cx="312" cy="300" rx="16" ry="10" fill="#ff8fa3" opacity=".6"/><circle cx="256" cy="300" r="20" fill="#ff9a86"/>
+  <path d="M256 318q-30-18-70 8 30 24 70 0zM256 318q30-18 70 8-30 24-70 0z" fill="#fff"/><path d="M240 346q16 12 32 0" stroke="#c4475a" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <path d="M196 380q60 40 120 0M216 420q40 22 80 0" stroke="#dfe7f5" stroke-width="7" stroke-linecap="round" fill="none"/></g></svg>

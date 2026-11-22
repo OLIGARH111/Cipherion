@@ -21,7 +21,7 @@ export function profileVisual(p,user){let seed=42;const rand=()=>{seed=(seed*166
 }
 const accents=['#83d9b5','#7ecbff','#a99bff','#ff9ec4','#ffb36b','#ffd36e','#ff7b7b','#e9f2ef'];
 // Ready-made adaptive sets made from our own sticker packs.
-const adaptiveSets=[['Хэллоуин',[':ae[v5-halloween-0]',':ae[v5-halloween-1]',':ae[v5-halloween-2]']],['Сифа',[':ae[v4-sifa-0]',':ae[v4-sifa-1]',':ae[v4-sifa-6]']],['Мими',[':ae[v3-mimi-0]',':ae[v3-mimi-1]',':ae[v3-mimi-7]']],['Аура',[':ae[v3-aura-0]',':ae[v3-aura-1]',':ae[v3-aura-2]']]];
+const adaptiveSets=[['Новый год',[':ae[v5-newyear-0]',':ae[v5-newyear-1]',':ae[v5-newyear-7]']],['Хэллоуин',[':ae[v5-halloween-0]',':ae[v5-halloween-1]',':ae[v5-halloween-2]']],['Сифа',[':ae[v4-sifa-0]',':ae[v4-sifa-1]',':ae[v4-sifa-6]']],['Мими',[':ae[v3-mimi-0]',':ae[v3-mimi-1]',':ae[v3-mimi-7]']],['Аура',[':ae[v3-aura-0]',':ae[v3-aura-1]',':ae[v3-aura-2]']]];
 const emojiSets=[['💚','✨'],['🌸','🦋'],['⭐','🌙'],['🔥','⚡'],['☕','🍰'],['🎮','👾'],['🌊','🐚'],['❄️','💎']];
 const tabs=[['look','Фон'],['pattern','Узор'],['status','Статус'],['vip','VIP']];
 // Without VIP the studio is closed: show what it offers and let the person enter a promo code.
